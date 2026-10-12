@@ -472,3 +472,67 @@ export function ChoiceChip({
     </button>
   );
 }
+
+
+export type MediaCardProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+  poster: string;
+  posterAlt?: string;
+  title: string;
+  metadata?: ReactNode;
+  secondaryMetadata?: ReactNode;
+  rank?: string;
+  playIcon?: ReactNode;
+  posterClassName?: string;
+};
+
+/** Public catalog card shared by the main grid and related-content sections. */
+export function MediaCard({
+  poster,
+  posterAlt = "",
+  title,
+  metadata,
+  secondaryMetadata,
+  rank,
+  playIcon,
+  className = "",
+  posterClassName = "",
+  ...buttonProps
+}: MediaCardProps) {
+  return (
+    <button
+      {...buttonProps}
+      className={
+        "group media-card cursor-pointer overflow-hidden rounded-[10px] border border-transparent bg-transparent p-0 text-left text-[inherit] transition-transform duration-200 hover:-translate-y-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b] " +
+        className
+      }
+    >
+      <div className={"poster-wrap relative aspect-[16/10] overflow-hidden bg-[#171a22] max-[600px]:aspect-[4/3] " + posterClassName}>
+        <img
+          className="block h-full w-full object-cover transition-transform duration-[350ms] group-hover:scale-[1.04]"
+          src={poster}
+          alt={posterAlt}
+          loading="lazy"
+        />
+        {rank && (
+          <span className="poster-number absolute left-3 top-3 z-[1] rounded-[4px] border border-white/15 bg-[#080a10a6] px-1.5 py-1 text-[10px] text-white">
+            {rank}
+          </span>
+        )}
+        {playIcon && (
+          <span className="poster-play absolute bottom-3 right-3 z-[1] grid h-[30px] w-[30px] place-items-center rounded-full bg-[#c7f36b] text-[11px] text-[#10150a] opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            {playIcon}
+          </span>
+        )}
+      </div>
+      <div className="media-info flex flex-col gap-[7px] px-[3px] pt-[13px] pb-3 max-[600px]:pt-[10px]">
+        <strong className="overflow-hidden text-ellipsis text-[13px] font-semibold max-[600px]:text-[12px]">{title}</strong>
+        {metadata !== undefined && (
+          <span className="text-[10px] text-[#818793]">{metadata}</span>
+        )}
+        {secondaryMetadata !== undefined && (
+          <span className="media-type-label text-[10px] tracking-[.15px] text-[#a5adba]">{secondaryMetadata}</span>
+        )}
+      </div>
+    </button>
+  );
+}
