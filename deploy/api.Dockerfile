@@ -8,7 +8,11 @@ RUN pnpm install --frozen-lockfile --filter @visionhub/api...
 COPY apps/api apps/api
 COPY contracts contracts
 COPY configs configs
-RUN pnpm --filter @visionhub/api build
+RUN rm -rf apps/api/dist apps/api/tsconfig.tsbuildinfo apps/api/dist/tsconfig.tsbuildinfo \
+    && pnpm --filter @visionhub/api build \
+    && test -f apps/api/dist/main.js \
+    && test -f apps/api/dist/app.module.js \
+    && test -f apps/api/dist/catalog/catalog.module.js
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production

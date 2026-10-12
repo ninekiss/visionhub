@@ -11,3 +11,6 @@ configs/app.yaml
 .vscode/
 .idea/
 apps/api/prisma/*.db
+# TypeScript incremental build cache
+*.tsbuildinfo
+**/*.tsbuildinfo
