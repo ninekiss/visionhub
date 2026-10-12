@@ -2,7 +2,7 @@
 
 > Status date: 2026-10-12  
 > Repository: [ninekiss/visionhub](https://github.com/ninekiss/visionhub)  
-> Scope: current Web/API foundation → reusable application architecture → Electron desktop client  
+> Scope: retain the first-class Web client while evolving the shared foundation and adding an Electron desktop client  
 > This document is a roadmap and current-state assessment. It does not claim that future-phase work is already implemented.
 
 ## 1. Product and architecture direction
@@ -15,8 +15,9 @@ Core constraints:
 2. Reuse the existing PostgreSQL service. Compose must not create, own, or automatically replace the database container.
 3. Keep operational configuration outside business code. Validate required configuration at startup and fail with an actionable error rather than silently accepting malformed configuration.
 4. Keep Plyr as the player UI. Add protocol adapters such as HTML5 and HLS as needed; do not treat Plyr as a video decoder.
-5. Keep shared contracts, UI and configuration reusable across the web frontend and the planned desktop application.
-6. Prefer incremental, testable changes. Preserve working features and avoid broad rewrites without a migration need.
+5. Keep Web as a first-class, independently deployable client. Electron is an additional client, never a replacement for Web.
+6. Keep shared contracts, UI, features and configuration reusable across both clients; prevent their workflows from drifting.
+7. Prefer incremental, testable changes. Preserve working features and avoid broad rewrites without a migration need.
 
 ## 2. Current state snapshot
 
@@ -31,7 +32,7 @@ The following status is based on the repository code and lockfile on 2026-10-12.
 | Database | Prisma 7.10.0 and PostgreSQL; data lives in the separate `visionhub` schema | Implemented foundation |
 | Database ownership | Compose has API and web services only; PostgreSQL is reached through an external Docker network | Aligned |
 | Data changes | Explicit migration and seed commands; no migration on ordinary API startup | Aligned with safety constraint |
-| Runtime baseline | Repository engine requirement is Node >=22.13.0; CI and Dockerfiles use Node 22 | Upgrade to Node 24 LTS is planned |
+| Runtime baseline | Node.js 24.21.0 is pinned in `.nvmrc`, CI and Docker build stages; package engine requires `>=24.21.0 <25` | Phase 1 runtime alignment implemented; CI verification pending |
 | Package manager | pnpm 12.11.2 with a committed lockfile | Implemented; retain reproducible installs |
 | Configuration | Environment-specific YAML and environment variables exist | Partial; no strict Zod validation or single shared config package |
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
@@ -40,9 +41,9 @@ The following status is based on the repository code and lockfile on 2026-10-12.
 | Desktop | No `apps/desktop` or Electron shell | Not started |
 | Shared packages | Root `contracts/` exists, but reusable UI and config workspace packages do not | Partial |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
-| CI | Prisma validation, TypeScript checks and build run in GitHub Actions | Partial; automated tests are still needed |
+| CI | Prisma validation, TypeScript checks and production build run in GitHub Actions | Basic configuration/catalog unit tests are being added in Phase 0 |
 
-The current implementation is useful and should be retained. It is a browser-based product foundation, not yet the complete Electron desktop application described by the target architecture.
+The current implementation is useful and should be retained. It is a browser-based product foundation, not yet the complete Electron desktop application described by the target architecture. The Web product remains supported after desktop ships; the target is shared implementation and synchronized feature behavior, not a forced replacement or a second divergent UI codebase.
 
 ## 3. Version baseline and upgrade policy
 
@@ -50,7 +51,7 @@ The current implementation is useful and should be retained. It is a browser-bas
 
 | Dependency | Current resolved version / baseline |
 |---|---:|
-| Node.js in CI and Docker images | 22.x image; repository engine minimum is >=22.13.0 |
+| Node.js in CI and Docker images | 24.21.0; repository engine range is >=24.21.0 <25 |
 | pnpm | 12.11.2 |
 | React / React DOM | 19.3.0 |
 | Vite | 8.3.4 |
@@ -65,7 +66,7 @@ The current implementation is useful and should be retained. It is a browser-bas
 
 ### 3.2 Target baseline
 
-- Node.js: 24.x LTS, latest compatible maintenance patch at implementation time.
+- Node.js: 24.21.0 LTS selected as the verified maintenance baseline for this implementation; update deliberately after checking official release notes.
 - Electron: target 44.6.0 as listed in the project specification; verify the then-current stable release and compatibility before installing.
 - React: 19.3.0 baseline.
 - Vite: 8.3.4 baseline.
@@ -87,7 +88,7 @@ Evolve toward the following structure in small steps:
 visionhub/
 ├── apps/
 │   ├── desktop/              # Electron main process, preload and React renderer
-│   ├── web/                  # Browser experience; preserve while migration is useful
+│   ├── web/                  # First-class browser client; stays independently buildable/deployable
 │   ├── api/                  # NestJS API
 │   └── worker/               # Optional background jobs, introduced only when needed
 ├── packages/
@@ -110,7 +111,10 @@ Migration principles:
 
 - Move `contracts/` to `packages/contracts/` only with a coordinated import and workspace update; do not leave multiple conflicting sources of truth.
 - Extract UI components when they are truly shared, rather than creating a UI package that only wraps one-off page markup.
-- Keep the existing `apps/web` running until the desktop renderer has feature parity for the agreed MVP.
+- Keep `apps/web` as a permanent, independently buildable and deployable first-class client; adding Electron must not remove or downgrade Web.
+- Keep shared React screens, UI primitives, domain workflows and API contracts in one maintained source where practical. Extract shared code into `packages/ui` and feature packages rather than copy/pasting Web pages into desktop.
+- For changes to shared flows, verify Web and desktop behavior against the same acceptance criteria. Platform-specific capabilities must sit behind adapters so shared screens stay aligned without forcing platform-specific code into the browser.
+- Keep Web and desktop releases independently deployable, while maintaining feature parity for agreed common workflows. Web-only or desktop-only capabilities must be intentional and documented.
 - Keep environment-specific files and secrets out of the source code. Secret files must be ignored by Git, mounted read-only if used, and never logged.
 - The optional worker is not a prerequisite for the first desktop release.
 
@@ -208,15 +212,16 @@ Exit criteria:
 ### Phase 1 — Runtime and dependency baseline
 
 Tasks:
-- Move CI and Docker build/runtime stages from Node 22 to Node 24 LTS.
-- Confirm pnpm 12.11.2 and Prisma 7.10.0 compatibility with the selected Node release.
-- Validate Vite, TypeScript 7 and NestJS against clean CI and production builds.
-- Document the tested Node/pnpm versions and dependency upgrade procedure.
+- [x] Move CI and both Docker build stages from Node 22 to Node 24 LTS; pin Node.js 24.21.0 in CI, Docker and `.nvmrc`.
+- [ ] Confirm pnpm 12.11.2 and Prisma 7.10.0 compatibility with the selected Node release through the expanded CI checks.
+- [ ] Replace broad `latest` dependency declarations with exact versions matching the current lockfile, then verify frozen installation.
+- [ ] Validate Vite, TypeScript 7 and NestJS against clean CI and production builds.
+- [ ] Document the tested Node/pnpm versions and dependency upgrade procedure.
 
 Exit criteria:
-- CI and both Docker images build on the selected Node 24 maintenance version.
-- Prisma validation, type checks, tests and production builds pass.
-- The lockfile is the source of truth for reproducible installation.
+- CI builds on Node 24.21.0 and all application Docker build stages use the same Node version.
+- Prisma validation, type checks, unit tests and production builds pass.
+- The lockfile and exact manifest versions provide reproducible installation.
 
 ### Phase 2 — Shared configuration and contracts
 
@@ -326,9 +331,9 @@ Every phase should meet these gates before merge:
 
 The recommended next slice is:
 
-1. **Phase 0/1:** establish a test harness and migrate the CI/Docker Node baseline to Node 24 LTS with verified compatibility.
+1. **Phase 0/1:** pin the remaining `latest` manifest declarations, add configuration/catalog tests, and verify the Node 24.21.0 baseline in CI.
 2. **Phase 2:** implement shared configuration loading and strict Zod validation before adding desktop-specific settings.
-3. **Phase 3 and 4:** prepare reusable UI/contracts, then create the Electron desktop shell without breaking the existing web app.
+3. **Phase 3 and 4:** prepare reusable UI/contracts, then create the Electron desktop shell while keeping Web independently deployable and its shared workflows in sync.
 4. Continue to the HLS adapter and deployment layout once the shared foundation is stable.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.

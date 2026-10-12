@@ -1,6 +1,6 @@
 # VisionHub
 
-影视内容浏览与播放应用。Web 使用 React/Vite，API 使用 NestJS/Prisma；片库数据存储在现有 PostgreSQL 的独立 `visionhub` schema 中。Docker Compose 只托管 web/api，不创建数据库容器。
+影视内容浏览与播放应用。Web 使用 React/Vite，API 使用 NestJS/Prisma；片库数据存储在现有 PostgreSQL 的独立 `visionhub` schema 中。Docker Compose 只托管 web/api，不创建数据库容器。Web 是长期保留、可独立部署的一等客户端；Electron 桌面端将与 Web 共享页面、UI 组件和 API 契约，不会替换 Web。
 
 ## 技术栈
 
@@ -30,7 +30,7 @@
 
 ## 本地开发
 
-需要 Node.js 22.13+、pnpm 12，以及已经运行且可访问的 PostgreSQL。
+需要 Node.js 24.21.0（与仓库 `.nvmrc` 一致）、pnpm 12，以及已经运行且可访问的 PostgreSQL。
 
 1. 将 `.env.example` 复制为根目录的 `.env`，配置真实的数据库连接。
 2. 如果尚未初始化数据，在仓库根目录执行 `pnpm db:setup`。
@@ -122,6 +122,10 @@ Base path：`/api/v1`。成功响应包含 `data`；片库列表同时返回分�
 - `/watch/:id/:episodeId` 播放指定分集，支持浏览器前进/后退。
 - Plyr 展示播放、缓冲、暂停和视频源错误状态。
 - 当前各分集仍复用公开的 Plyr demo MP4，仅用于验证流程；接入真实版权视频源是后续工作。
+
+## Web 与桌面端的关系
+
+现有 `apps/web` 会持续保留并独立构建、部署。新增 Electron 桌面端是另一种客户端形态，不是 Web 的替代品。新增业务功能优先使用共享 React 页面/组件和统一 contracts；平台专属能力通过适配层隔离。每次涉及共享 UI 或业务流程的变更，都应验证 Web 构建和桌面端（建成后）的对应流程，避免两个客户端功能逐步分叉。完整路线见 [`docs/PLAN.md`](docs/PLAN.md)。
 
 ## 项目结构
 

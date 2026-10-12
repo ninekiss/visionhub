@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:24.21.0-alpine AS build
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -14,7 +14,7 @@ RUN rm -rf apps/api/dist apps/api/tsconfig.tsbuildinfo apps/api/dist/tsconfig.ts
     && test -f apps/api/dist/app.module.js \
     && test -f apps/api/dist/catalog/catalog.module.js
 
-FROM node:22-alpine AS runtime
+FROM node:24.21.0-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN corepack enable
