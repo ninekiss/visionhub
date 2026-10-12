@@ -16,5 +16,6 @@ jobs:
         with:
           node-version: 22
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @visionhub/api exec prisma validate
       - run: pnpm typecheck
       - run: pnpm build

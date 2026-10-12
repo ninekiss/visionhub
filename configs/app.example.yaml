@@ -30,4 +30,3 @@ player:
 
 catalog:
   pageSize: 8
-  mockData: true

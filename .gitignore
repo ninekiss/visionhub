@@ -14,3 +14,4 @@ apps/api/prisma/*.db
 # TypeScript incremental build cache
 *.tsbuildinfo
 **/*.tsbuildinfo
+apps/api/src/generated/prisma/

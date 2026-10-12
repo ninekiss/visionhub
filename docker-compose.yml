@@ -6,7 +6,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-${DATABASE_URL}}
       APP_CONFIG_PATH: /app/configs/app.yaml
     ports:
       - "${API_PORT:-3000}:3000"
