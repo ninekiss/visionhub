@@ -482,7 +482,7 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
         <div className="section-kicker">TITLE NOT AVAILABLE</div>
         <h1>无法加载这部作品</h1>
         <p>{error || '片目不存在或服务暂时不可用。'}</p>
-        <button className="primary" onClick={() => navigate('/')}>返回片库</button>
+        <Button kind="primary" onClick={() => navigate('/')}>返回片库</Button>
       </main>
     );
   }
@@ -626,7 +626,7 @@ function WatchView({
   return (
     <main className="play-page">
       <div className="page-utility">
-        <button className="back-link" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}><ArrowLeft size={16} /> 返回作品详情</button>
+        <Button kind="ghost" size="compact" className="!px-0 !text-xs !text-[#aeb4bf] hover:!text-[#c7f36b]" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}><ArrowLeft size={16} /> 返回作品详情</Button>
         <span>正在播放 <ChevronRight size={13} /> {item.title}</span>
       </div>
       <div className="play-page-heading">
@@ -644,7 +644,7 @@ function WatchView({
         <section className="play-main">
           <div className="video-panel play-video-panel">
             {episodeInvalid ? (
-              <div className="player-empty"><Film size={26} /><strong>没有找到这一集</strong><button className="secondary" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}>选择其他剧集</button></div>
+              <div className="player-empty"><Film size={26} /><strong>没有找到这一集</strong><Button kind="secondary" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}>选择其他剧集</Button></div>
             ) : source ? (
               <PlyrPlayer
                 key={item.id + ':' + (selectedEpisode?.id ?? 'movie')}
@@ -667,7 +667,7 @@ function WatchView({
           </div>
           <div className="play-description">
             <div><span className="section-kicker">ABOUT THIS TITLE</span><h2>{title}</h2><p>{selectedEpisode?.summary ?? item.description}</p></div>
-            <button className="secondary" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}>作品详情 <ChevronRight size={15} /></button>
+            <Button kind="secondary" size="compact" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}>作品详情 <ChevronRight size={15} /></Button>
           </div>
           {error && <div className="inline-notice" role="status">{error}</div>}
         </section>
@@ -681,32 +681,41 @@ function WatchView({
                 return (
                   <button
                     key={episode.id}
-                    className={'episode-row' + (selected ? ' selected' : '')}
+                    className={
+                      'group flex w-full cursor-pointer items-center gap-3 border-0 border-b border-solid border-b-white/[0.04] px-4 py-4 text-left text-[#d7dbe2] transition-colors hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#c7f36b] ' +
+                      (selected ? 'bg-[#c7f36b]/[0.055] !text-[#c7f36b]' : 'bg-transparent')
+                    }
                     aria-current={selected ? 'true' : undefined}
                     onClick={() => navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(episode.id))}
                   >
-                    <span className="episode-row-number">{selected ? <Check size={15} /> : String(episode.episodeNumber).padStart(2, '0')}</span>
-                    <span className="episode-row-copy"><strong>{episode.title}</strong><small>{episode.durationMinutes} 分钟</small></span>
+                    <span className={'grid w-6 flex-none place-items-center text-[11px] ' + (selected ? 'text-[#c7f36b]' : 'text-[#818995]')}>{selected ? <Check size={15} /> : String(episode.episodeNumber).padStart(2, '0')}</span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-1.5"><strong className="break-words text-[11px] font-semibold">{episode.title}</strong><small className="text-[10px] text-[#7f8794]">{episode.durationMinutes} 分钟</small></span>
                     {selected && <Play size={13} fill="currentColor" />}
                   </button>
                 );
               })}
             </div>
             <div className="episode-next-prev">
-              <button
+              <Button
+                kind="surface"
+                size="compact"
+                className="min-w-0 flex-1 !justify-center !gap-1 !rounded-md !px-1.5 !text-[10px]"
                 disabled={episodeIndex <= 0}
                 onClick={() => {
                   const previous = episodes[episodeIndex - 1];
                   if (previous) navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(previous.id));
                 }}
-              ><ChevronLeft size={14} /> 上一集</button>
-              <button
+              ><ChevronLeft size={14} /> 上一集</Button>
+              <Button
+                kind="surface"
+                size="compact"
+                className="min-w-0 flex-1 !justify-center !gap-1 !rounded-md !px-1.5 !text-[10px]"
                 disabled={episodeIndex < 0 || episodeIndex >= episodes.length - 1}
                 onClick={() => {
                   const next = episodes[episodeIndex + 1];
                   if (next) navigate('/watch/' + encodeURIComponent(item.id) + '/' + encodeURIComponent(next.id));
                 }}
-              >下一集 <ChevronRight size={14} /></button>
+              >下一集 <ChevronRight size={14} /></Button>
             </div>
           </aside>
         )}
