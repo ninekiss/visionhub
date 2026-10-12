@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
-  Bell,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -317,7 +316,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
             )}
           </>
         )}
-        <button className="icon-button" aria-label="通知"><Bell size={18} /></button>
+        
         <div className="avatar">V</div>
       </div>
     </header>
