@@ -53,7 +53,9 @@ Base path: `/api/v1`. All successful responses use a `data` field. The list endp
 
 - `GET /catalog?q=space&category=科幻&page=1&pageSize=8` — case-insensitive search across title, description and categories, exact category filtering, and pagination. `page` defaults to 1; `pageSize` defaults to `catalog.pageSize` in the app config and is capped at 50.
 - `GET /catalog/categories` — available category values from the active catalog source.
-- `GET /catalog/:id` — one catalog item; unknown IDs return 404.
+- `GET /catalog/:id` — one catalog item including `mediaType` and `episodeCount`; unknown IDs return 404.
+- `GET /catalog/:id/episodes` — episode list for a series (an empty array for movies).
+- Add `mediaType=series` or `mediaType=movie` to the list query to filter by format.
 - Invalid page values return 400.
 
 List response:
@@ -82,7 +84,14 @@ List response:
 }
 ```
 
-The shared response and catalog types live in `contracts/catalog.d.ts`; Mock records are separated into `apps/api/src/catalog/mock/catalog.mock-data.ts`, so controllers don't own data and the UI consumes the same contract.
+The shared response and catalog types live in `contracts/catalog.d.ts`; Mock records and episode records are separated into `apps/api/src/catalog/mock/catalog.mock-data.ts`, so controllers don't own data and the UI consumes the same contract.
+
+## Detail and playback flow
+
+- `/title/:id` displays a title detail page, metadata and episode selection.
+- `/watch/:id` opens a movie or defaults to the first episode of a series.
+- `/watch/:id/:episodeId` opens a specific episode. Browser Back/Forward are supported.
+- Playback status, buffering and media-source failures are reflected in the UI. The series episode URLs currently reuse the public Plyr demo MP4 as scaffold data.
 
 ## Project layout
 

@@ -1,15 +1,28 @@
 /**
- * Shared API contract for catalog data.
- * Keep this file dependency-free so both the web app and API can consume it.
+ * Shared, dependency-free API contracts used by the web and API workspaces.
  */
+export type CatalogMediaType = 'movie' | 'series';
+
 export interface CatalogItem {
   id: string;
   title: string;
   year: number;
   categories: string[];
+  mediaType: CatalogMediaType;
+  episodeCount: number;
   description: string;
   poster: string;
+  /** Default preview/playback URL for movies and fallback playback. */
   videoUrl: string;
+}
+
+export interface CatalogEpisode {
+  id: string;
+  episodeNumber: number;
+  title: string;
+  summary: string;
+  videoUrl: string;
+  durationMinutes: number;
 }
 
 export interface ApiResponse<T> {
@@ -27,11 +40,12 @@ export interface PaginationMetadata {
 
 export type PaginatedResponse<T> = ApiResponse<T[]> & {
   pagination: PaginationMetadata;
-}
+};
 
 export interface CatalogListQuery {
   q?: string;
   category?: string;
+  mediaType?: string;
   page?: string | number;
   pageSize?: string | number;
 }

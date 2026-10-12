@@ -6,12 +6,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type {
+  CatalogEpisode,
   CatalogItem,
   CatalogListQuery,
   PaginatedResponse,
 } from '@visionhub/contracts';
 import { APP_CONFIG, type AppConfig } from '../config/app-config';
-import { MOCK_CATALOG } from './mock/catalog.mock-data';
+import { MOCK_CATALOG, MOCK_EPISODES } from './mock/catalog.mock-data';
 
 const MAX_PAGE_SIZE = 50;
 const FALLBACK_PAGE_SIZE = 8;
@@ -32,6 +33,14 @@ export class CatalogService {
     );
     const normalizedQuery = query.q?.trim().toLocaleLowerCase() ?? '';
     const normalizedCategory = query.category?.trim().toLocaleLowerCase() ?? '';
+    const normalizedMediaType = query.mediaType?.trim().toLocaleLowerCase() ?? '';
+
+    if (normalizedMediaType && !['movie', 'series'].includes(normalizedMediaType)) {
+      throw new BadRequestException({
+        code: 'INVALID_CATALOG_QUERY',
+        message: 'mediaType must be movie or series',
+      });
+    }
 
     const matchingItems = MOCK_CATALOG.filter((item) => {
       const matchesQuery =
@@ -45,8 +54,10 @@ export class CatalogService {
         item.categories.some(
           (category) => category.toLocaleLowerCase() === normalizedCategory,
         );
+      const matchesMediaType =
+        normalizedMediaType.length === 0 || item.mediaType === normalizedMediaType;
 
-      return matchesQuery && matchesCategory;
+      return matchesQuery && matchesCategory && matchesMediaType;
     });
 
     const totalItems = matchingItems.length;
@@ -78,6 +89,11 @@ export class CatalogService {
     }
 
     return item;
+  }
+
+  getEpisodes(id: string): CatalogEpisode[] {
+    this.getById(id);
+    return MOCK_EPISODES[id] ?? [];
   }
 
   getCategories(): string[] {
