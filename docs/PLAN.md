@@ -292,19 +292,92 @@ Exit criteria:
 
 ### Phase 4 — Electron desktop MVP
 
-Tasks:
-- Add `apps/desktop` with Electron main process, preload and React renderer.
-- Configure secure defaults: `contextIsolation: true`, `nodeIntegration: false`, and a narrow preload API.
-- Reuse shared UI components and contracts; avoid duplicating the domain/API layer.
-- Resolve the API address from validated desktop configuration rather than hard-coding a deployment host.
-- Implement a desktop development command, packaging pipeline, app identity and environment-specific settings.
-- Define how local development, packaged desktop builds and the remote API communicate.
+Status: planned only. Do not start implementation until Phase 3's responsive browser acceptance and regression exit criteria are complete. This phase adds Electron as a second client; it does not replace or weaken the independently deployable Web client.
 
-Exit criteria:
-- A packaged desktop application launches on the agreed target OS.
-- It can connect to a configured API endpoint, browse/search the catalog, display details and play supported media.
-- Renderer code cannot access arbitrary Node APIs.
-- Web remains buildable during the desktop MVP rollout.
+#### Product goal
+
+Deliver a small, secure desktop shell that reuses the existing React screens, shared UI, API contracts and remote NestJS API. The first release should support the core media-library workflow and playback formats already verified in the current Plyr/Web implementation. It must not imply broader codec support than the Electron Chromium runtime can actually play.
+
+#### P4.0 — Confirm scope and compatibility
+
+- [ ] Confirm target operating systems and release formats before adding platform-specific packaging work.
+- [ ] Verify the then-current stable Electron release against the repository's Node/pnpm/Vite/React toolchain and select an exact version; do not install a floating `latest`.
+- [ ] Record the supported desktop playback test samples and known format limitations; do not make HLS support a prerequisite for the first shell unless the existing product requires it.
+- [ ] Define the desktop API endpoint/configuration contract and how development, packaged builds and remote deployments provide it.
+
+Deliverable: a short compatibility decision in the PR description or docs, including the chosen OS target(s), Electron version and API configuration approach.
+
+#### P4.1 — Add the minimal Electron workspace
+
+- [ ] Create `apps/desktop` with separate main-process, preload and renderer entry points; keep the existing `apps/web` entry point and build path unchanged.
+- [ ] Add workspace scripts for desktop development, type checking, packaging and previewing a packaged build; keep command names documented at the repository root.
+- [ ] Use the existing React/Vite application and shared packages where practical. Prefer a shared renderer entry/configuration over copying Web pages into a second app; only introduce a renderer split if Electron-specific needs justify it.
+- [ ] Configure development loading and production packaged-asset loading explicitly, with clear failure messages when the renderer cannot start.
+- [ ] Keep API and database services separate. Electron is a client and must not bundle or start the NestJS API, PostgreSQL, or migrations.
+
+Deliverable: a development Electron window opens the existing renderer, and both Web and desktop can be built independently.
+
+#### P4.2 — Establish the security boundary
+
+- [ ] Set `contextIsolation: true`, `nodeIntegration: false`, and `sandbox: true` where supported by the selected Electron design.
+- [ ] Expose only the minimal, typed capabilities needed through preload; do not expose raw `ipcRenderer`, Node APIs, filesystem access or unrestricted shell execution to the renderer.
+- [ ] Validate IPC channel names and payloads in the main process; treat renderer messages and remote content as untrusted input.
+- [ ] Deny unexpected navigation and new-window creation; open approved external links with the operating system only after protocol/URL validation.
+- [ ] Define a restrictive Content Security Policy for packaged renderer content. Avoid disabling web security or enabling remote module patterns as shortcuts.
+- [ ] Keep secrets out of renderer bundles, logs and committed configuration. A desktop API endpoint is configuration, not a place to embed admin credentials.
+
+Deliverable: a documented threat-boundary review and automated or repeatable checks for the chosen Electron security defaults.
+
+#### P4.3 — Reuse the core media workflow
+
+- [ ] Reuse the existing catalog, search/filter, detail, login/admin route behavior and shared UI wherever applicable; do not duplicate domain logic or API contracts.
+- [ ] Load the desktop API base URL from validated `configs/desktop.yaml` or an explicitly documented override. Fail with an actionable message if configuration is invalid; do not silently point at production.
+- [ ] Verify catalog browsing, search/filter, details, login where configured, and the playback page against a running test API.
+- [ ] Verify Plyr playback for the formats actually supported by the target Electron runtime; include loading, buffering, source errors, seek, episode switching and progress restore in the test pass.
+- [ ] Keep browser-only behavior functional and buildable. Put platform-specific operations behind a small adapter instead of branching shared components throughout the UI.
+
+Deliverable: the core browse → detail → play workflow works in a desktop build without a second implementation of the Web UI.
+
+#### P4.4 — Add desktop-native behavior selectively
+
+- [ ] Add a minimal application menu and standard window controls; preserve expected operating-system shortcuts.
+- [ ] Persist window size/position and maximized state safely, validating restored bounds before applying them.
+- [ ] Define close/minimize behavior explicitly. Do not add tray residency, auto-start, global shortcuts or background services without a concrete requirement.
+- [ ] Ensure keyboard navigation, focus behavior, zoom and small-window layouts remain usable in the desktop window.
+- [ ] Keep settings limited to the first-release needs, starting with API endpoint and basic window behavior if required.
+
+Deliverable: predictable desktop window lifecycle and basic native integration, with no unrelated background features.
+
+#### P4.5 — Package and verify a release candidate
+
+- [ ] Choose and document the packaging tool only after the target OS and Electron version are confirmed.
+- [ ] Add reproducible package scripts and CI validation for desktop type checks/builds; run OS-specific packaging on supported runners when feasible.
+- [ ] Set application name, version, product identity, icons and output locations through versioned project configuration.
+- [ ] Test a clean packaged install/launch, API configuration, core browse/detail/play workflow, external-link handling, shutdown and upgrade/reinstall behavior on each target OS.
+- [ ] Document build artifacts, configuration placement, log location, known media limitations and how to report a startup failure.
+- [ ] Keep signing, auto-update, installer distribution and release hosting out of scope unless explicitly selected as MVP requirements.
+
+Deliverable: a reproducible desktop release candidate and a short manual acceptance record.
+
+#### Explicitly out of scope for P4
+
+- [ ] Do not remove, bundle into Electron-only workflows, or stop independently deploying Web.
+- [ ] Do not add a worker, download manager, FFmpeg pipeline, Redis, or a new database container.
+- [ ] Do not run database migrations automatically from Electron or ordinary API startup.
+- [ ] Do not promise MKV/HEVC/HDR/subtitle or other codec/container support without tests on the actual target runtime.
+- [ ] Do not make HLS.js, subtitle preferences, or broad player refactoring a blocker for the desktop shell; track those under Phase 5 unless an agreed MVP acceptance test requires them.
+- [ ] Do not implement auto-update, telemetry, tray mode or global hotkeys by default.
+
+#### Phase 4 exit criteria
+
+- [ ] Phase 3 responsive and regression acceptance is complete and recorded before desktop implementation begins.
+- [ ] Web and desktop have independent, documented development and production build paths.
+- [ ] A packaged application launches on each agreed target OS and reads the configured API endpoint without hard-coded deployment URLs.
+- [ ] Catalog/search, details and supported playback work against a test API; login/admin flows are verified if included in the agreed desktop MVP scope.
+- [ ] Electron security defaults and navigation/IPC boundaries are reviewed; the renderer cannot access arbitrary Node APIs.
+- [ ] Core playback loading, error, buffering, source switching and progress restoration behavior is verified for the supported sample media.
+- [ ] No database service, worker, secret credential or automatic migration was introduced as a side effect of desktop packaging.
+- [ ] CI passes for the merged commit, and the release candidate's manual acceptance results and known limitations are documented.
 
 ### Phase 5 — Player adapters and playback preferences
 
