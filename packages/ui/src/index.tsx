@@ -175,33 +175,41 @@ export function Panel({
 
 
 /** Shared navigation item. Routes stay controlled by the host client. */
+export type NavigationVariant = "sidebar" | "top";
+
+/** Shared route link with host-controlled navigation and platform-specific visual variants. */
 export function NavigationItem({
   to,
   active,
   onNavigate,
   icon,
   label,
+  variant = "sidebar",
   className = "",
 }: {
   to: string;
   active: boolean;
   onNavigate: (path: string) => void;
-  icon: ReactNode;
+  icon?: ReactNode;
   label: string;
+  variant?: NavigationVariant;
   className?: string;
 }) {
-  const stateClasses = active
-    ? "bg-[#c7f36b15] text-[var(--vh-accent)] after:absolute after:right-[11px] after:h-[5px] after:w-[5px] after:rounded-full after:bg-[var(--vh-accent)]"
-    : "text-[#9aa2af]";
+  const baseClasses = variant === "sidebar"
+    ? "adm-nav-link relative flex items-center gap-[11px] rounded-lg p-3 text-xs no-underline transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)]"
+    : "relative flex h-full items-center gap-[7px] text-[13px] no-underline text-[#888d99] transition-colors hover:text-[#f4f5f6] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)]";
+  const stateClasses = variant === "sidebar"
+    ? active
+      ? "bg-[#c7f36b15] text-[var(--vh-accent)] after:absolute after:right-[11px] after:h-[5px] after:w-[5px] after:rounded-full after:bg-[var(--vh-accent)]"
+      : "text-[#9aa2af]"
+    : active
+      ? "text-[#f4f5f6] after:bg-[#c7f36b]"
+      : "";
   return (
     <a
       href={to}
       aria-current={active ? "page" : undefined}
-      className={
-        "adm-nav-link relative flex items-center gap-[11px] rounded-lg p-3 text-xs no-underline transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)] " +
-        stateClasses +
-        (className ? " " + className : "")
-      }
+      className={baseClasses + " " + stateClasses + (className ? " " + className : "")}
       onClick={(event) => {
         if (
           event.button !== 0 ||
@@ -221,32 +229,32 @@ export function NavigationItem({
 }
 
 /** Search input with optional leading/trailing elements; the input remains fully controlled by its caller. */
+export type SearchFieldVariant = "admin" | "public";
+
+/** Search input with optional leading/trailing elements; the input remains controlled by its caller. */
 export function SearchField({
   leading,
   trailing,
+  variant = "admin",
   className = "",
   wrapperClassName = "",
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & {
   leading?: ReactNode;
   trailing?: ReactNode;
+  variant?: SearchFieldVariant;
   wrapperClassName?: string;
 }) {
+  const wrapperStyle = variant === "public"
+    ? "search flex w-[220px] items-center gap-[9px] rounded-[10px] border border-[#242832] bg-[#151820] px-[13px] py-[10px] text-[#858b97]"
+    : "adm-search flex h-9 min-w-[190px] flex-1 items-center gap-2 rounded-[7px] border border-[#353d48] bg-[#151a22] px-2.5 text-[#818c9b] focus-within:border-[#718650]";
+  const inputStyle = variant === "public"
+    ? "w-full min-w-0 border-0 bg-transparent text-[12px] text-[#f3f4f5] outline-none placeholder:text-[#737986]"
+    : "min-w-0 flex-1 border-0 bg-transparent text-[11px] text-[#e5e9ef] outline-none placeholder:text-[#626c7a]";
   return (
-    <div
-      className={
-        "adm-search flex h-9 min-w-[190px] flex-1 items-center gap-2 rounded-[7px] border border-[#353d48] bg-[#151a22] px-2.5 text-[#818c9b] focus-within:border-[#718650] " +
-        wrapperClassName
-      }
-    >
+    <div className={wrapperStyle + " " + wrapperClassName}>
       {leading && <span className="shrink-0">{leading}</span>}
-      <input
-        {...props}
-        className={
-          "min-w-0 flex-1 border-0 bg-transparent text-[11px] text-[#e5e9ef] outline-none placeholder:text-[#626c7a] " +
-          className
-        }
-      />
+      <input {...props} className={inputStyle + " " + className} />
       {trailing && <span className="shrink-0">{trailing}</span>}
     </div>
   );
