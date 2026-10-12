@@ -6,6 +6,7 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/ui/package.json packages/ui/package.json
 RUN pnpm install --frozen-lockfile --filter @visionhub/api...
 COPY apps/api apps/api
 COPY packages/config packages/config
@@ -26,6 +27,7 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY packages/config/package.json packages/config/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/ui/package.json packages/ui/package.json
 RUN pnpm install --frozen-lockfile --prod --filter @visionhub/api...
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/prisma apps/api/prisma

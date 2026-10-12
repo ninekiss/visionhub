@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Activity, ArrowLeft, ArrowUpRight, Check, CheckCircle2, ChevronLeft, ChevronRight, Clapperboard, Clock3, Film, LayoutDashboard, LoaderCircle, LogIn, LogOut, Pencil, Play, Plus, Search, Save, Tags, Trash2, Tv2, Video, X } from 'lucide-react';
 import type { CatalogEpisode, CatalogItem, CatalogMediaType, PaginatedResponse, PaginationMetadata } from '@visionhub/contracts';
+import { Badge, Button, Field, Message } from '@visionhub/ui';
 import './admin.css';
 
 const API = '/api/v1';
@@ -33,9 +34,7 @@ function dateLabel(value?: string) {
   return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 }
 function typeLabel(type: CatalogMediaType) { return type === 'series' ? '剧集' : '电影'; }
-function Message({ children, tone = 'error' }: { children: ReactNode; tone?: 'error' | 'success' | 'info' }) {
-  return <div className={'adm-message tone-' + tone} role={tone === 'error' ? 'alert' : 'status'}>{children}</div>;
-}
+
 function Link({ to, go, children, className = '' }: { to: string; go: (path: string) => void; children: ReactNode; className?: string }) {
   return <a href={to} className={className} onClick={(event) => { if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); go(to); }}>{children}</a>;
 }
@@ -43,12 +42,8 @@ function Brand() { return <div className="adm-brand"><span><Clapperboard size={1
 function Heading({ eyebrow, title, description, actions }: { eyebrow: string; title: string; description: string; actions?: ReactNode }) {
   return <div className="adm-heading"><div><div className="adm-eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div>{actions && <div className="adm-heading-actions">{actions}</div>}</div>;
 }
-function Button({ children, kind = 'primary', ...props }: { children: ReactNode; kind?: 'primary' | 'secondary' | 'ghost'; type?: 'button' | 'submit'; disabled?: boolean; onClick?: () => void }) {
-  return <button className={'adm-btn ' + kind} {...props}>{children}</button>;
-}
-function Field({ label, children, wide = false, hint }: { label: string; children: ReactNode; wide?: boolean; hint?: string }) {
-  return <label className={'adm-field' + (wide ? ' wide' : '')}><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
-}
+
+
 function LoginPage({ go, success }: { go: (path: string) => void; success: (username: string) => void }) {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
@@ -124,7 +119,7 @@ function CatalogPage({ go, notify }: { go: (path: string) => void; notify: (mess
       <select value={category} onChange={(e) => { setCategory(e.target.value); setPage(1); }} aria-label="分类筛选"><option value="">全部分类</option>{cats.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select><Button kind="secondary" type="submit">搜索</Button>
     </form>{error && <div className="adm-error-pad"><Message>{error}</Message></div>}
     <div className="adm-table-wrap"><table className="adm-table"><thead><tr><th>作品</th><th>类型 / 年份</th><th>分类</th><th>分集</th><th>操作</th></tr></thead><tbody>
-      {items.map((item) => <tr key={item.id}><td><div className="adm-item-cell"><div>{item.poster && <img src={item.poster} alt="" loading="lazy" />}</div><span><strong>{item.title}</strong><small>{item.id}</small></span></div></td><td><span className={'adm-pill ' + item.mediaType}>{typeLabel(item.mediaType)}</span><span className="adm-year">{item.year}</span></td><td><div className="adm-tags">{item.categories.length ? item.categories.map((name) => <span key={name}>{name}</span>) : <small>未分类</small>}</div></td><td>{item.episodeCount || '—'}{item.episodeCount ? ' 集' : ''}</td><td><div className="adm-row-actions">{item.mediaType === 'series' && <button title="管理分集" aria-label="管理分集" onClick={() => go('/admin/catalog/' + encodeURIComponent(item.id) + '/episodes')}><Video size={15} /></button>}<button title="编辑作品" aria-label="编辑作品" onClick={() => go('/admin/catalog/' + encodeURIComponent(item.id) + '/edit')}><Pencil size={15} /></button><button className="danger" title="删除作品" aria-label="删除作品" onClick={() => void remove(item)}><Trash2 size={15} /></button></div></td></tr>)}
+      {items.map((item) => <tr key={item.id}><td><div className="adm-item-cell"><div>{item.poster && <img src={item.poster} alt="" loading="lazy" />}</div><span><strong>{item.title}</strong><small>{item.id}</small></span></div></td><td><Badge tone={item.mediaType === 'series' ? 'series' : 'success'} className={item.mediaType}>{typeLabel(item.mediaType)}</Badge><span className="adm-year">{item.year}</span></td><td><div className="adm-tags">{item.categories.length ? item.categories.map((name) => <span key={name}>{name}</span>) : <small>未分类</small>}</div></td><td>{item.episodeCount || '—'}{item.episodeCount ? ' 集' : ''}</td><td><div className="adm-row-actions">{item.mediaType === 'series' && <button title="管理分集" aria-label="管理分集" onClick={() => go('/admin/catalog/' + encodeURIComponent(item.id) + '/episodes')}><Video size={15} /></button>}<button title="编辑作品" aria-label="编辑作品" onClick={() => go('/admin/catalog/' + encodeURIComponent(item.id) + '/edit')}><Pencil size={15} /></button><button className="danger" title="删除作品" aria-label="删除作品" onClick={() => void remove(item)}><Trash2 size={15} /></button></div></td></tr>)}
     </tbody></table>{loading && <div className="adm-table-loading"><LoaderCircle className="adm-spin" size={17} />正在读取片库…</div>}
     {!loading && !error && !items.length && <div className="adm-empty"><Search size={25} /><strong>没有找到匹配的作品</strong><p>修改搜索条件或新增一部作品。</p><Button kind="secondary" onClick={() => { setSearchInput(''); setSearch(''); setType(''); setCategory(''); setPage(1); }}>清除筛选</Button></div>}</div>
     <div className="adm-table-footer"><span>共 {pagination.totalItems} 部作品</span><div>第 {pagination.totalPages ? pagination.page : 0} / {pagination.totalPages} 页 <button disabled={!pagination.hasPreviousPage || loading} onClick={() => setPage((n) => Math.max(1, n - 1))} aria-label="上一页"><ChevronLeft size={15} /></button><button disabled={!pagination.hasNextPage || loading} onClick={() => setPage((n) => n + 1)} aria-label="下一页"><ChevronRight size={15} /></button></div></div></section>
@@ -174,7 +169,7 @@ function ItemEditor({ id, go, notify }: { id?: string; go: (path: string) => voi
         {form.videoUrl && <div className="adm-video-action adm-wide"><Button kind="secondary" type="button" onClick={() => setPreviewVideo((v) => !v)}><Play size={14} />{previewVideo ? '关闭预览' : '测试播放视频源'}</Button><small>支持情况取决于浏览器、编码与服务器响应。</small></div>}
         {previewVideo && form.videoUrl && <video className="adm-video-preview adm-wide" controls preload="metadata" src={form.videoUrl}>当前浏览器无法预览。</video>}
       </div></section>
-    </div><aside className="adm-editor-aside"><section className="adm-panel"><div className="adm-panel-head"><div><h2>前台预览</h2><p>海报与摘要</p></div></div><div className="adm-poster">{form.posterUrl ? <img src={form.posterUrl} alt="海报预览" onError={(e) => { e.currentTarget.style.opacity = '0'; }} onLoad={(e) => { e.currentTarget.style.opacity = '1'; }} /> : <div><Film size={27} /><span>填写海报 URL 预览</span></div>}<span className={'adm-pill ' + form.mediaType}>{typeLabel(form.mediaType)}</span></div><div className="adm-preview-meta"><strong>{form.title || '作品标题'}</strong><small>{form.year || '发行年份'} · {form.categories.join(' · ') || '未分类'}</small><p>{form.description || '作品简介将显示在这里。'}</p></div></section>
+    </div><aside className="adm-editor-aside"><section className="adm-panel"><div className="adm-panel-head"><div><h2>前台预览</h2><p>海报与摘要</p></div></div><div className="adm-poster">{form.posterUrl ? <img src={form.posterUrl} alt="海报预览" onError={(e) => { e.currentTarget.style.opacity = '0'; }} onLoad={(e) => { e.currentTarget.style.opacity = '1'; }} /> : <div><Film size={27} /><span>填写海报 URL 预览</span></div>}<Badge tone={form.mediaType === 'series' ? 'series' : 'success'} className={form.mediaType}>{typeLabel(form.mediaType)}</Badge></div><div className="adm-preview-meta"><strong>{form.title || '作品标题'}</strong><small>{form.year || '发行年份'} · {form.categories.join(' · ') || '未分类'}</small><p>{form.description || '作品简介将显示在这里。'}</p></div></section>
       <section className="adm-panel adm-save-panel"><strong>保存作品资料</strong><small>保存后写入片库数据库。</small><Button type="submit" disabled={saving}>{saving ? <LoaderCircle className="adm-spin" size={15} /> : <Save size={15} />}{saving ? '正在保存…' : '保存更改'}</Button><Button kind="ghost" type="button" onClick={() => go('/admin/catalog')}>取消并返回</Button>{id && <a target="_blank" rel="noreferrer" href={'/title/' + encodeURIComponent(id)}><ArrowUpRight size={14} />在前台打开作品</a>}</section>
     </aside></form>
   </div>;

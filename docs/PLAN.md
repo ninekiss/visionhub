@@ -27,7 +27,7 @@ The following status is based on the repository code and lockfile on 2026-10-12.
 |---|---|---|
 | Web application | React + Vite + TypeScript; catalog browse, details, playback pages | Implemented foundation |
 | Admin UI | Dashboard, catalog editor, episodes and category management; admin session API | Implemented foundation |
-| Styling | Tailwind CSS 4.3.3 is installed, but most screen styling still lives in custom CSS files | Partial; migrate incrementally |
+| Styling | Tailwind CSS 4.3.3, shared `packages/ui` tokens/primitives, and first admin component migrations | Phase 3 in progress; feature-specific legacy CSS remains to migrate incrementally |
 | API | NestJS 12.1.2; catalog and admin routes | Implemented foundation |
 | Database | Prisma 7.10.0 and PostgreSQL; data lives in the separate `visionhub` schema | Implemented foundation |
 | Database ownership | Compose has API and web services only; PostgreSQL is reached through an external Docker network | Aligned |
@@ -39,7 +39,7 @@ The following status is based on the repository code and lockfile on 2026-10-12.
 | Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
 | HLS | No `hls.js` adapter is present | Not started |
 | Desktop | No `apps/desktop` or Electron shell | Not started |
-| Shared packages | `packages/contracts` and `packages/config` provide shared API types and validated config | Implemented foundation; UI remains Phase 3 |
+| Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation implemented; screen migration in progress |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
 | CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
 
@@ -253,18 +253,21 @@ Exit criteria:
 
 ### Phase 3 — Public UI package and Tailwind migration
 
+Status: shared UI foundation and first admin component migration are on `phase-3/ui-tailwind`; full screen migration remains incremental.
+
 Tasks:
-- Establish shared design tokens and a small set of reusable primitives in `packages/ui`.
-- Use Tailwind CSS as the default for layout, spacing, colors, responsive behavior and interaction states.
-- Migrate the admin pages first, then the web frontend, in manageable components.
-- Keep custom CSS only for genuinely complex player styling, animations or cases where utilities are not a good fit.
-- Preserve visual behavior and responsive layout while migrating.
+- [x] Establish shared semantic tokens and reusable Button, Field, Message, Badge and Panel primitives in `packages/ui`.
+- [x] Make Tailwind CSS v4 scan the shared UI package and use utility classes for the migrated primitives.
+- [x] Migrate admin buttons, field labels, feedback messages and media-type badges to shared primitives while preserving legacy layout hooks.
+- [ ] Continue admin migration across tables, filters, navigation, category chips and dialogs.
+- [ ] Migrate Web layout components in manageable chunks after shared admin patterns are stable.
+- [x] Keep Plyr styles and complex feature/page layouts in their existing CSS during the incremental migration.
 
 Exit criteria:
-- New UI work follows the shared component and Tailwind conventions.
-- Duplicate page-level styles are reduced rather than moved wholesale into another file.
-- Admin forms, tables, navigation and dialogs are usable on supported desktop and mobile widths.
-- No regression in catalog, login, CRUD or player navigation.
+- [x] New shared primitive work follows the shared component and Tailwind conventions.
+- [ ] Duplicate page-level styles are reduced rather than moved wholesale into another file.
+- [ ] Admin forms, tables, navigation and dialogs are fully checked at supported desktop and mobile widths.
+- [ ] No regression in catalog, login, CRUD or player navigation after the full migration and CI validation.
 
 ### Phase 4 — Electron desktop MVP
 

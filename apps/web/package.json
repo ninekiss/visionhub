@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@visionhub/contracts": "workspace:*",
+    "@visionhub/ui": "workspace:*",
     "@vitejs/plugin-react": "6.1.2",
     "lucide-react": "1.55.0",
     "plyr": "3.8.5",
