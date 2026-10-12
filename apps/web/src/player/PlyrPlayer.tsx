@@ -8,6 +8,8 @@ type Props = {
   src: string;
   poster?: string;
   title: string;
+  initialTime?: number;
+  onProgress?: (progress: { currentTime: number; duration: number }) => void;
   onPlaybackStateChange?: (state: PlaybackState) => void;
 };
 
@@ -24,16 +26,26 @@ export default function PlyrPlayer({
   src,
   poster,
   title,
+  initialTime = 0,
+  onProgress,
   onPlaybackStateChange,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const callbackRef = useRef(onPlaybackStateChange);
+  const progressCallbackRef = useRef(onProgress);
+  const initialTimeRef = useRef(initialTime);
   const [status, setStatus] = useState<PlaybackState>('ready');
   const [error, setError] = useState('');
 
   useEffect(() => {
     callbackRef.current = onPlaybackStateChange;
   }, [onPlaybackStateChange]);
+
+  useEffect(() => {
+    progressCallbackRef.current = onProgress;
+  }, [onProgress]);
+
+  initialTimeRef.current = initialTime;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -66,26 +78,55 @@ export default function PlyrPlayer({
       setStatus(next);
       callbackRef.current?.(next);
     };
+    let lastProgressReportAt = 0;
+    const reportProgress = (force = false) => {
+      const currentTime = video.currentTime;
+      const duration = video.duration;
+      if (!Number.isFinite(currentTime) || !Number.isFinite(duration) || duration <= 0) return;
+      const now = Date.now();
+      if (!force && now - lastProgressReportAt < 5000) return;
+      lastProgressReportAt = now;
+      progressCallbackRef.current?.({ currentTime, duration });
+    };
+    const handleLoadedMetadata = () => {
+      const resumeAt = initialTimeRef.current;
+      if (Number.isFinite(resumeAt) && resumeAt > 5 && resumeAt < video.duration - 15) {
+        try {
+          video.currentTime = resumeAt;
+        } catch {
+          // Browsers may reject a seek before the media timeline is ready.
+        }
+      }
+    };
     const handlePlaying = () => updateStatus('playing');
     const handlePause = () => {
       if (!video.ended) updateStatus('paused');
+      reportProgress(true);
     };
+    const handleTimeUpdate = () => reportProgress();
     const handleWaiting = () => updateStatus('buffering');
-    const handleEnded = () => updateStatus('ended');
+    const handleEnded = () => {
+      updateStatus('ended');
+      reportProgress(true);
+    };
     const handleError = () => {
       updateStatus('error');
       setError('视频源暂时无法播放。请稍后重试，或返回详情页选择其他内容。');
     };
 
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('playing', handlePlaying);
     video.addEventListener('pause', handlePause);
+    video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('waiting', handleWaiting);
     video.addEventListener('ended', handleEnded);
     video.addEventListener('error', handleError);
 
     return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('playing', handlePlaying);
       video.removeEventListener('pause', handlePause);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('waiting', handleWaiting);
       video.removeEventListener('ended', handleEnded);
       video.removeEventListener('error', handleError);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   ArrowLeft,
   Bell,
@@ -100,6 +100,67 @@ type Route =
   | { page: 'series' }
   | { page: 'detail'; id: string }
   | { page: 'watch'; id: string; episodeId?: string };
+
+type WatchProgress = {
+  item: CatalogItem;
+  episodeId?: string;
+  episodeTitle?: string;
+  currentTime: number;
+  duration: number;
+  updatedAt: number;
+};
+
+const WATCH_HISTORY_KEY = 'visionhub.watch-history.v1';
+const WATCH_HISTORY_LIMIT = 12;
+
+function readWatchHistory(): WatchProgress[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored: unknown = JSON.parse(window.localStorage.getItem(WATCH_HISTORY_KEY) ?? '[]');
+    if (!Array.isArray(stored)) return [];
+    return stored
+      .filter((entry): entry is WatchProgress => {
+        if (!entry || typeof entry !== 'object') return false;
+        const progress = entry as Partial<WatchProgress>;
+        return Boolean(
+          progress.item &&
+          typeof progress.item === 'object' &&
+          typeof progress.item.id === 'string' &&
+          typeof progress.item.title === 'string' &&
+          typeof progress.item.poster === 'string' &&
+          Number.isFinite(progress.currentTime) &&
+          Number.isFinite(progress.duration) &&
+          Number.isFinite(progress.updatedAt) &&
+          (progress.episodeId === undefined || typeof progress.episodeId === 'string') &&
+          (progress.episodeTitle === undefined || typeof progress.episodeTitle === 'string'),
+        );
+      })
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, WATCH_HISTORY_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function formatPlaybackTime(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const remainder = safeSeconds % 60;
+  return hours > 0
+    ? hours + ':' + String(minutes).padStart(2, '0') + ':' + String(remainder).padStart(2, '0')
+    : minutes + ':' + String(remainder).padStart(2, '0');
+}
+
+function playbackPercent(progress: WatchProgress): number {
+  if (progress.duration <= 0) return 0;
+  return Math.min(100, Math.max(0, (progress.currentTime / progress.duration) * 100));
+}
+
+function resumePath(progress: WatchProgress): string {
+  const basePath = '/watch/' + encodeURIComponent(progress.item.id);
+  return progress.episodeId ? basePath + '/' + encodeURIComponent(progress.episodeId) : basePath;
+}
 
 function parseRoute(pathname: string): Route {
   let parts: string[];
@@ -234,6 +295,8 @@ type HomeViewProps = {
   category: string;
   page: number;
   pagination: PaginationMetadata;
+  watchHistory: WatchProgress[];
+  onResume: (progress: WatchProgress) => void;
   onQueryChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onPageChange: (value: number) => void;
@@ -242,8 +305,8 @@ type HomeViewProps = {
 
 function HomeView(props: HomeViewProps) {
   const {
-    route, items, loading, notice, category, page, pagination,
-    onQueryChange, onCategoryChange, onPageChange, navigate,
+    route, items, loading, notice, category, page, pagination, watchHistory,
+    onResume, onQueryChange, onCategoryChange, onPageChange, navigate,
   } = props;
   const firstItem = items[0] ?? fallback[0];
   const seriesOnly = route.page === 'series';
@@ -286,6 +349,40 @@ function HomeView(props: HomeViewProps) {
           {String(Math.max(1, pagination.totalItems)).padStart(2, '0')}
         </div>
       </section>
+
+      {!seriesOnly && watchHistory.length > 0 && (
+        <section className="continue-section" aria-label="继续观看">
+          <div className="section-heading">
+            <div>
+              <span className="section-kicker">PICK UP WHERE YOU LEFT OFF</span>
+              <h2>继续观看</h2>
+            </div>
+            <span className="continue-caption">播放进度保存在本设备</span>
+          </div>
+          <div className="continue-grid">
+            {watchHistory.slice(0, 4).map((progress) => (
+              <button
+                key={progress.item.id + ':' + (progress.episodeId ?? 'movie')}
+                className="continue-card"
+                onClick={() => onResume(progress)}
+              >
+                <span className="continue-poster">
+                  <img src={progress.item.poster} alt="" loading="lazy" />
+                  <span className="continue-play"><Play size={15} fill="currentColor" /></span>
+                  <span className="continue-progress-track">
+                    <span style={{ width: playbackPercent(progress) + '%' }} />
+                  </span>
+                </span>
+                <span className="continue-card-info">
+                  <strong>{progress.item.title}</strong>
+                  <span>{progress.episodeTitle ?? '电影正片'}</span>
+                  <small>{formatPlaybackTime(progress.currentTime)} / {formatPlaybackTime(progress.duration)}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section id="catalog" className="catalog-section">
         <div className="section-heading">
@@ -492,11 +589,20 @@ type WatchViewProps = {
   error: string;
   navigate: (path: string) => void;
   playbackState: PlaybackState;
+  watchHistory: WatchProgress[];
   onPlaybackStateChange: (state: PlaybackState) => void;
+  onProgress: (
+    item: CatalogItem,
+    episodeId: string | undefined,
+    episodeTitle: string | undefined,
+    currentTime: number,
+    duration: number,
+  ) => void;
 };
 
 function WatchView({
-  route, item, episodes, loading, error, navigate, playbackState, onPlaybackStateChange,
+  route, item, episodes, loading, error, navigate, playbackState, watchHistory,
+  onPlaybackStateChange, onProgress,
 }: WatchViewProps) {
   if (loading) return <main className="page-state"><div className="section-kicker">PLAYER</div><h1>正在准备播放器…</h1></main>;
   if (!item) {
@@ -508,6 +614,11 @@ function WatchView({
   const episodeInvalid = item.mediaType === 'series' && Boolean(route.episodeId) && !selectedEpisode;
   const source = selectedEpisode?.videoUrl ?? (item.mediaType === 'movie' ? item.videoUrl : '');
   const title = selectedEpisode?.title ?? item.title;
+  const savedProgress = watchHistory.find(
+    (progress) =>
+      progress.item.id === item.id &&
+      (progress.episodeId ?? '') === (selectedEpisode?.id ?? ''),
+  );
 
   return (
     <main className="play-page">
@@ -537,6 +648,14 @@ function WatchView({
                 src={source}
                 poster={item.poster}
                 title={title}
+                initialTime={savedProgress?.currentTime ?? 0}
+                onProgress={(progress) => onProgress(
+                  item,
+                  selectedEpisode?.id,
+                  selectedEpisode?.title,
+                  progress.currentTime,
+                  progress.duration,
+                )}
                 onPlaybackStateChange={onPlaybackStateChange}
               />
             ) : (
@@ -608,6 +727,45 @@ export default function App() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
   const [playbackState, setPlaybackState] = useState<PlaybackState>('ready');
+  const [watchHistory, setWatchHistory] = useState<WatchProgress[]>(readWatchHistory);
+  const watchHistoryRef = useRef(watchHistory);
+  watchHistoryRef.current = watchHistory;
+
+  const saveWatchProgress = useCallback((
+    item: CatalogItem,
+    episodeId: string | undefined,
+    episodeTitle: string | undefined,
+    currentTime: number,
+    duration: number,
+  ) => {
+    if (!Number.isFinite(currentTime) || !Number.isFinite(duration) || duration <= 0 || currentTime < 5) return;
+
+    const progressKey = item.id + ':' + (episodeId ?? 'movie');
+    const current = watchHistoryRef.current;
+    const next = duration - currentTime <= 15
+      ? current.filter((entry) => entry.item.id + ':' + (entry.episodeId ?? 'movie') !== progressKey)
+      : [
+          {
+            item,
+            episodeId,
+            episodeTitle,
+            currentTime: Math.min(currentTime, duration),
+            duration,
+            updatedAt: Date.now(),
+          },
+          ...current.filter((entry) => entry.item.id + ':' + (entry.episodeId ?? 'movie') !== progressKey),
+        ]
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .slice(0, WATCH_HISTORY_LIMIT);
+
+    watchHistoryRef.current = next;
+    setWatchHistory(next);
+    try {
+      window.localStorage.setItem(WATCH_HISTORY_KEY, JSON.stringify(next));
+    } catch {
+      // Continue watching is a convenience feature; storage limits must not interrupt playback.
+    }
+  }, []);
 
   useEffect(() => {
     if (route.page !== 'home' && route.page !== 'series') return;
@@ -730,6 +888,8 @@ export default function App() {
           category={category}
           page={page}
           pagination={pagination}
+          watchHistory={watchHistory}
+          onResume={(progress) => navigate(resumePath(progress))}
           onQueryChange={handleQueryChange}
           onCategoryChange={handleCategoryChange}
           onPageChange={handlePageChange}
@@ -753,7 +913,9 @@ export default function App() {
           error={detailError}
           navigate={navigate}
           playbackState={playbackState}
+          watchHistory={watchHistory}
           onPlaybackStateChange={setPlaybackState}
+          onProgress={saveWatchProgress}
         />
       )}
       <footer>

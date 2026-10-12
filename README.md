@@ -92,6 +92,7 @@ The shared response and catalog types live in `contracts/catalog.d.ts`; Mock rec
 - `/watch/:id` opens a movie or defaults to the first episode of a series.
 - `/watch/:id/:episodeId` opens a specific episode. Browser Back/Forward are supported.
 - Playback status, buffering and media-source failures are reflected in the UI. The series episode URLs currently reuse the public Plyr demo MP4 as scaffold data.
+- Playback progress is saved locally in the current browser and shown in the home page's "继续观看" section. It restores the last position for the same movie/episode; finishing an item removes it from the continue-watching list. This is device-local only and does not sync between browsers or accounts.
 
 ## Project layout
 
