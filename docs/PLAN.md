@@ -253,7 +253,7 @@ Exit criteria:
 
 ### Phase 3 — Public UI package and Tailwind migration
 
-Status: shared UI foundation, admin migration slices, public catalog/detail/history and accessible confirmation dialog are merged into `main`; this branch migrates playback-page episode selection, previous/next navigation and detail/back actions to shared UI/Tailwind utilities. Final responsive acceptance checks remain.
+Status: shared UI foundation, admin migration slices, public catalog/detail/history, accessible confirmation dialog and playback navigation controls are merged into `main`. Remaining detail/player empty-state back actions are being aligned with shared buttons; final responsive acceptance checks remain.
 
 Tasks:
 - [x] Establish shared semantic tokens and reusable Button, Field, Message, Badge and Panel primitives in `packages/ui`.
@@ -269,6 +269,7 @@ Tasks:
 - [x] Add a shared accessible `ConfirmDialog` with dialog semantics, Escape-to-cancel, focus containment/restoration and busy-state handling; replace native confirms for item, episode and category deletion.
 - [x] Migrate detail-page episode cards and continue-watching history cards to Tailwind utilities; keep the poster gradient and Plyr-specific player internals in feature CSS.
 - [x] Migrate playback-page back/details actions, episode rows and previous/next controls to shared Button/Tailwind utilities while preserving episode routing and disabled-state logic.
+- [x] Migrate detail-page and player not-found return-to-catalog actions to shared Button variants while preserving route behavior.
 - [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
