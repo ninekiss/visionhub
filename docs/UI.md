@@ -31,3 +31,25 @@ The Web Tailwind CSS v4 entry explicitly scans `packages/ui/src`, so utility cla
 ## Migration scope
 
 Phase 3 deliberately migrates in slices. The admin navigation, catalog search/filter controls, catalog table and pagination, basic form controls and category chips use shared primitives. The public Web catalog category filters and pagination buttons use the same package with their own pill/compact variants; top navigation, search input and Hero CTA buttons also use shared components. The logo, notification icon, avatar, Hero layout and Plyr-specific styling remain feature-specific. Public catalog cards now share `MediaCard`; detail recommendations use the same implementation so they do not depend on removed legacy selectors. Detail episode cards and continue-watching/history cards use Tailwind utilities. Only the poster gradient pseudo-element and other specialized artwork/player effects remain in custom CSS. Page grids, data-specific content layout, a few specialized controls and custom Plyr styling remain in feature CSS until each section can be migrated and verified without changing behavior. Admin item, episode and category deletion now share `ConfirmDialog` rather than relying on browser-native `confirm()` dialogs. Playback-page episode rows and previous/next navigation use shared button variants and Tailwind utilities; Plyr's internal controls and player state visuals remain feature-specific.
+
+
+## Responsive and keyboard acceptance
+
+Use this matrix before closing Phase 3. These are required manual browser checks; CI type/build checks do not substitute for visual verification.
+
+| Viewport | Public Web | Admin |
+| --- | --- | --- |
+| 1440 × 900 | Header, hero, catalog grid, detail layout and player/sidebar fit without unintended horizontal scrolling. | Full sidebar, dashboard cards, catalog table, editor two-column layout and dialogs fit. |
+| 1024 × 768 | Catalog columns and detail/player layout remain usable; search and category controls do not overlap. | Sidebar and editor columns remain readable; table actions stay reachable. |
+| 768 × 1024 | Navigation collapse, card grids and player episode sidebar remain usable in a portrait tablet viewport. | Collapsed icon navigation retains accessible names; editor and episode forms stack without clipped controls. |
+| 390 × 844 | Header/search, category chips, cards, detail metadata, episode selection and Plyr controls remain usable. | Catalog filters, horizontally scrollable table, editor fields, episode cards, category actions and confirmation dialog remain usable. |
+| 320 × 700 | No page-level horizontal overflow; text, controls and close/cancel actions remain reachable. | No clipped primary actions; the table may scroll within its container, and form controls remain full-width. |
+
+Keyboard and state checks:
+- Tab through top navigation, filters, cards, player navigation and all admin controls; focus indicators remain visible.
+- At collapsed admin sidebar widths, each icon-only navigation link exposes its text label to assistive technology and as a tooltip.
+- Media type choices announce their selected state; category chips announce their pressed/selected state.
+- Confirmation dialogs keep focus contained while open, restore focus after close, and prevent dismissal while a destructive request is pending.
+- Exercise loading, empty, error and disabled states for catalog, editor, episode management and playback.
+
+Record the browser, viewport and result in the pull request before checking off the visual acceptance exit criterion.

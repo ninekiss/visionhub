@@ -272,13 +272,15 @@ Tasks:
 - [x] Migrate detail-page and player not-found return-to-catalog actions to shared Button variants while preserving route behavior.
 - [x] Migrate the catalog reset/return action to the shared ghost Button and remove its duplicated legacy CSS.
 - [x] Migrate admin item-editor and episode-manager back actions to shared Button variants and remove duplicated legacy CSS.
+- [x] Ensure shared sidebar navigation links keep accessible names and titles when the admin sidebar collapses to icon-only mode.
+- [x] Expose the selected state of admin media-type choice buttons to assistive technology.
 - [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
 Exit criteria:
 - [x] New shared primitive work follows the shared component and Tailwind conventions.
 - [x] Duplicate styling for migrated admin navigation, filters, table cells, basic form controls, public category chips, pagination, catalog/related cards, episode cards, continue-watching cards and playback navigation controls is removed from legacy CSS.
-- [ ] Admin forms, tables, navigation and confirmation dialog are visually verified at supported desktop and mobile widths.
+- [ ] Admin forms, tables, navigation and confirmation dialog are visually verified at supported desktop and mobile widths using the responsive acceptance matrix in `docs/UI.md`.
 - [ ] No regression in catalog, login, CRUD or player navigation after the full migration and CI validation.
 
 ### Phase 4 — Electron desktop MVP
