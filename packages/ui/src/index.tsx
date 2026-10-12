@@ -11,10 +11,16 @@ import type {
   ThHTMLAttributes,
 } from "react";
 
-export type ButtonKind = "primary" | "secondary" | "ghost";
+export type ButtonKind = "primary" | "secondary" | "ghost" | "surface";
+export type ButtonSize = "default" | "compact";
 
 const buttonBase =
-  "adm-btn inline-flex min-h-9 items-center justify-center gap-2 whitespace-nowrap rounded-[7px] border px-3.5 py-2 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--vh-bg)] disabled:pointer-events-none disabled:opacity-45";
+  "adm-btn inline-flex items-center justify-center whitespace-nowrap rounded-[7px] border font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--vh-bg)] disabled:pointer-events-none disabled:opacity-45";
+
+const buttonSizes: Record<ButtonSize, string> = {
+  default: "min-h-9 gap-2 px-3.5 py-2 text-[11px]",
+  compact: "gap-[5px] px-3 py-[9px] text-[11px]",
+};
 
 const buttonKinds: Record<ButtonKind, string> = {
   primary:
@@ -23,21 +29,30 @@ const buttonKinds: Record<ButtonKind, string> = {
     "border-[#363d48] bg-[var(--vh-panel-raised)] text-[#d5dae2] hover:border-[#7c8d5a]",
   ghost:
     "border-transparent bg-transparent text-[#929ba8] hover:bg-white/5",
+  surface:
+    "border-[#2a2f39] bg-[#11141b] text-[#d6d9df] hover:border-[#c7f36b88] hover:text-[var(--vh-accent)]",
 };
 
-/** Shared button primitive; the kind prop stays compatible with existing admin screens. */
+/** Shared button primitive; kind and size select accessible visual variants. */
 export function Button({
   children,
   kind = "primary",
+  size = "default",
   className = "",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
   kind?: ButtonKind;
+  size?: ButtonSize;
 }) {
   return (
     <button
-      className={buttonBase + " " + buttonKinds[kind] + (className ? " " + className : "")}
+      className={
+        buttonBase +
+        " " + buttonSizes[size] +
+        " " + buttonKinds[kind] +
+        (className ? " " + className : "")
+      }
       {...props}
     >
       {children}
@@ -400,23 +415,43 @@ export function TextAreaControl({
   );
 }
 
+export type ChoiceChipVariant = "standard" | "pill";
+export type ChoiceChipSize = "sm" | "md";
+
 export function ChoiceChip({
   selected = false,
+  variant = "standard",
+  size = "sm",
   className = "",
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   selected?: boolean;
+  variant?: ChoiceChipVariant;
+  size?: ChoiceChipSize;
   children: ReactNode;
 }) {
+  const sizing: Record<ChoiceChipSize, string> = {
+    sm: "gap-1 rounded-[5px] px-[9px] py-1.5 text-[10px]",
+    md: "gap-2 rounded-full px-[13px] py-2 text-[11px]",
+  };
+  const variants: Record<ChoiceChipVariant, { selected: string; idle: string }> = {
+    standard: {
+      selected: "border-[#819e54] bg-[#c7f36b10] text-[var(--vh-accent)]",
+      idle: "border-[#353d48] bg-[#181e26] text-[#acb5c2] hover:border-[#718650]",
+    },
+    pill: {
+      selected: "border-[#c7f36b88] bg-[#c7f36b16] text-[var(--vh-accent)]",
+      idle: "border-[#292e38] bg-[#11141b] text-[#9aa1ad] hover:border-[#69744f] hover:text-[#eef1e8]",
+    },
+  };
   return (
     <button
       {...props}
       className={
-        "inline-flex items-center gap-1 rounded-[5px] border px-[9px] py-1.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)] " +
-        (selected
-          ? "border-[#819e54] bg-[#c7f36b10] text-[var(--vh-accent)]"
-          : "border-[#353d48] bg-[#181e26] text-[#acb5c2] hover:border-[#718650]") +
+        "inline-flex items-center border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)] " +
+        sizing[size] +
+        " " + (selected ? variants[variant].selected : variants[variant].idle) +
         (className ? " " + className : "")
       }
     >

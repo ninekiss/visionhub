@@ -13,6 +13,7 @@ import {
   Sparkles,
   Tv2,
 } from 'lucide-react';
+import { Button, ChoiceChip } from '@visionhub/ui';
 import type {
   ApiResponse,
   CatalogEpisode,
@@ -407,10 +408,13 @@ function HomeView(props: HomeViewProps) {
         {!seriesOnly && (
           <div className="category-filters" role="group" aria-label="按类型筛选">
             {categoryOptions.map((option) => (
-              <button
+              <ChoiceChip
                 type="button"
                 key={option.value || 'all'}
-                className={'category-chip' + (category === option.value ? ' active' : '')}
+                variant="pill"
+                size="md"
+                className="category-chip"
+                selected={category === option.value}
                 aria-pressed={category === option.value}
                 onClick={() => {
                   onCategoryChange(option.value);
@@ -418,7 +422,7 @@ function HomeView(props: HomeViewProps) {
                 }}
               >
                 {option.label}
-              </button>
+              </ChoiceChip>
             ))}
           </div>
         )}
@@ -452,20 +456,24 @@ function HomeView(props: HomeViewProps) {
               : '第 ' + pagination.page + ' / ' + Math.max(1, pagination.totalPages) + ' 页 · 共 ' + pagination.totalItems + ' 部片目'}
           </span>
           <div className="pagination-actions">
-            <button
+            <Button
               type="button"
+              kind="surface"
+              size="compact"
               disabled={!pagination.hasPreviousPage || loading}
               onClick={() => onPageChange(Math.max(1, page - 1))}
             >
               <ChevronLeft size={15} /> 上一页
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              kind="surface"
+              size="compact"
               disabled={!pagination.hasNextPage || loading}
               onClick={() => onPageChange(page + 1)}
             >
               下一页 <ChevronRight size={15} />
-            </button>
+            </Button>
           </div>
         </div>
       </section>
