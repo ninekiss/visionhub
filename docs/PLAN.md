@@ -253,7 +253,7 @@ Exit criteria:
 
 ### Phase 3 — Public UI package and Tailwind migration
 
-Status: shared UI foundation, two admin migration slices, public catalog filters/shell/Hero and media-card migration are merged into `main`; this branch extends the shared card into related-content, detail episode cards and continue-watching history. Final responsive acceptance checks remain.
+Status: shared UI foundation, admin migration slices, public catalog/detail/history and accessible confirmation dialog are merged into `main`; this branch migrates playback-page episode selection, previous/next navigation and detail/back actions to shared UI/Tailwind utilities. Final responsive acceptance checks remain.
 
 Tasks:
 - [x] Establish shared semantic tokens and reusable Button, Field, Message, Badge and Panel primitives in `packages/ui`.
@@ -268,12 +268,13 @@ Tasks:
 - [x] Remove legacy CSS rules that duplicated the styling now owned by shared Tailwind primitives.
 - [x] Add a shared accessible `ConfirmDialog` with dialog semantics, Escape-to-cancel, focus containment/restoration and busy-state handling; replace native confirms for item, episode and category deletion.
 - [x] Migrate detail-page episode cards and continue-watching history cards to Tailwind utilities; keep the poster gradient and Plyr-specific player internals in feature CSS.
-- [ ] Continue reviewing remaining playback controls and other non-destructive interaction flows in manageable chunks.
+- [x] Migrate playback-page back/details actions, episode rows and previous/next controls to shared Button/Tailwind utilities while preserving episode routing and disabled-state logic.
+- [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
 Exit criteria:
 - [x] New shared primitive work follows the shared component and Tailwind conventions.
-- [x] Duplicate styling for migrated admin navigation, filters, table cells, basic form controls, public category chips, pagination, catalog/related cards, episode cards and continue-watching cards is removed from legacy CSS.
+- [x] Duplicate styling for migrated admin navigation, filters, table cells, basic form controls, public category chips, pagination, catalog/related cards, episode cards, continue-watching cards and playback navigation controls is removed from legacy CSS.
 - [ ] Admin forms, tables, navigation and confirmation dialog are visually verified at supported desktop and mobile widths.
 - [ ] No regression in catalog, login, CRUD or player navigation after the full migration and CI validation.
 
