@@ -353,20 +353,20 @@ function HomeView(props: HomeViewProps) {
             {watchHistory.slice(0, 4).map((progress) => (
               <button
                 key={progress.item.id + ':' + (progress.episodeId ?? 'movie')}
-                className="continue-card"
+                className="group flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-[10px] border border-[#242832] bg-[#101319] p-0 text-left text-[inherit] transition-[border-color,transform] duration-[180ms] hover:-translate-y-0.5 hover:border-[#c7f36b77] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b]"
                 onClick={() => onResume(progress)}
               >
-                <span className="continue-poster">
-                  <img src={progress.item.poster} alt="" loading="lazy" />
-                  <span className="continue-play"><Play size={15} fill="currentColor" /></span>
-                  <span className="continue-progress-track">
-                    <span style={{ width: playbackPercent(progress) + '%' }} />
+                <span className="relative block aspect-video w-full overflow-hidden bg-[#171b23]">
+                  <img className="block h-full w-full object-cover" src={progress.item.poster} alt="" loading="lazy" />
+                  <span className="absolute inset-0 grid place-items-center bg-[#06080b40] text-[#c7f36b] opacity-0 transition-opacity duration-[180ms] group-hover:opacity-100"><Play size={15} fill="currentColor" /></span>
+                  <span className="absolute inset-x-0 bottom-0 h-[3px] bg-white/25">
+                    <span className="block h-full bg-[#c7f36b]" style={{ width: playbackPercent(progress) + '%' }} />
                   </span>
                 </span>
-                <span className="continue-card-info">
-                  <strong>{progress.item.title}</strong>
-                  <span>{progress.episodeTitle ?? '电影正片'}</span>
-                  <small>{formatPlaybackTime(progress.currentTime)} / {formatPlaybackTime(progress.duration)}</small>
+                <span className="flex min-w-0 flex-col gap-[5px] p-3 max-[600px]:p-2.5">
+                  <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-semibold max-[600px]:text-[11px]">{progress.item.title}</strong>
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-[#9ba2ad]">{progress.episodeTitle ?? '电影正片'}</span>
+                  <small className="text-[10px] text-[#707987]">{formatPlaybackTime(progress.currentTime)} / {formatPlaybackTime(progress.duration)}</small>
                 </span>
               </button>
             ))}
