@@ -510,10 +510,10 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
           </div>
           <p className="detail-description">{item.description}</p>
           <div className="hero-buttons">
-            <button className="primary" onClick={() => navigate(playPath(item, episodes))}>
+            <Button kind="heroPrimary" size="hero" onClick={() => navigate(playPath(item, episodes))}>
               <Play size={15} fill="currentColor" /> {item.mediaType === 'series' ? '从第一集开始' : '立即播放'}
-            </button>
-            <button className="secondary" onClick={() => navigate('/')}>继续浏览</button>
+            </Button>
+            <Button kind="heroSecondary" size="hero" onClick={() => navigate('/')}>继续浏览</Button>
           </div>
           {error && <div className="inline-notice" role="status">{error}</div>}
           <div className="detail-facts">
@@ -533,10 +533,18 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
           {episodes.length > 0 ? (
             <div className="episode-grid">
               {episodes.map((episode) => (
-                <button key={episode.id} className="episode-card" onClick={() => navigate(playPath(item, [episode]))}>
-                  <span className="episode-card-number">{String(episode.episodeNumber).padStart(2, '0')}</span>
-                  <span className="episode-card-copy"><strong>{episode.title}</strong><small>{episode.summary}</small><small>{episode.durationMinutes} 分钟</small></span>
-                  <span className="episode-card-play"><Play size={14} fill="currentColor" /></span>
+                <button
+                  key={episode.id}
+                  className="group flex min-w-0 cursor-pointer items-center gap-[15px] rounded-[10px] border border-[#252a34] bg-[#101319] p-[17px] text-left text-[#eff1f5] transition-colors hover:border-[#c7f36b70] hover:bg-[#141922] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b]"
+                  onClick={() => navigate(playPath(item, [episode]))}
+                >
+                  <span className="min-w-[27px] text-[19px] font-bold text-[#c7f36b]">{String(episode.episodeNumber).padStart(2, '0')}</span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <strong className="text-[12px] font-semibold">{episode.title}</strong>
+                    <small className="text-[10px] leading-[1.6] text-[#838b98]">{episode.summary}</small>
+                    <small className="text-[10px] leading-[1.6] text-[#838b98]">{episode.durationMinutes} 分钟</small>
+                  </span>
+                  <span className="grid h-[31px] w-[31px] flex-none place-items-center rounded-full bg-[#c7f36b] text-[#11160b]"><Play size={14} fill="currentColor" /></span>
                 </button>
               ))}
             </div>
