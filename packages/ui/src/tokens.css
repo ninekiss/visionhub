@@ -1,0 +1,19 @@
+:root {
+  color-scheme: dark;
+  --vh-bg: #0b0d11;
+  --vh-panel: #11151c;
+  --vh-panel-raised: #191e26;
+  --vh-line: #2a303a;
+  --vh-text: #eef1f5;
+  --vh-muted: #858e9d;
+  --vh-accent: #c7f36b;
+  --vh-accent-hover: #d8fa91;
+  --vh-danger: #f0b4b9;
+  --vh-danger-bg: #2a171b;
+  --vh-success: #b9d99b;
+  --vh-success-bg: #182516;
+  --vh-info: #b0c9e2;
+  --vh-info-bg: #17202b;
+  --vh-radius-control: 7px;
+  --vh-radius-panel: 11px;
+}

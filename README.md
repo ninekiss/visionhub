@@ -8,6 +8,7 @@
 - Web：React + TypeScript + Vite
 - API：NestJS + TypeScript + Prisma ORM
 - Player：[Plyr](https://github.com/sampotts/plyr) + HTML5 video
+- Shared UI：`packages/ui` provides shared design tokens and Tailwind-based React primitives
 - Database：现有 PostgreSQL
 - Runtime：Docker Compose（仅应用服务，连接已存在的外部数据库网络）
 
@@ -150,6 +151,7 @@ apps/
 packages/
   config/    YAML/env 合并、Zod 校验与独立桌面配置加载
   contracts/ Web、Electron、API 共用的无依赖类型
+  ui/        跨客户端 tokens、Tailwind 组件原语
 configs/     开发、生产、桌面 YAML 配置
 deploy/      Dockerfile 与 Nginx 配置
 ```
