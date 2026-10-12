@@ -1,8 +1,10 @@
 packages:
   - "apps/*"
 
-# pnpm 11+ / 12: explicitly approve only required dependency install scripts.
+# Only allow lifecycle scripts required to build the toolchain; keep unrelated scripts disabled.
 allowBuilds:
+  '@prisma/engines': true
   esbuild: true
   plyr: false
+  prisma: true
   workerd: false
