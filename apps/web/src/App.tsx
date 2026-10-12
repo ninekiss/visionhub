@@ -249,7 +249,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   const libraryActive = route.page === 'detail' || route.page === 'watch' || (route.page === 'home' && hash === '#catalog');
   return (
     <header className="topbar">
-      <a className="brand" href="/" onClick={(event) => followLink(event, '/')}>
+      <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate('/'); }}>
         <span className="brand-mark"><Clapperboard size={20} /></span>
         <span>VISION<span className="brand-accent">HUB</span></span>
       </a>
