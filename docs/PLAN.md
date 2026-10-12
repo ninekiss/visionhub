@@ -280,7 +280,7 @@ Tasks:
 - [x] Standardize admin icon-only actions for logout, edit, episode management and delete flows on the shared IconButton primitive.
 - [x] Remove the inert public-header notification button because no notification behavior or backend exists yet.
 - [x] Add live announcements for player loading and no-source states, and alert semantics for missing content and playback request errors.
-- [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
+- [x] Review remaining public playback states and non-destructive interaction controls; remove the inert notification action and preserve clear navigation for invalid/missing playback states.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
 Exit criteria:
