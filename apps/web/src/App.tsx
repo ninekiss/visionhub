@@ -248,8 +248,14 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   const showSearch = route.page === 'home' || route.page === 'series';
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileSearchToggleRef = useRef<HTMLButtonElement>(null);
+  const previousMobileSearchOpen = useRef(false);
   const discoverActive = route.page === 'home' && hash !== '#catalog';
   const libraryActive = route.page === 'detail' || route.page === 'watch' || (route.page === 'home' && hash === '#catalog');
+  useEffect(() => {
+    if (previousMobileSearchOpen.current && !mobileSearchOpen && showSearch) mobileSearchToggleRef.current?.focus();
+    previousMobileSearchOpen.current = mobileSearchOpen;
+  }, [mobileSearchOpen, showSearch]);
   useEffect(() => {
     if (!showSearch && mobileSearchOpen) setMobileSearchOpen(false);
     setMobileNavOpen(false);
@@ -293,6 +299,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
             />
             <button
               type="button"
+              ref={mobileSearchToggleRef}
               className={'mobile-search-toggle' + (mobileSearchOpen ? ' is-open' : '')}
               aria-label="打开搜索"
               aria-expanded={mobileSearchOpen}
