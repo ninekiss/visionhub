@@ -270,6 +270,7 @@ Tasks:
 - [x] Migrate detail-page episode cards and continue-watching history cards to Tailwind utilities; keep the poster gradient and Plyr-specific player internals in feature CSS.
 - [x] Migrate playback-page back/details actions, episode rows and previous/next controls to shared Button/Tailwind utilities while preserving episode routing and disabled-state logic.
 - [x] Migrate detail-page and player not-found return-to-catalog actions to shared Button variants while preserving route behavior.
+- [x] Migrate the catalog reset/return action to the shared ghost Button and remove its duplicated legacy CSS.
 - [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
