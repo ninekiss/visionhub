@@ -13,7 +13,7 @@ import {
   Sparkles,
   Tv2,
 } from 'lucide-react';
-import { Button, ChoiceChip, NavigationItem, SearchField } from '@visionhub/ui';
+import { Button, ChoiceChip, MediaCard, NavigationItem, SearchField } from '@visionhub/ui';
 import type {
   ApiResponse,
   CatalogEpisode,
@@ -417,33 +417,16 @@ function HomeView(props: HomeViewProps) {
 
         <div className="catalog-grid" aria-busy={loading}>
           {items.map((item, index) => (
-            <button
+            <MediaCard
               key={item.id}
-              className="group media-card cursor-pointer overflow-hidden rounded-[10px] border border-transparent bg-transparent p-0 text-left text-[inherit] transition-transform duration-200 hover:-translate-y-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b]"
+              poster={item.poster}
+              title={item.title}
+              rank={String((page - 1) * pagination.pageSize + index + 1).padStart(2, '0')}
+              metadata={<>{item.year} <i className="mx-1 not-italic text-[#4f5560]">·</i> {categoryText(item)}</>}
+              secondaryMetadata={<>{mediaTypeText(item)}{item.episodeCount > 0 ? ' · ' + item.episodeCount + ' 集' : ''}</>}
+              playIcon={<Play size={12} fill="currentColor" />}
               onClick={() => navigate('/title/' + encodeURIComponent(item.id))}
-            >
-              <div className="poster-wrap relative aspect-[16/10] overflow-hidden bg-[#171a22] max-[600px]:aspect-[4/3]">
-                <img
-                  className="block h-full w-full object-cover transition-transform duration-[350ms] group-hover:scale-[1.04]"
-                  src={item.poster}
-                  alt=""
-                  loading="lazy"
-                />
-                <span className="poster-number absolute left-3 top-3 z-[1] rounded-[4px] border border-white/15 bg-[#080a10a6] px-1.5 py-1 text-[10px] text-white">
-                  {String((page - 1) * pagination.pageSize + index + 1).padStart(2, '0')}
-                </span>
-                <span className="poster-play absolute bottom-3 right-3 z-[1] grid h-[30px] w-[30px] place-items-center rounded-full bg-[#c7f36b] text-[11px] text-[#10150a] opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                  <Play size={12} fill="currentColor" />
-                </span>
-              </div>
-              <div className="media-info flex flex-col gap-[7px] px-[3px] pt-[13px] pb-3 max-[600px]:pt-[10px]">
-                <strong className="text-[13px] font-semibold max-[600px]:text-[12px]">{item.title}</strong>
-                <span className="text-[10px] text-[#818793]">{item.year} <i className="mx-1 not-italic text-[#4f5560]">·</i> {categoryText(item)}</span>
-                <span className="media-type-label text-[10px] tracking-[.15px] text-[#a5adba]">
-                  {mediaTypeText(item)}{item.episodeCount > 0 ? ' · ' + item.episodeCount + ' 集' : ''}
-                </span>
-              </div>
-            </button>
+            />
           ))}
         </div>
         {items.length === 0 && <p className="empty">没有找到匹配的内容，请尝试其他关键词或类型。</p>}
@@ -569,10 +552,14 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
         </div>
         <div className="related-grid">
           {related.filter((entry) => entry.id !== item.id).slice(0, 4).map((entry) => (
-            <button key={entry.id} className="media-card" onClick={() => navigate('/title/' + encodeURIComponent(entry.id))}>
-              <div className="poster-wrap"><img src={entry.poster} alt="" loading="lazy" /><span className="poster-play"><Play size={12} fill="currentColor" /></span></div>
-              <div className="media-info"><strong>{entry.title}</strong><span>{entry.year} <i>·</i> {categoryText(entry)}</span></div>
-            </button>
+            <MediaCard
+              key={entry.id}
+              poster={entry.poster}
+              title={entry.title}
+              metadata={<>{entry.year} <i className="mx-1 not-italic text-[#4f5560]">·</i> {categoryText(entry)}</>}
+              playIcon={<Play size={12} fill="currentColor" />}
+              onClick={() => navigate('/title/' + encodeURIComponent(entry.id))}
+            />
           ))}
         </div>
       </section>
