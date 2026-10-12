@@ -6,14 +6,14 @@
 
 /* Server-driven catalog filters and pagination */
 .category-filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 22px}
-.category-chip{border:1px solid #292e38;background:#11141b;color:#9aa1ad;border-radius:999px;padding:8px 13px;font-size:11px;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
-.category-chip:hover{border-color:#69744f;color:#eef1e8}
-.category-chip.active{border-color:#c7f36b88;background:#c7f36b16;color:#c7f36b}
+
+
+
 .pagination-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:24px;padding-top:18px;border-top:1px solid #ffffff10;color:#858b97;font-size:11px}
 .pagination-actions{display:flex;align-items:center;gap:8px}
-.pagination-actions button{display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid #2a2f39;background:#11141b;color:#d6d9df;border-radius:7px;padding:9px 12px;font-size:11px;cursor:pointer}
-.pagination-actions button:hover:not(:disabled){border-color:#c7f36b88;color:#c7f36b}
-.pagination-actions button:disabled{opacity:.38;cursor:not-allowed}
+
+
+
 .catalog-grid[aria-busy="true"]{opacity:.72}
 @media(max-width:600px){.category-filters{gap:6px;margin-bottom:18px}.category-chip{padding:7px 10px}.pagination-bar{align-items:flex-start;flex-direction:column}.pagination-actions{width:100%;justify-content:space-between}.pagination-actions button{flex:1}}
 
