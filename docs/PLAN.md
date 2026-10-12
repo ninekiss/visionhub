@@ -365,9 +365,9 @@ Every phase should meet these gates before merge:
 
 The recommended next slice is:
 
-1. **Phase 0/1:** complete for the current Web/API baseline. Keep the configuration/catalog tests and Node 24.21.0 build gates in CI.
-2. **Next: Phase 2:** implement shared configuration loading and strict Zod validation before adding desktop-specific settings.
-3. **Phase 3:** finish responsive acceptance, non-destructive interaction review and catalog/login/CRUD/player regression checks before marking the UI phase complete. Keep Web independently deployable.
-4. Continue to the HLS adapter and deployment layout once the shared foundation is stable.
+1. **Phase 0/1/2:** complete for the current Web/API baseline, including shared configuration/contracts and strict validation. Keep the configuration/catalog tests and Node 24.21.0 build gates in CI.
+2. **Phase 3:** finish manual responsive browser acceptance and end-to-end regression checks for catalog, login, CRUD and player navigation before marking the UI phase complete. Keep Web independently deployable.
+3. **Phase 4:** only after Phase 3 exit criteria are verified, start the Electron desktop shell while reusing the shared UI/contracts.
+4. Continue to the HLS adapter and deployment layout according to the later phase acceptance criteria.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
