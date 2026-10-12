@@ -277,6 +277,7 @@ Tasks:
 - [x] Restore a keyboard-accessible expandable search field on mobile, where the previous responsive CSS hid the input without providing a way to reveal it.
 - [x] Expose the selected state of admin media-type choice buttons to assistive technology.
 - [x] Standardize admin icon-only actions for logout, edit, episode management and delete flows on the shared IconButton primitive.
+- [x] Replace the inert public-header notification control with an accessible empty-state panel; explicitly keep it local-only until a notification API exists.
 - [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
