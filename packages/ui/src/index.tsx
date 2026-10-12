@@ -95,7 +95,6 @@ export function ConfirmDialog({
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
-  const confirmRef = useRef<HTMLButtonElement>(null);
   const handlersRef = useRef({ onConfirm, onCancel });
   const busyRef = useRef(busy);
 
@@ -111,7 +110,7 @@ export function ConfirmDialog({
     if (!open) return;
     const previousFocus =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    confirmRef.current?.focus();
+    dialogRef.current?.querySelector<HTMLElement>('button:not([disabled])')?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -177,7 +176,6 @@ export function ConfirmDialog({
             {cancelLabel}
           </Button>
           <Button
-            ref={confirmRef}
             kind={danger ? "danger" : "primary"}
             type="button"
             disabled={busy}
