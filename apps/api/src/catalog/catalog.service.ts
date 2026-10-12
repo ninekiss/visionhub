@@ -38,7 +38,7 @@ type DatabaseCatalogItem = {
 export class CatalogService {
   constructor(
     @Inject(APP_CONFIG) private readonly config: AppConfig,
-    private readonly prisma: PrismaService,
+    @Inject(PrismaService) private readonly prisma: PrismaService,
   ) {}
 
   async list(query: CatalogListQuery): Promise<PaginatedResponse<CatalogItem>> {

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { Controller, Get, Inject, Param, Query } from "@nestjs/common";
 import type {
   ApiResponse,
   CatalogEpisode,
@@ -10,7 +10,7 @@ import { CatalogService } from "./catalog.service.js";
 
 @Controller("catalog")
 export class CatalogController {
-  constructor(private readonly catalogService: CatalogService) {}
+  constructor(@Inject(CatalogService) private readonly catalogService: CatalogService) {}
 
   @Get("categories")
   async categories(): Promise<ApiResponse<string[]>> {
