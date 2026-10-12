@@ -9,7 +9,6 @@ import type {
   TextareaHTMLAttributes,
   TdHTMLAttributes,
   ThHTMLAttributes,
-  TrHTMLAttributes,
 } from "react";
 
 export type ButtonKind = "primary" | "secondary" | "ghost";
@@ -326,7 +325,7 @@ export function TableHeaderCell({
 export function TableRow({
   className = "",
   ...props
-}: TrHTMLAttributes<HTMLTableRowElement>) {
+}: HTMLAttributes<HTMLTableRowElement>) {
   return (
     <tr
       {...props}
