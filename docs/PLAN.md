@@ -253,7 +253,7 @@ Exit criteria:
 
 ### Phase 3 — Public UI package and Tailwind migration
 
-Status: shared UI foundation, admin migration slices, public catalog/detail/history, accessible confirmation dialog and playback navigation controls are merged into `main`. Remaining detail/player empty-state back actions are being aligned with shared buttons; final responsive acceptance checks remain.
+Status: shared UI foundation, admin migration slices, public catalog/detail/history, accessible confirmation dialog, playback navigation and catalog reset actions are merged into `main`. Remaining work focuses on interaction-flow review, responsive acceptance and regression verification.
 
 Tasks:
 - [x] Establish shared semantic tokens and reusable Button, Field, Message, Badge and Panel primitives in `packages/ui`.
@@ -271,6 +271,7 @@ Tasks:
 - [x] Migrate playback-page back/details actions, episode rows and previous/next controls to shared Button/Tailwind utilities while preserving episode routing and disabled-state logic.
 - [x] Migrate detail-page and player not-found return-to-catalog actions to shared Button variants while preserving route behavior.
 - [x] Migrate the catalog reset/return action to the shared ghost Button and remove its duplicated legacy CSS.
+- [x] Migrate admin item-editor and episode-manager back actions to shared Button variants and remove duplicated legacy CSS.
 - [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
@@ -359,7 +360,7 @@ The recommended next slice is:
 
 1. **Phase 0/1:** complete for the current Web/API baseline. Keep the configuration/catalog tests and Node 24.21.0 build gates in CI.
 2. **Next: Phase 2:** implement shared configuration loading and strict Zod validation before adding desktop-specific settings.
-3. **Phase 3 and 4:** prepare reusable UI/contracts, then create the Electron desktop shell while keeping Web independently deployable and its shared workflows in sync.
+3. **Phase 3:** finish responsive acceptance, non-destructive interaction review and catalog/login/CRUD/player regression checks before marking the UI phase complete. Keep Web independently deployable.
 4. Continue to the HLS adapter and deployment layout once the shared foundation is stable.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
