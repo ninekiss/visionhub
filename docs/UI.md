@@ -13,6 +13,12 @@ Import `@visionhub/ui/tokens.css` in the client entry point. Use the semantic CS
 - `Message`: accessible error/success/info feedback, using alert/status roles.
 - `Badge`: compact neutral, accent, success, danger and series variants.
 - `Panel`: shared panel surface and border convention.
+- `NavigationItem`: accessible route link with active state; the host client supplies navigation behavior.
+- `SearchField` and `SelectControl`: consistent catalog filters with native input/select semantics.
+- `TextInput` and `TextAreaControl`: shared form-control focus, border, spacing and text styles.
+- `ChoiceChip`: selected/unselected category chips.
+- `DataTable`, `TableContainer`, `TableHeaderCell`, `TableRow` and `TableCell`: shared table structure and responsive cell spacing.
+- `IconButton` and `PaginationBar`: compact table actions and pagination surface.
 
 Import primitives from `@visionhub/ui`. Avoid copying component implementations into Web or future Electron code.
 
@@ -22,4 +28,4 @@ The Web Tailwind CSS v4 entry explicitly scans `packages/ui/src`, so utility cla
 
 ## Migration scope
 
-Phase 3 deliberately migrates in slices. Shared tokens and primitives are in place and the admin buttons, field labels, feedback messages and media-type badges use them. Page grids, data tables, navigation, detailed form controls and the custom Plyr styling remain in their feature CSS until each section can be migrated and verified without changing behavior.
+Phase 3 deliberately migrates in slices. The admin navigation, catalog search/filter controls, catalog table and pagination, basic form controls and category chips now use shared primitives. Page grids, data-specific content layout, a few specialized controls and custom Plyr styling remain in feature CSS until each section can be migrated and verified without changing behavior.
