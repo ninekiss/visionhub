@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
-import { APP_CONFIG, loadAppConfig } from './app-config';
+import { Module } from "@nestjs/common";
+import { APP_CONFIG, loadAppConfig } from "./app-config.js";
 
 @Module({
   providers: [
