@@ -564,7 +564,7 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
             </Button>
             <Button kind="heroSecondary" size="hero" onClick={() => navigate('/')}>继续浏览</Button>
           </div>
-          {error && <div className="inline-notice" role="status">{error}</div>}
+          {error && <div className="inline-notice" role="alert">{error}</div>}
           <div className="detail-facts">
             <div><span>作品类型</span><strong>{mediaTypeText(item)}</strong></div>
             <div><span>发行年份</span><strong>{item.year}</strong></div>
@@ -656,9 +656,9 @@ function WatchView({
   route, item, episodes, loading, error, navigate, playbackState, watchHistory,
   onPlaybackStateChange, onProgress,
 }: WatchViewProps) {
-  if (loading) return <main className="page-state"><div className="section-kicker">PLAYER</div><h1>正在准备播放器…</h1></main>;
+  if (loading) return <main className="page-state"><div role="status" aria-live="polite"><div className="section-kicker">PLAYER</div><h1>正在准备播放器…</h1></div></main>;
   if (!item) {
-    return <main className="page-state"><h1>无法打开播放页面</h1><p>{error || '请稍后重试。'}</p><Button kind="primary" onClick={() => navigate('/')}>返回片库</Button></main>;
+    return <main className="page-state"><div role="alert"><h1>无法打开播放页面</h1><p>{error || '请稍后重试。'}</p></div><Button kind="primary" onClick={() => navigate('/')}>返回片库</Button></main>;
   }
 
   const selectedEpisode = episodes.find((episode) => episode.id === route.episodeId) ?? (!route.episodeId ? episodes[0] : undefined);
@@ -693,7 +693,7 @@ function WatchView({
         <section className="play-main">
           <div className="video-panel play-video-panel">
             {episodeInvalid ? (
-              <div className="player-empty"><Film size={26} /><strong>没有找到这一集</strong><Button kind="secondary" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}>选择其他剧集</Button></div>
+              <div className="player-empty" role="alert"><Film size={26} /><strong>没有找到这一集</strong><Button kind="secondary" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}>选择其他剧集</Button></div>
             ) : source ? (
               <PlyrPlayer
                 key={item.id + ':' + (selectedEpisode?.id ?? 'movie')}
@@ -711,7 +711,7 @@ function WatchView({
                 onPlaybackStateChange={onPlaybackStateChange}
               />
             ) : (
-              <div className="player-empty"><Film size={26} /><strong>暂时没有可播放的视频源</strong><span>请返回详情页选择其他剧集。</span></div>
+              <div className="player-empty" role="status" aria-live="polite"><Film size={26} /><strong>暂时没有可播放的视频源</strong><span>请返回详情页选择其他剧集。</span></div>
             )}
           </div>
           <div className="play-description">
