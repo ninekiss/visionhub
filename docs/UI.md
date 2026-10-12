@@ -47,6 +47,7 @@ Use this matrix before closing Phase 3. These are required manual browser checks
 
 Keyboard and state checks:
 - Tab through top navigation, filters, cards, player navigation and all admin controls; focus indicators remain visible.
+- On mobile, open search with the search toggle, verify the input receives focus, test filtering, then close with Escape and the close control.
 - At collapsed admin sidebar widths, each icon-only navigation link exposes its text label to assistive technology and as a tooltip.
 - Media type choices announce their selected state; category chips announce their pressed/selected state.
 - Confirmation dialogs keep focus contained while open, restore focus after close, and prevent dismissal while a destructive request is pending.
