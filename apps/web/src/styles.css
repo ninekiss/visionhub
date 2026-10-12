@@ -43,13 +43,13 @@
 .episodes-section,.related-section{padding:0 clamp(24px,8vw,130px) 58px}
 .episode-count{font-size:11px;color:#8b929e}
 .episode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.episode-card{display:flex;align-items:center;gap:15px;text-align:left;border:1px solid #252a34;background:#101319;color:#eff1f5;padding:17px;border-radius:10px;cursor:pointer;min-width:0}
-.episode-card:hover{border-color:#c7f36b70;background:#141922}
-.episode-card-number{font-size:19px;font-weight:700;color:#c7f36b;min-width:27px}
-.episode-card-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:6px}
-.episode-card-copy strong{font-size:12px;font-weight:600}
-.episode-card-copy small{font-size:10px;color:#838b98;line-height:1.6}
-.episode-card-play{height:31px;width:31px;flex:none;display:grid;place-items:center;border-radius:50%;background:#c7f36b;color:#11160b}
+
+
+
+
+
+
+
 .related-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:start;gap:18px}
 .page-state{min-height:55vh;padding:12vh clamp(24px,8vw,130px);display:flex;align-items:flex-start;flex-direction:column;gap:14px}
 .page-state h1{font-size:clamp(28px,4vw,44px);margin:0}
