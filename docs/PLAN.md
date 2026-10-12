@@ -278,6 +278,7 @@ Tasks:
 - [x] Restore access to primary discovery/library/series navigation on mobile via an accessible collapsible menu.
 - [x] Expose the selected state of admin media-type choice buttons to assistive technology.
 - [x] Standardize admin icon-only actions for logout, edit, episode management and delete flows on the shared IconButton primitive.
+- [x] Remove the inert public-header notification button because no notification behavior or backend exists yet.
 - [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
