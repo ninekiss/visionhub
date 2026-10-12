@@ -32,7 +32,7 @@ The following status is based on the repository code and lockfile on 2026-10-12.
 | Database | Prisma 7.10.0 and PostgreSQL; data lives in the separate `visionhub` schema | Implemented foundation |
 | Database ownership | Compose has API and web services only; PostgreSQL is reached through an external Docker network | Aligned |
 | Data changes | Explicit migration and seed commands; no migration on ordinary API startup | Aligned with safety constraint |
-| Runtime baseline | Node.js 24.21.0 is pinned in `.nvmrc`, CI and Docker build stages; package engine requires `>=24.21.0 <25` | Phase 1 runtime alignment implemented; CI verification pending |
+| Runtime baseline | Node.js 24.21.0 is pinned in `.nvmrc`, CI and Docker build stages; package engine requires `>=24.21.0 <25` | Verified in CI; aligned |
 | Package manager | pnpm 12.11.2 with a committed lockfile | Implemented; retain reproducible installs |
 | Configuration | Environment-specific YAML and environment variables exist | Partial; no strict Zod validation or single shared config package |
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
@@ -41,7 +41,7 @@ The following status is based on the repository code and lockfile on 2026-10-12.
 | Desktop | No `apps/desktop` or Electron shell | Not started |
 | Shared packages | Root `contracts/` exists, but reusable UI and config workspace packages do not | Partial |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
-| CI | Prisma validation, TypeScript checks and production build run in GitHub Actions | Basic configuration/catalog unit tests are being added in Phase 0 |
+| CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
 
 The current implementation is useful and should be retained. It is a browser-based product foundation, not yet the complete Electron desktop application described by the target architecture. The Web product remains supported after desktop ships; the target is shared implementation and synchronized feature behavior, not a forced replacement or a second divergent UI codebase.
 
@@ -51,7 +51,7 @@ The current implementation is useful and should be retained. It is a browser-bas
 
 | Dependency | Current resolved version / baseline |
 |---|---:|
-| Node.js in CI and Docker images | 24.21.0; repository engine range is >=24.21.0 <25 |
+| Node.js in CI and Docker images | 24.21.0; repository engine range is `>=24.21.0 <25` |
 | pnpm | 12.11.2 |
 | React / React DOM | 19.3.0 |
 | Vite | 8.3.4 |
@@ -198,30 +198,35 @@ Implementation rules:
 
 ### Phase 0 — Stabilize the existing baseline
 
+Status: core baseline complete. Browser-based player interaction tests are intentionally deferred to the player-adapter phase, where they can target the final shared player implementation.
+
 Tasks:
-- Preserve the current browse, details, playback, playback history, admin and database behaviors.
-- Replace broad `latest` declarations with a deliberate dependency policy, without upgrading packages blindly.
-- Add the minimum automated test harness needed to refactor safely: config tests, catalog service tests and player behavior tests where feasible.
-- Keep `pnpm install --frozen-lockfile`, Prisma validation, type checking and production build in CI.
+- [x] Preserve the current browse, details, playback, playback history, admin and database behaviors while adding baseline checks.
+- [x] Replace broad `latest` direct dependency declarations with exact versions matching the current lockfile; align lockfile importer specifiers.
+- [x] Add Node built-in unit tests for development/production configuration loading and catalog episode API behavior without requiring a live database.
+- [x] Run frozen install, Prisma validation, type checks, unit tests and production builds in CI.
+- [x] Build both API and Web Docker images in CI.
 
 Exit criteria:
-- CI is green from a clean checkout.
-- The supported local development and Compose startup commands are documented and repeatable.
-- Existing database data remains untouched by ordinary startup.
+- [x] CI is green from a clean checkout.
+- [x] Supported local development and Compose startup commands are documented and repeatable.
+- [x] Existing database data remains untouched by ordinary startup.
 
 ### Phase 1 — Runtime and dependency baseline
 
+Status: complete for the current Web/API foundation; future runtime updates must follow the same verification gates.
+
 Tasks:
 - [x] Move CI and both Docker build stages from Node 22 to Node 24 LTS; pin Node.js 24.21.0 in CI, Docker and `.nvmrc`.
-- [ ] Confirm pnpm 12.11.2 and Prisma 7.10.0 compatibility with the selected Node release through the expanded CI checks.
-- [ ] Replace broad `latest` dependency declarations with exact versions matching the current lockfile, then verify frozen installation.
-- [ ] Validate Vite, TypeScript 7 and NestJS against clean CI and production builds.
-- [ ] Document the tested Node/pnpm versions and dependency upgrade procedure.
+- [x] Confirm pnpm 12.11.2 and Prisma 7.10.0 compatibility with the selected Node release through CI.
+- [x] Replace broad `latest` direct dependency declarations with exact versions matching the current lockfile and verify frozen installation.
+- [x] Validate Vite, TypeScript 7 and NestJS with CI type checks and production builds.
+- [x] Build both Docker images and document the tested Node/pnpm versions and test commands.
 
 Exit criteria:
-- CI builds on Node 24.21.0 and all application Docker build stages use the same Node version.
-- Prisma validation, type checks, unit tests and production builds pass.
-- The lockfile and exact manifest versions provide reproducible installation.
+- [x] CI, API Docker and Web Docker build on the Node 24.21.0 baseline.
+- [x] Prisma validation, type checks, unit tests and production builds pass.
+- [x] The lockfile and exact manifest versions provide reproducible installation.
 
 ### Phase 2 — Shared configuration and contracts
 
@@ -331,8 +336,8 @@ Every phase should meet these gates before merge:
 
 The recommended next slice is:
 
-1. **Phase 0/1:** pin the remaining `latest` manifest declarations, add configuration/catalog tests, and verify the Node 24.21.0 baseline in CI.
-2. **Phase 2:** implement shared configuration loading and strict Zod validation before adding desktop-specific settings.
+1. **Phase 0/1:** complete for the current Web/API baseline. Keep the configuration/catalog tests and Node 24.21.0 build gates in CI.
+2. **Next: Phase 2:** implement shared configuration loading and strict Zod validation before adding desktop-specific settings.
 3. **Phase 3 and 4:** prepare reusable UI/contracts, then create the Electron desktop shell while keeping Web independently deployable and its shared workflows in sync.
 4. Continue to the HLS adapter and deployment layout once the shared foundation is stable.
 
