@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Activity, ArrowLeft, ArrowUpRight, Check, CheckCircle2, ChevronLeft, ChevronRight, Clapperboard, Clock3, Film, LayoutDashboard, LoaderCircle, LogIn, LogOut, Pencil, Play, Plus, Search, Save, Tags, Trash2, Tv2, Video, X } from 'lucide-react';
 import type { CatalogEpisode, CatalogItem, CatalogMediaType, PaginatedResponse, PaginationMetadata } from '@visionhub/contracts';
-import { Badge, Button, ChoiceChip, DataTable, Field, IconButton, Message, NavigationItem, PaginationBar, SearchField, SelectControl, TableCell, TableContainer, TableHeaderCell, TableRow, TextAreaControl, TextInput } from '@visionhub/ui';
+import { Badge, Button, ChoiceChip, ConfirmDialog, DataTable, Field, IconButton, Message, NavigationItem, PaginationBar, SearchField, SelectControl, TableCell, TableContainer, TableHeaderCell, TableRow, TextAreaControl, TextInput } from '@visionhub/ui';
 import './admin.css';
 
 const API = '/api/v1';
@@ -100,6 +100,8 @@ function CatalogPage({ go, notify }: { go: (path: string) => void; notify: (mess
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<CatalogItem | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   useEffect(() => { api<Envelope<Category[]>>('/admin/categories').then((r) => setCats(r.data)).catch(() => setCats([])); }, []);
   useEffect(() => {
     let active = true; setLoading(true); setError('');
@@ -107,10 +109,23 @@ function CatalogPage({ go, notify }: { go: (path: string) => void; notify: (mess
       .then((r) => { if (active) { setItems(r.data); setPagination(r.pagination); } }).catch((e) => { if (active) setError(e instanceof Error ? e.message : '加载片库失败'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [page, search, type, category, reload]);
-  async function remove(item: CatalogItem) {
-    if (!window.confirm('确定删除「' + item.title + '」？该操作也会删除关联分集，且无法撤销。')) return;
-    try { await api('/admin/catalog/' + encodeURIComponent(item.id), { method: 'DELETE' }); notify('作品已删除。'); setReload((n) => n + 1); }
-    catch (e) { notify(e instanceof Error ? e.message : '删除失败。', 'error'); }
+  function remove(item: CatalogItem) {
+    setPendingDelete(item);
+  }
+  async function confirmRemove() {
+    const item = pendingDelete;
+    if (!item || deleteBusy) return;
+    setDeleteBusy(true);
+    try {
+      await api('/admin/catalog/' + encodeURIComponent(item.id), { method: 'DELETE' });
+      notify('作品已删除。');
+      setReload((n) => n + 1);
+      setPendingDelete(null);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : '删除失败。', 'error');
+    } finally {
+      setDeleteBusy(false);
+    }
   }
   return <div className="adm-page"><Heading eyebrow="CATALOG MANAGEMENT" title="影视内容" description="统一维护片目资料、视频源与剧集内容。" actions={<Button onClick={() => go('/admin/catalog/new')}><Plus size={16} />新增作品</Button>} />
     <section className="adm-panel adm-catalog-panel"><form className="adm-filters" onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); setPage(1); }}>
@@ -123,6 +138,15 @@ function CatalogPage({ go, notify }: { go: (path: string) => void; notify: (mess
     </tbody></DataTable>{loading && <div className="adm-table-loading"><LoaderCircle className="adm-spin" size={17} />正在读取片库…</div>}
     {!loading && !error && !items.length && <div className="adm-empty"><Search size={25} /><strong>没有找到匹配的作品</strong><p>修改搜索条件或新增一部作品。</p><Button kind="secondary" onClick={() => { setSearchInput(''); setSearch(''); setType(''); setCategory(''); setPage(1); }}>清除筛选</Button></div>}</TableContainer>
     <PaginationBar><span>共 {pagination.totalItems} 部作品</span><div className="flex items-center gap-2">第 {pagination.totalPages ? pagination.page : 0} / {pagination.totalPages} 页 <IconButton disabled={!pagination.hasPreviousPage || loading} onClick={() => setPage((n) => Math.max(1, n - 1))} aria-label="上一页"><ChevronLeft size={15} /></IconButton><IconButton disabled={!pagination.hasNextPage || loading} onClick={() => setPage((n) => n + 1)} aria-label="下一页"><ChevronRight size={15} /></IconButton></div></PaginationBar></section>
+    <ConfirmDialog
+      open={pendingDelete !== null}
+      title={pendingDelete ? '删除作品「' + pendingDelete.title + '」？' : '删除作品'}
+      description="此操作不可撤销，并会同时删除这部作品关联的全部分集。"
+      confirmLabel="删除作品"
+      busy={deleteBusy}
+      onCancel={() => { if (!deleteBusy) setPendingDelete(null); }}
+      onConfirm={() => void confirmRemove()}
+    />
   </div>;
 }
 function ItemEditor({ id, go, notify }: { id?: string; go: (path: string) => void; notify: (message: string, kind?: 'success' | 'error' | 'info') => void }) {
@@ -182,6 +206,8 @@ function EpisodesPage({ id, go, notify }: { id: string; go: (path: string) => vo
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
   const [error, setError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<CatalogEpisode | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   useEffect(() => { let active = true; setLoading(true); Promise.all([api<Envelope<Item>>('/admin/catalog/' + encodeURIComponent(id)), api<Envelope<CatalogEpisode[]>>('/admin/catalog/' + encodeURIComponent(id) + '/episodes')]).then(([a, b]) => { if (!active) return; setItem(a.data); setEpisodes(b.data); setDraft((d) => ({ ...d, episodeNumber: b.data.length + 1 })); }).catch((e) => { if (active) setError(e instanceof Error ? e.message : '加载分集失败。'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [id, reload]);
   const update = <K extends keyof CatalogEpisode>(episodeId: string, field: K, value: CatalogEpisode[K]) => setEpisodes((list) => list.map((x) => x.id === episodeId ? { ...x, [field]: value } : x));
   async function saveEpisode(episode: CatalogEpisode) {
@@ -193,10 +219,23 @@ function EpisodesPage({ id, go, notify }: { id: string; go: (path: string) => vo
     try { await api('/admin/catalog/' + encodeURIComponent(id) + '/episodes', { method: 'POST', body: JSON.stringify(draft) }); notify('分集已添加。'); setDraft({ ...EMPTY_EPISODE, episodeNumber: episodes.length + 2 }); setReload((n) => n + 1); }
     catch (cause) { notify(cause instanceof Error ? cause.message : '添加分集失败。', 'error'); } finally { setSaving(false); }
   }
-  async function removeEpisode(episode: CatalogEpisode) {
-    if (!window.confirm('确定删除第 ' + episode.episodeNumber + ' 集「' + episode.title + '」？')) return;
-    try { await api('/admin/catalog/' + encodeURIComponent(id) + '/episodes/' + encodeURIComponent(episode.id), { method: 'DELETE' }); notify('分集已删除。'); setReload((n) => n + 1); }
-    catch (e) { notify(e instanceof Error ? e.message : '删除分集失败。', 'error'); }
+  function removeEpisode(episode: CatalogEpisode) {
+    setPendingDelete(episode);
+  }
+  async function confirmRemoveEpisode() {
+    const episode = pendingDelete;
+    if (!episode || deleteBusy) return;
+    setDeleteBusy(true);
+    try {
+      await api('/admin/catalog/' + encodeURIComponent(id) + '/episodes/' + encodeURIComponent(episode.id), { method: 'DELETE' });
+      notify('分集已删除。');
+      setReload((n) => n + 1);
+      setPendingDelete(null);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : '删除分集失败。', 'error');
+    } finally {
+      setDeleteBusy(false);
+    }
   }
   if (loading) return <div className="adm-loading"><LoaderCircle className="adm-spin" />正在加载分集…</div>;
   if (error || !item) return <div className="adm-page"><Message>{error || '没有找到作品。'}</Message><Button kind="secondary" onClick={() => go('/admin/catalog')}>返回片库</Button></div>;
@@ -215,6 +254,15 @@ function EpisodesPage({ id, go, notify }: { id: string; go: (path: string) => vo
       <Field label="分集标题 *" wide><TextInput value={draft.title} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} required /></Field><Field label="视频源 URL *" wide><TextInput type="url" value={draft.videoUrl} onChange={(e) => setDraft((d) => ({ ...d, videoUrl: e.target.value }))} placeholder="https://example.com/episode-01.mp4" required /></Field><Field label="分集简介" wide><TextAreaControl rows={2} value={draft.summary} onChange={(e) => setDraft((d) => ({ ...d, summary: e.target.value }))} /></Field>
       <div className="adm-wide adm-form-submit"><Button type="submit" disabled={saving}>{saving ? <LoaderCircle className="adm-spin" size={15} /> : <Plus size={15} />}{saving ? '正在添加…' : '添加分集'}</Button></div>
     </form></section>
+    <ConfirmDialog
+      open={pendingDelete !== null}
+      title="删除这一集？"
+      description={pendingDelete ? '确定删除第 ' + pendingDelete.episodeNumber + ' 集「' + pendingDelete.title + '」？此操作不可撤销。' : undefined}
+      confirmLabel="删除分集"
+      busy={deleteBusy}
+      onCancel={() => { if (!deleteBusy) setPendingDelete(null); }}
+      onConfirm={() => void confirmRemoveEpisode()}
+    />
   </div>;
 }
 function CategoriesPage({ notify }: { notify: (message: string, kind?: 'success' | 'error' | 'info') => void }) {
@@ -225,6 +273,7 @@ function CategoriesPage({ notify }: { notify: (message: string, kind?: 'success'
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<Category | null>(null);
   useEffect(() => { let active = true; setLoading(true); api<Envelope<Category[]>>('/admin/categories').then((r) => { if (!active) return; setCategories(r.data); setDrafts(Object.fromEntries(r.data.map((c) => [c.id, c.name]))); }).catch((e) => { if (active) setError(e instanceof Error ? e.message : '加载分类失败。'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [reload]);
   async function add(e: FormEvent) {
     e.preventDefault(); setBusy('new');
@@ -236,17 +285,39 @@ function CategoriesPage({ notify }: { notify: (message: string, kind?: 'success'
     try { await api('/admin/categories/' + encodeURIComponent(c.id), { method: 'PATCH', body: JSON.stringify({ name }) }); setReload((n) => n + 1); notify('分类名称已更新。'); }
     catch (e) { notify(e instanceof Error ? e.message : '更新失败。', 'error'); } finally { setBusy(''); }
   }
-  async function remove(c: Category) {
+  function remove(c: Category) {
     if (c.itemCount) { notify('该分类仍关联 ' + c.itemCount + ' 部作品，请先从作品中移除。', 'info'); return; }
-    if (!window.confirm('确定删除分类「' + c.name + '」？')) return; setBusy(c.id);
-    try { await api('/admin/categories/' + encodeURIComponent(c.id), { method: 'DELETE' }); setReload((n) => n + 1); notify('分类已删除。'); }
-    catch (e) { notify(e instanceof Error ? e.message : '删除失败。', 'error'); } finally { setBusy(''); }
+    setPendingDelete(c);
+  }
+  async function confirmRemoveCategory() {
+    const category = pendingDelete;
+    if (!category || busy === category.id) return;
+    setBusy(category.id);
+    try {
+      await api('/admin/categories/' + encodeURIComponent(category.id), { method: 'DELETE' });
+      setReload((n) => n + 1);
+      notify('分类已删除。');
+      setPendingDelete(null);
+    } catch (e) {
+      notify(e instanceof Error ? e.message : '删除失败。', 'error');
+    } finally {
+      setBusy('');
+    }
   }
   return <div className="adm-page"><Heading eyebrow="TAXONOMY MANAGEMENT" title="分类管理" description="维护片库中的分类。被作品使用的分类需先解除关联才能删除。" />
     {error && <Message>{error}</Message>}<section className="adm-panel"><div className="adm-panel-head"><div><h2>新增分类</h2><p>例如：科幻、纪录、悬疑。名称保持清晰、简短。</p></div></div><form className="adm-add-category" onSubmit={add}><Field label="分类名称"><TextInput value={newName} maxLength={60} onChange={(e) => setNewName(e.target.value)} placeholder="填写新分类名称" required /></Field><Button type="submit" disabled={busy === 'new'}>{busy === 'new' ? <LoaderCircle className="adm-spin" size={15} /> : <Plus size={15} />}新增分类</Button></form></section>
     <section className="adm-panel"><div className="adm-panel-head"><div><h2>已有分类</h2><p>修改名称会同步影响关联作品的展示。</p></div><span className="adm-counter">{categories.length} 个分类</span></div>
       {loading ? <div className="adm-loading"><LoaderCircle className="adm-spin" />正在加载分类…</div> : categories.length ? categories.map((c) => <div className="adm-category-row" key={c.id}><div className="adm-category-icon"><Tags size={17} /></div><Field label="分类名称"><TextInput value={drafts[c.id] ?? c.name} onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))} maxLength={60} /></Field><div className="adm-category-count"><strong>{c.itemCount}</strong><small>部作品</small></div><Button kind="secondary" disabled={busy === c.id || (drafts[c.id] ?? c.name).trim() === c.name} onClick={() => void rename(c)}>{busy === c.id ? <LoaderCircle className="adm-spin" size={14} /> : <Save size={14} />}保存</Button><button className="adm-delete-category" aria-label="删除分类" disabled={busy === c.id} onClick={() => void remove(c)}><Trash2 size={15} /></button></div>) : <div className="adm-empty"><Tags size={24} /><strong>还没有分类</strong><p>先创建分类，再到作品编辑页进行关联。</p></div>}
     </section>
+    <ConfirmDialog
+      open={pendingDelete !== null}
+      title="删除分类？"
+      description={pendingDelete ? '确定删除分类「' + pendingDelete.name + '」？删除后无法恢复。' : undefined}
+      confirmLabel="删除分类"
+      busy={Boolean(pendingDelete && busy === pendingDelete.id)}
+      onCancel={() => { if (!pendingDelete || busy !== pendingDelete.id) setPendingDelete(null); }}
+      onConfirm={() => void confirmRemoveCategory()}
+    />
   </div>;
 }
 export default function AdminApp() {
