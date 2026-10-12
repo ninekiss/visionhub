@@ -6,6 +6,7 @@ import type {
   ReactNode,
   SelectHTMLAttributes,
   TableHTMLAttributes,
+  TextareaHTMLAttributes,
   TdHTMLAttributes,
   ThHTMLAttributes,
   TrHTMLAttributes,
@@ -364,5 +365,63 @@ export function PaginationBar({
     >
       {children}
     </div>
+  );
+}
+
+
+/** Shared single-line form input. Field labels remain responsible for field layout. */
+export function TextInput({
+  className = "",
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      className={
+        "adm-control h-[37px] w-full min-w-0 rounded-[7px] border border-[#343c47] bg-[#0f1319] px-[11px] py-0 text-[11px] leading-[1.6] text-[#e5e9f0] outline-none focus:border-[#718650] focus:ring-2 focus:ring-[#c7f36b0b] " +
+        className
+      }
+    />
+  );
+}
+
+/** Shared multiline form input. */
+export function TextAreaControl({
+  className = "",
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className={
+        "adm-control min-h-[70px] w-full min-w-0 resize-y rounded-[7px] border border-[#343c47] bg-[#0f1319] px-[11px] py-2.5 text-[11px] leading-[1.6] text-[#e5e9f0] outline-none focus:border-[#718650] focus:ring-2 focus:ring-[#c7f36b0b] " +
+        className
+      }
+    />
+  );
+}
+
+export function ChoiceChip({
+  selected = false,
+  className = "",
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  selected?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      {...props}
+      className={
+        "inline-flex items-center gap-1 rounded-[5px] border px-[9px] py-1.5 text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)] " +
+        (selected
+          ? "border-[#819e54] bg-[#c7f36b10] text-[var(--vh-accent)]"
+          : "border-[#353d48] bg-[#181e26] text-[#acb5c2] hover:border-[#718650]") +
+        (className ? " " + className : "")
+      }
+    >
+      {children}
+    </button>
   );
 }
