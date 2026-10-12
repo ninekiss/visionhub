@@ -311,7 +311,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
           onClick={() => setNotificationsOpen((open) => !open)}
         ><Bell size={18} /></button>
         {notificationsOpen && (
-          <section id="notification-empty-state" className="notification-popover" aria-label="通知" role="status" aria-live="polite">
+          <section id="notification-empty-state" className="notification-popover" aria-label="通知" role="status" aria-live="polite" onKeyDown={(event) => { if (event.key === 'Escape') setNotificationsOpen(false); }}>
             <div><strong>通知</strong><button type="button" aria-label="关闭通知面板" onClick={() => setNotificationsOpen(false)}><X size={14} /></button></div>
             <p>暂无新通知</p>
           </section>
