@@ -12,6 +12,7 @@ import {
   Search,
   Sparkles,
   Tv2,
+  X,
 } from 'lucide-react';
 import { Button, ChoiceChip, MediaCard, NavigationItem, SearchField } from '@visionhub/ui';
 import type {
@@ -245,8 +246,12 @@ type HeaderProps = {
 
 function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   const showSearch = route.page === 'home' || route.page === 'series';
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const discoverActive = route.page === 'home' && hash !== '#catalog';
   const libraryActive = route.page === 'detail' || route.page === 'watch' || (route.page === 'home' && hash === '#catalog');
+  useEffect(() => {
+    if (!showSearch && mobileSearchOpen) setMobileSearchOpen(false);
+  }, [showSearch, mobileSearchOpen]);
   return (
     <header className="topbar">
       <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate('/'); }}>
@@ -260,14 +265,41 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
       </nav>
       <div className="top-actions">
         {showSearch && (
-          <SearchField
-            variant="public"
-            leading={<Search size={17} />}
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="搜索片名、简介、类型…"
-            aria-label="搜索片名、简介或类型"
-          />
+          <>
+            <SearchField
+              variant="public"
+              wrapperClassName="desktop-search"
+              id="public-search"
+              leading={<Search size={17} />}
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="搜索片名、简介、类型…"
+              aria-label="搜索片名、简介或类型"
+            />
+            <button
+              type="button"
+              className={'mobile-search-toggle' + (mobileSearchOpen ? ' is-open' : '')}
+              aria-label="打开搜索"
+              aria-expanded={mobileSearchOpen}
+              aria-controls="public-search-mobile"
+              onClick={() => setMobileSearchOpen(true)}
+            ><Search size={17} /></button>
+            {mobileSearchOpen && (
+              <SearchField
+                variant="public"
+                wrapperClassName="mobile-search-open"
+                id="public-search-mobile"
+                autoFocus
+                leading={<Search size={17} />}
+                trailing={<button type="button" className="mobile-search-close" aria-label="关闭搜索" onClick={() => setMobileSearchOpen(false)}><X size={15} /></button>}
+                value={query}
+                onChange={(event) => onQueryChange(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Escape') setMobileSearchOpen(false); }}
+                placeholder="搜索…"
+                aria-label="搜索片名、简介或类型"
+              />
+            )}
+          </>
         )}
         <button className="icon-button" aria-label="通知"><Bell size={18} /></button>
         <div className="avatar">V</div>
