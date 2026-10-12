@@ -99,7 +99,7 @@ importers:
 
 packages:
 
-'@pnpm/exe.android-arm64@12.11.2':
+  '@pnpm/exe.android-arm64@12.11.2':
     resolution: {integrity: sha512-owLw13OfPkEoY+hLBNeeG+dCFhywr7q2d/EHPz4mNL2RhKnv8gNwMARkjkiDQu234aItVwFNDeGnmQXm+ikkAg==}
     cpu: [arm64]
     os: [android]
@@ -3227,7 +3227,7 @@ packages:
 
 snapshots:
 
-'@pnpm/exe.android-arm64@12.11.2':
+  '@pnpm/exe.android-arm64@12.11.2':
     optional: true
 
   '@pnpm/exe.android-x64@12.11.2':
