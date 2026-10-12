@@ -275,6 +275,7 @@ Tasks:
 - [x] Migrate admin item-editor and episode-manager back actions to shared Button variants and remove duplicated legacy CSS.
 - [x] Ensure shared sidebar navigation links keep accessible names and titles when the admin sidebar collapses to icon-only mode.
 - [x] Restore a keyboard-accessible expandable search field on mobile, where the previous responsive CSS hid the input without providing a way to reveal it.
+- [x] Restore access to primary discovery/library/series navigation on mobile via an accessible collapsible menu.
 - [x] Expose the selected state of admin media-type choice buttons to assistive technology.
 - [x] Standardize admin icon-only actions for logout, edit, episode management and delete flows on the shared IconButton primitive.
 - [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
