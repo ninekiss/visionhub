@@ -1,0 +1,23 @@
+# Never copy host-installed dependencies into Linux images.
+node_modules
+**/node_modules
+.pnpm-store
+**/.pnpm-store
+
+# Build output and tool caches.
+**/dist
+**/coverage
+**/.vite
+**/.turbo
+
+# Repository metadata and local editor state.
+.git
+.vscode
+.idea
+.DS_Store
+
+# Local secrets and runtime configuration (mounted at runtime instead).
+.env
+.env.*
+!.env.example
+configs/app.yaml
