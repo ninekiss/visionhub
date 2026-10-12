@@ -365,11 +365,9 @@ Every phase should meet these gates before merge:
 
 ## 10. Immediate next actions
 
-The recommended next slice is:
-
-1. **Phase 0/1:** complete for the current Web/API baseline. Keep the configuration/catalog tests and Node 24.21.0 build gates in CI.
-2. **Next: Phase 2:** implement shared configuration loading and strict Zod validation before adding desktop-specific settings.
-3. **Phase 3:** finish responsive acceptance, non-destructive interaction review and catalog/login/CRUD/player regression checks before marking the UI phase complete. Keep Web independently deployable.
-4. Continue to the HLS adapter and deployment layout once the shared foundation is stable.
+1. **Finish Phase 3 acceptance before starting Electron.** Review remaining playback states and non-destructive interactions, then complete the responsive browser matrix in `docs/UI.md` at 1440, 1024, 768, 390 and 320 pixel widths.
+2. **Run the end-to-end regression pass.** Verify public catalog/search/filter/pagination, login, admin create/edit/delete flows, category and episode management, detail navigation, playback source errors, episode switching and continue-watching progress. Record the browser, viewport and results in the relevant pull request.
+3. **Close Phase 3 only when its exit criteria are evidenced.** A green CI run verifies type checks, tests, production builds and both Docker images, but does not replace the required visual browser checks.
+4. **Then start Phase 4 — Electron desktop MVP.** Keep Web independently buildable and deployable; reuse the shared UI and contracts rather than forking screens.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
