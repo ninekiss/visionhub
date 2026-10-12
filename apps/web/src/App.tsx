@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Clapperboard,
   Compass,
+  Menu,
   Film,
   Play,
   Search,
@@ -247,23 +248,38 @@ type HeaderProps = {
 function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   const showSearch = route.page === 'home' || route.page === 'series';
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const discoverActive = route.page === 'home' && hash !== '#catalog';
   const libraryActive = route.page === 'detail' || route.page === 'watch' || (route.page === 'home' && hash === '#catalog');
   useEffect(() => {
     if (!showSearch && mobileSearchOpen) setMobileSearchOpen(false);
-  }, [showSearch, mobileSearchOpen]);
+    setMobileNavOpen(false);
+  }, [route.page, showSearch]);
+  const navigateFromHeader = (path: string) => {
+    setMobileNavOpen(false);
+    setMobileSearchOpen(false);
+    navigate(path);
+  };
   return (
-    <header className="topbar">
+    <header className={'topbar' + (mobileSearchOpen ? ' mobile-search-visible' : '')}>
       <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate('/'); }}>
         <span className="brand-mark"><Clapperboard size={20} /></span>
         <span>VISION<span className="brand-accent">HUB</span></span>
       </a>
-      <nav className="main-nav">
-        <NavigationItem variant="top" to="/" onNavigate={navigate} active={discoverActive} icon={<Compass size={16} />} label="发现" />
+      <nav id="public-primary-nav" className={"main-nav" + (mobileNavOpen ? " mobile-nav-open" : "")}>
+        <NavigationItem variant="top" to="/" onNavigate={navigateFromHeader} active={discoverActive} icon={<Compass size={16} />} label="发现" />
         <NavigationItem variant="top" to="/#catalog" onNavigate={navigate} active={libraryActive} icon={<Tv2 size={16} />} label="影视库" />
         <NavigationItem variant="top" to="/series" onNavigate={navigate} active={route.page === 'series'} label="剧集" />
       </nav>
       <div className="top-actions">
+        <button
+          type="button"
+          className={'mobile-nav-toggle' + (mobileNavOpen ? ' is-open' : '')}
+          aria-label={mobileNavOpen ? '关闭导航菜单' : '打开导航菜单'}
+          aria-expanded={mobileNavOpen}
+          aria-controls="public-primary-nav"
+          onClick={() => { setMobileSearchOpen(false); setMobileNavOpen((open) => !open); }}
+        >{mobileNavOpen ? <X size={18} /> : <Menu size={18} />}</button>
         {showSearch && (
           <>
             <SearchField
@@ -282,7 +298,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
               aria-label="打开搜索"
               aria-expanded={mobileSearchOpen}
               aria-controls="public-search-mobile"
-              onClick={() => setMobileSearchOpen(true)}
+              onClick={() => { setMobileNavOpen(false); setMobileSearchOpen(true); }}
             ><Search size={17} /></button>
             {mobileSearchOpen && (
               <SearchField
