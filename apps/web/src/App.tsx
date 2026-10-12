@@ -419,18 +419,29 @@ function HomeView(props: HomeViewProps) {
           {items.map((item, index) => (
             <button
               key={item.id}
-              className="media-card"
+              className="group media-card cursor-pointer overflow-hidden rounded-[10px] border border-transparent bg-transparent p-0 text-left text-[inherit] transition-transform duration-200 hover:-translate-y-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b]"
               onClick={() => navigate('/title/' + encodeURIComponent(item.id))}
             >
-              <div className="poster-wrap">
-                <img src={item.poster} alt="" loading="lazy" />
-                <span className="poster-number">{String((page - 1) * pagination.pageSize + index + 1).padStart(2, '0')}</span>
-                <span className="poster-play"><Play size={12} fill="currentColor" /></span>
+              <div className="poster-wrap relative aspect-[16/10] overflow-hidden bg-[#171a22] max-[600px]:aspect-[4/3]">
+                <img
+                  className="block h-full w-full object-cover transition-transform duration-[350ms] group-hover:scale-[1.04]"
+                  src={item.poster}
+                  alt=""
+                  loading="lazy"
+                />
+                <span className="poster-number absolute left-3 top-3 z-[1] rounded-[4px] border border-white/15 bg-[#080a10a6] px-1.5 py-1 text-[10px] text-white">
+                  {String((page - 1) * pagination.pageSize + index + 1).padStart(2, '0')}
+                </span>
+                <span className="poster-play absolute bottom-3 right-3 z-[1] grid h-[30px] w-[30px] place-items-center rounded-full bg-[#c7f36b] text-[11px] text-[#10150a] opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  <Play size={12} fill="currentColor" />
+                </span>
               </div>
-              <div className="media-info">
-                <strong>{item.title}</strong>
-                <span>{item.year} <i>·</i> {categoryText(item)}</span>
-                <span className="media-type-label">{mediaTypeText(item)}{item.episodeCount > 0 ? ' · ' + item.episodeCount + ' 集' : ''}</span>
+              <div className="media-info flex flex-col gap-[7px] px-[3px] pt-[13px] pb-3 max-[600px]:pt-[10px]">
+                <strong className="text-[13px] font-semibold max-[600px]:text-[12px]">{item.title}</strong>
+                <span className="text-[10px] text-[#818793]">{item.year} <i className="mx-1 not-italic text-[#4f5560]">·</i> {categoryText(item)}</span>
+                <span className="media-type-label text-[10px] tracking-[.15px] text-[#a5adba]">
+                  {mediaTypeText(item)}{item.episodeCount > 0 ? ' · ' + item.episodeCount + ' 集' : ''}
+                </span>
               </div>
             </button>
           ))}

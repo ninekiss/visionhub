@@ -264,9 +264,10 @@ Tasks:
 - [x] Migrate the Web catalog category filters and pagination buttons to shared primitives; keep hero, media cards and Plyr layout feature-specific.
 - [x] Migrate the Web top navigation links and search field to shared navigation/search variants while preserving mobile collapse and route semantics.
 - [x] Migrate the Web Hero play/details actions to shared Button variants; keep the Hero layout and media artwork feature-specific.
+- [x] Migrate public catalog card layout, metadata, hover zoom, numbering and play affordance to Tailwind utilities; retain the poster gradient as specialized CSS.
 - [x] Remove legacy CSS rules that duplicated the styling now owned by shared Tailwind primitives.
 - [ ] Review confirmation flows and dialogs; keep native browser confirmations unless a reusable accessible dialog is justified.
-- [ ] Continue migrating the Web header, hero and remaining page layouts in manageable chunks.
+- [ ] Continue migrating remaining Web detail/playback/history layouts in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
 Exit criteria:
