@@ -253,20 +253,22 @@ Exit criteria:
 
 ### Phase 3 — Public UI package and Tailwind migration
 
-Status: shared UI foundation and first admin component migration are on `phase-3/ui-tailwind`; full screen migration remains incremental.
+Status: shared UI foundation and the first two admin migration slices are on `main` / `phase-3/admin-ui-migration`; Web page-level migration and final responsive acceptance checks remain.
 
 Tasks:
 - [x] Establish shared semantic tokens and reusable Button, Field, Message, Badge and Panel primitives in `packages/ui`.
-- [x] Make Tailwind CSS v4 scan the shared UI package and use utility classes for the migrated primitives.
-- [x] Migrate admin buttons, field labels, feedback messages and media-type badges to shared primitives while preserving legacy layout hooks.
-- [ ] Continue admin migration across tables, filters, navigation, category chips and dialogs.
+- [x] Add shared NavigationItem, SearchField, SelectControl, TextInput, TextAreaControl, ChoiceChip, table primitives, IconButton and PaginationBar.
+- [x] Make Tailwind CSS v4 scan the shared UI package and use utility classes for migrated primitives.
+- [x] Migrate admin buttons, field labels, feedback messages, media badges, navigation, catalog filters, catalog table, pagination, form inputs and category chips.
+- [x] Remove legacy CSS rules that duplicated the styling now owned by shared Tailwind primitives.
+- [ ] Review confirmation flows and dialogs; keep native browser confirmations unless a reusable accessible dialog is justified.
 - [ ] Migrate Web layout components in manageable chunks after shared admin patterns are stable.
 - [x] Keep Plyr styles and complex feature/page layouts in their existing CSS during the incremental migration.
 
 Exit criteria:
 - [x] New shared primitive work follows the shared component and Tailwind conventions.
-- [ ] Duplicate page-level styles are reduced rather than moved wholesale into another file.
-- [ ] Admin forms, tables, navigation and dialogs are fully checked at supported desktop and mobile widths.
+- [x] Duplicate styling for migrated navigation, filters, table cells, and basic form controls is removed from legacy CSS.
+- [ ] Admin forms, tables, navigation and confirmation flows are verified at supported desktop and mobile widths.
 - [ ] No regression in catalog, login, CRUD or player navigation after the full migration and CI validation.
 
 ### Phase 4 — Electron desktop MVP
