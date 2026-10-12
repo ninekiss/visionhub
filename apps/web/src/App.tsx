@@ -121,23 +121,41 @@ function parseRoute(pathname: string): Route {
 
 function useAppRouter() {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.pathname));
+  const [hash, setHash] = useState(() => window.location.hash);
 
   useEffect(() => {
-    const handlePopState = () => setRoute(parseRoute(window.location.pathname));
+    const handlePopState = () => {
+      setRoute(parseRoute(window.location.pathname));
+      const nextHash = window.location.hash;
+      setHash(nextHash);
+      if (nextHash) {
+        window.setTimeout(() => {
+          document.getElementById(decodeURIComponent(nextHash.slice(1)))?.scrollIntoView({ behavior: 'auto' });
+        }, 0);
+      }
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const navigate = useCallback((path: string) => {
     const target = new URL(path, window.location.origin);
-    const current = window.location.pathname + window.location.search;
-    const next = target.pathname + target.search;
+    const current = window.location.pathname + window.location.search + window.location.hash;
+    const next = target.pathname + target.search + target.hash;
     if (current !== next) window.history.pushState({}, '', next);
     setRoute(parseRoute(target.pathname));
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    setHash(target.hash);
+
+    if (target.hash) {
+      window.setTimeout(() => {
+        document.getElementById(decodeURIComponent(target.hash.slice(1)))?.scrollIntoView({ behavior: 'smooth' });
+      }, 0);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
   }, []);
 
-  return { route, navigate };
+  return { route, navigate, hash };
 }
 
 function categoryText(item: CatalogItem): string {
@@ -158,12 +176,15 @@ function playPath(item: CatalogItem, episodes: CatalogEpisode[] = []): string {
 type HeaderProps = {
   route: Route;
   navigate: (path: string) => void;
+  hash: string;
   query: string;
   onQueryChange: (value: string) => void;
 };
 
-function Header({ route, navigate, query, onQueryChange }: HeaderProps) {
+function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   const showSearch = route.page === 'home' || route.page === 'series';
+  const discoverActive = route.page === 'home' && hash !== '#catalog';
+  const libraryActive = route.page === 'detail' || route.page === 'watch' || (route.page === 'home' && hash === '#catalog');
   const followLink = (event: MouseEvent<HTMLAnchorElement>, path: string) => {
     event.preventDefault();
     navigate(path);
@@ -176,10 +197,10 @@ function Header({ route, navigate, query, onQueryChange }: HeaderProps) {
         <span>VISION<span className="brand-accent">HUB</span></span>
       </a>
       <nav className="main-nav">
-        <a className={route.page === 'home' ? 'selected' : ''} href="/" onClick={(event) => followLink(event, '/')}>
+        <a className={discoverActive ? 'selected' : ''} href="/" onClick={(event) => followLink(event, '/')}>
           <Compass size={16} />发现
         </a>
-        <a className={route.page === 'home' || route.page === 'detail' ? 'selected' : ''} href="/#catalog" onClick={(event) => { event.preventDefault(); navigate('/'); window.setTimeout(() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' }), 0); }}>
+        <a className={libraryActive ? 'selected' : ''} href="/#catalog" onClick={(event) => { event.preventDefault(); navigate('/#catalog'); }}>
           <Tv2 size={16} />影视库
         </a>
         <a className={route.page === 'series' ? 'selected' : ''} href="/series" onClick={(event) => followLink(event, '/series')}>
@@ -573,7 +594,7 @@ function WatchView({
 }
 
 export default function App() {
-  const { route, navigate } = useAppRouter();
+  const { route, navigate, hash } = useAppRouter();
   const [items, setItems] = useState<CatalogItem[]>(fallback);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
@@ -691,6 +712,7 @@ export default function App() {
     <Header
       route={route}
       navigate={navigate}
+      hash={hash}
       query={query}
       onQueryChange={handleQueryChange}
     />
