@@ -254,7 +254,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   useEffect(() => {
     if (!showSearch && mobileSearchOpen) setMobileSearchOpen(false);
     setMobileNavOpen(false);
-  }, [route.page, showSearch]);
+  }, [route.page, showSearch, mobileSearchOpen]);
   const navigateFromHeader = (path: string) => {
     setMobileNavOpen(false);
     setMobileSearchOpen(false);
