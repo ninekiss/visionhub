@@ -1,3 +1,4 @@
+import { useEffect, useId, useRef } from "react";
 import type {
   ButtonHTMLAttributes,
   HTMLAttributes,
@@ -11,7 +12,7 @@ import type {
   ThHTMLAttributes,
 } from "react";
 
-export type ButtonKind = "primary" | "secondary" | "ghost" | "surface" | "heroPrimary" | "heroSecondary";
+export type ButtonKind = "primary" | "secondary" | "ghost" | "surface" | "heroPrimary" | "heroSecondary" | "danger";
 export type ButtonSize = "default" | "compact" | "hero";
 
 const buttonBase =
@@ -36,6 +37,8 @@ const buttonKinds: Record<ButtonKind, string> = {
     "border-0 bg-[#c7f36b] text-[#11160b] hover:bg-[#d8fa91]",
   heroSecondary:
     "border border-[#ffffff1e] bg-[#ffffff13] text-[#f4f5f6] hover:bg-[#ffffff20]",
+  danger:
+    "border-[#9d3541] bg-[#7b2732] text-white hover:bg-[#96313d]",
 };
 
 /** Shared button primitive; kind and size select accessible visual variants. */
@@ -62,6 +65,130 @@ export function Button({
     >
       {children}
     </button>
+  );
+}
+
+export type ConfirmDialogProps = {
+  open: boolean;
+  title: string;
+  description?: ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+};
+
+/** Accessible confirmation dialog with Escape handling, focus containment and focus restoration. */
+export function ConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel = "确认",
+  cancelLabel = "取消",
+  danger = true,
+  busy = false,
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const handlersRef = useRef({ onConfirm, onCancel });
+  const busyRef = useRef(busy);
+
+  useEffect(() => {
+    handlersRef.current = { onConfirm, onCancel };
+  }, [onConfirm, onCancel]);
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    confirmRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!busyRef.current) handlersRef.current.onCancel();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const root = dialogRef.current;
+      const focusable = root?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!root || !focusable?.length) {
+        event.preventDefault();
+        root?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus();
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onCancel();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description !== undefined ? descriptionId : undefined}
+        tabIndex={-1}
+        className="w-full max-w-md rounded-xl border border-[#343b46] bg-[#11151c] p-5 text-[#eef1f5] shadow-2xl outline-none sm:p-6"
+      >
+        <h2 id={titleId} className="m-0 text-base font-semibold">{title}</h2>
+        {description !== undefined && (
+          <div id={descriptionId} className="mt-3 text-sm leading-6 text-[#a7b0bd]">
+            {description}
+          </div>
+        )}
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
+          <Button kind="secondary" type="button" disabled={busy} onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+          <Button
+            ref={confirmRef}
+            kind={danger ? "danger" : "primary"}
+            type="button"
+            disabled={busy}
+            aria-busy={busy}
+            onClick={onConfirm}
+          >
+            {busy ? "处理中…" : confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
