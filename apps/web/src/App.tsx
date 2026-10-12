@@ -324,12 +324,12 @@ function HomeView(props: HomeViewProps) {
           </div>
           <p>{firstItem.description}</p>
           <div className="hero-buttons">
-            <button className="primary" onClick={() => navigate(playPath(firstItem))}>
+            <Button kind="heroPrimary" size="hero" onClick={() => navigate(playPath(firstItem))}>
               <Play size={14} fill="currentColor" /> 立即播放
-            </button>
-            <button className="secondary" onClick={() => navigate('/title/' + encodeURIComponent(firstItem.id))}>
+            </Button>
+            <Button kind="heroSecondary" size="hero" onClick={() => navigate('/title/' + encodeURIComponent(firstItem.id))}>
               查看详情 <ChevronRight size={15} />
-            </button>
+            </Button>
           </div>
           <div className="notice">{loading ? '正在同步片单…' : notice}</div>
         </div>

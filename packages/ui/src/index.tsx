@@ -11,15 +11,16 @@ import type {
   ThHTMLAttributes,
 } from "react";
 
-export type ButtonKind = "primary" | "secondary" | "ghost" | "surface";
-export type ButtonSize = "default" | "compact";
+export type ButtonKind = "primary" | "secondary" | "ghost" | "surface" | "heroPrimary" | "heroSecondary";
+export type ButtonSize = "default" | "compact" | "hero";
 
 const buttonBase =
-  "adm-btn inline-flex items-center justify-center whitespace-nowrap rounded-[7px] border font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--vh-bg)] disabled:pointer-events-none disabled:opacity-45";
+  "adm-btn inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-[7px] border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vh-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--vh-bg)] disabled:pointer-events-none disabled:opacity-45";
 
 const buttonSizes: Record<ButtonSize, string> = {
-  default: "min-h-9 gap-2 px-3.5 py-2 text-[11px]",
-  compact: "gap-[5px] px-3 py-[9px] text-[11px]",
+  default: "min-h-9 gap-2 px-3.5 py-2 text-[11px] font-semibold",
+  compact: "gap-[5px] px-3 py-[9px] text-[11px] font-normal",
+  hero: "min-h-[40px] flex-none gap-[7px] px-[19px] py-3 text-[12px] font-bold leading-[1.25]",
 };
 
 const buttonKinds: Record<ButtonKind, string> = {
@@ -31,6 +32,10 @@ const buttonKinds: Record<ButtonKind, string> = {
     "border-transparent bg-transparent text-[#929ba8] hover:bg-white/5",
   surface:
     "border-[#2a2f39] bg-[#11141b] text-[#d6d9df] hover:border-[#c7f36b88] hover:text-[var(--vh-accent)]",
+  heroPrimary:
+    "border-0 bg-[#c7f36b] text-[#11160b] hover:bg-[#d8fa91]",
+  heroSecondary:
+    "border border-[#ffffff1e] bg-[#ffffff13] text-[#f4f5f6] hover:bg-[#ffffff20]",
 };
 
 /** Shared button primitive; kind and size select accessible visual variants. */
