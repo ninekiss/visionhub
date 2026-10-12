@@ -1,12 +1,7 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { loadEnvironmentFiles } from "@visionhub/config";
 import { defineConfig } from "prisma/config";
 
-const localEnvPath = resolve(process.cwd(), ".env");
-const rootEnvPath = resolve(process.cwd(), "../../.env");
-
-if (existsSync(localEnvPath)) process.loadEnvFile(localEnvPath);
-if (existsSync(rootEnvPath)) process.loadEnvFile(rootEnvPath);
+loadEnvironmentFiles();
 
 function useVisionHubSchema(connectionString: string): string {
   const url = new URL(connectionString);
@@ -14,9 +9,10 @@ function useVisionHubSchema(connectionString: string): string {
   return url.toString();
 }
 
+// Used only by Prisma CLI schema-generation/validation commands when no DB is supplied.
+// API runtime startup does not use this placeholder; it requires DATABASE_URL via Zod.
 const datasourceUrl = useVisionHubSchema(
-  process.env.DATABASE_URL ??
-    "postgresql://build:build@127.0.0.1:5432/visionhub?schema=visionhub",
+  process.env.DATABASE_URL ?? "postgresql://build:build@127.0.0.1:5432/visionhub?schema=visionhub",
 );
 
 export default defineConfig({

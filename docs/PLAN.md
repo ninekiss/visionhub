@@ -34,12 +34,12 @@ The following status is based on the repository code and lockfile on 2026-10-12.
 | Data changes | Explicit migration and seed commands; no migration on ordinary API startup | Aligned with safety constraint |
 | Runtime baseline | Node.js 24.21.0 is pinned in `.nvmrc`, CI and Docker build stages; package engine requires `>=24.21.0 <25` | Verified in CI; aligned |
 | Package manager | pnpm 12.11.2 with a committed lockfile | Implemented; retain reproducible installs |
-| Configuration | Environment-specific YAML and environment variables exist | Partial; no strict Zod validation or single shared config package |
+| Configuration | `@visionhub/config` centralizes YAML/env loading, precedence and Zod validation; desktop has an independent config file | Phase 2 implementation on branch; CI verification pending |
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
 | Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
 | HLS | No `hls.js` adapter is present | Not started |
 | Desktop | No `apps/desktop` or Electron shell | Not started |
-| Shared packages | Root `contracts/` exists, but reusable UI and config workspace packages do not | Partial |
+| Shared packages | `packages/contracts` and `packages/config` provide shared API types and validated config | Implemented foundation; UI remains Phase 3 |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
 | CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
 
@@ -60,7 +60,7 @@ The current implementation is useful and should be retained. It is a browser-bas
 | Plyr | 3.8.5 |
 | NestJS packages | 12.1.2 |
 | Prisma ORM / Prisma Client / PostgreSQL adapter | 7.10.0 |
-| Zod | Not installed |
+| Zod | 4.6.6 in `packages/config` |
 | Electron | Not installed |
 | hls.js | Not installed |
 
@@ -95,11 +95,13 @@ visionhub/
 │   ├── ui/                   # Shared React UI primitives and design tokens
 │   ├── contracts/            # API/domain contracts shared by web, desktop and API
 │   └── config/               # YAML/env loading, merge rules and Zod schemas
-├── config/
-│   ├── app.yaml              # Shared non-secret application defaults
-│   ├── production.yaml       # Production overrides
-│   ├── secrets.yaml          # Optional local/deployment secret file; never committed
-│   └── desktop.yaml          # Desktop API endpoint and client behavior
+├── configs/
+│   ├── app.defaults.yaml     # Committed non-secret shared defaults
+│   ├── app.yaml              # Optional local override; ignored by Git
+│   ├── app.development.yaml  # Development overrides
+│   ├── app.production.yaml   # Production overrides
+│   ├── secrets.yaml          # Optional secret file; never committed
+│   └── desktop.yaml          # Desktop API endpoint; independent of API settings
 ├── infra/
 │   └── compose.yaml          # Application services only; external database network
 ├── .gitignore
@@ -124,10 +126,11 @@ Migration principles:
 
 | File / mechanism | Responsibility |
 |---|---|
-| `config/app.yaml` | Shared non-secret defaults: logging, service settings, request limits, media paths and feature flags |
-| `config/production.yaml` | Production-only overrides |
-| `config/secrets.yaml` | Optional local secret source; ignored by Git and mounted read-only |
-| `config/desktop.yaml` | Desktop API base URL and user-facing client defaults |
+| `configs/app.defaults.yaml` | Committed non-secret shared defaults |
+| `configs/app.yaml` | Optional local override; ignored by Git and Docker build context |
+| `configs/app.production.yaml` | Production-only overrides |
+| `configs/secrets.yaml` | Optional local secret source; ignored by Git |
+| `configs/desktop.yaml` | Desktop API base URL; validated independently from API settings |
 | Environment variables / deployment secrets | Override or supply secrets without committing them |
 | `packages/config` | Load, merge, validate and type resolved configuration |
 | `infra/compose.yaml` | Container topology, mounts, port binding, restart policy and networks |
@@ -230,19 +233,23 @@ Exit criteria:
 
 ### Phase 2 — Shared configuration and contracts
 
+Status: implementation is on `phase-2/config-contracts`; CI and Docker verification remain pending.
+
 Tasks:
-- Create `packages/config` with YAML/env loading, explicit merge precedence and Zod schemas.
-- Move API configuration reads behind this package and remove permissive production fallbacks.
-- Add `desktop.yaml` and define the API URL resolution mechanism.
-- Move the shared catalog contracts to `packages/contracts` with coordinated imports.
-- Define secret handling and update `.gitignore`, Compose mounts and setup documentation.
-- Add a configuration validation matrix for development, production and desktop settings.
+- [x] Create `packages/config` with deterministic YAML/env precedence, recursive object merge and Zod schemas.
+- [x] Route API runtime config through the shared package and fail startup on missing/invalid required settings.
+- [x] Add independent `configs/desktop.yaml` loading and validate the Electron API URL without changing Web/API settings.
+- [x] Move catalog types to `packages/contracts` and wire both Web and API to the workspace package.
+- [x] Ignore local secret files and document precedence, variable mapping and secret handling.
+- [x] Add config tests for precedence, missing files, invalid database/admin values and desktop endpoint overrides.
+- [ ] Confirm frozen install, type checks, unit tests, production builds and both Docker builds in CI.
 
 Exit criteria:
-- Invalid or missing required config fails early with a clear, non-secret error.
-- Web and API use one maintained contract source.
-- Secret values cannot accidentally be committed and do not appear in logs.
-- Existing database connections still work without introducing a new database service.
+- [x] Invalid or missing required config fails with a field-specific message that omits secret values.
+- [x] Web and API reference one maintained contracts package.
+- [x] Secret file paths are ignored, and config validation does not print secret values.
+- [ ] CI and both application Docker images pass with the new workspace layout.
+- [x] No database service was added, and migrations remain explicit commands.
 
 ### Phase 3 — Public UI package and Tailwind migration
 

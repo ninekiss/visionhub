@@ -1,5 +1,6 @@
 packages:
   - "apps/*"
+  - "packages/*"
 
 # Only allow lifecycle scripts required to build the toolchain; keep unrelated scripts disabled.
 allowBuilds:

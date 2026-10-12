@@ -23,10 +23,14 @@
 配置文件分别是：
 
 - `configs/app.development.yaml`：本地 API 端口 3001，允许本地 Vite 开发源。
-- `configs/app.production.yaml`：部署容器内部端口 3000；浏览器通过 Nginx 同源访问 `/api`，无需开放跨域来源。
-- `.env`：数据库连接和宿主机端口等环境变量，基于 `.env.example` 创建。敏感值不要提交到 Git。
+- `configs/app.defaults.yaml`：提交到 Git 的非敏感默认值。
+- `configs/app.development.yaml` / `configs/app.production.yaml`：环境专属覆盖值。
+- `configs/desktop.yaml`：Electron 独立 API 地址，不修改 Web/API 服务器配置。
+- 可选的 `configs/app.yaml` 和 `configs/secrets.yaml` 用作本地覆盖与秘密配置，已加入 Git/Docker 忽略规则。
+- `.env`：数据库连接、管理员凭据和宿主机端口等环境变量，基于 `.env.example` 创建。敏感值不要提交到 Git。
+- 合并优先级、变量映射和失败条件见 [配置说明](docs/CONFIGURATION.md)。
 
-本地 API 的开发启动器会明确强制 `NODE_ENV=development`、开发配置文件和 `API_DEV_PORT`，所以即使旧的根目录 `.env` 里还残留 `NODE_ENV=production` 或 `APP_CONFIG_PATH`，也不会让开发 API 偷偷监听部署端口。Docker Compose 则明确设置 `NODE_ENV=production`、`PORT=3000` 并挂载生产配置。
+本地 API 的开发启动器会明确强制 `NODE_ENV=development`、开发配置文件和 `API_DEV_PORT`。配置按固定顺序合并，并在 API 创建 Nest 应用前由 Zod 校验；必需项缺失、YAML 无效或变量格式错误时会显示字段级错误，不会静默退回默认配置。Docker Compose 则明确设置 `NODE_ENV=production`、`PORT=3000` 并挂载生产配置。
 
 ## 本地开发
 
@@ -123,7 +127,7 @@ Base path：`/api/v1`。成功响应包含 `data`；片库列表同时返回分�
 - 可通过 `mediaType=series` 或 `mediaType=movie` 过滤格式。
 - `page` 和 `pageSize` 必须为正整数；`pageSize` 上限为 50。
 
-共享类型保存在 `contracts/catalog.d.ts`。API 控制器不持有 Mock 数据；Mock 数据仅作为数据库种子来源。
+共享类型保存在 `packages/contracts/catalog.d.ts`，通过 `@visionhub/contracts` 提供给 Web 和 API。API 控制器不持有 Mock 数据；Mock 数据仅作为数据库种子来源。
 
 ## 详情与播放
 
@@ -143,7 +147,9 @@ Base path：`/api/v1`。成功响应包含 `data`；片库列表同时返回分�
 apps/
   web/       React UI、Plyr 播放器、Vite
   api/       NestJS API、Prisma Client、数据库迁移与种子脚本
-contracts/   Web/API 共用的无依赖类型
-configs/     开发与部署 YAML 配置
+packages/
+  config/    YAML/env 合并、Zod 校验与独立桌面配置加载
+  contracts/ Web、Electron、API 共用的无依赖类型
+configs/     开发、生产、桌面 YAML 配置
 deploy/      Dockerfile 与 Nginx 配置
 ```

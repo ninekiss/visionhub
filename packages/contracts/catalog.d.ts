@@ -1,7 +1,7 @@
 /**
- * Shared, dependency-free API contracts used by the web and API workspaces.
+ * Shared, dependency-free API contracts used by Web, Electron, and API.
  */
-export type CatalogMediaType = 'movie' | 'series';
+export type CatalogMediaType = "movie" | "series";
 
 export interface CatalogItem {
   id: string;

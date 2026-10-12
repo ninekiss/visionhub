@@ -1,34 +1,24 @@
 import "reflect-metadata";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { NestFactory } from "@nestjs/core";
+import { loadAppConfig, loadEnvironmentFiles } from "@visionhub/config";
 import { AppModule } from "./app.module.js";
-import { loadAppConfig } from "./config/app-config.js";
-
-function loadEnvironment(): void {
-  const localEnvPath = resolve(process.cwd(), ".env");
-  const rootEnvPath = resolve(process.cwd(), "../../.env");
-  if (existsSync(localEnvPath)) process.loadEnvFile(localEnvPath);
-  if (existsSync(rootEnvPath)) process.loadEnvFile(rootEnvPath);
-}
 
 async function bootstrap(): Promise<void> {
-  loadEnvironment();
+  loadEnvironmentFiles();
+  // Validate runtime configuration before initializing application services or connecting to PostgreSQL.
   const config = await loadAppConfig();
-  const server = config.server ?? {};
   const app = await NestFactory.create(AppModule);
 
-  app.setGlobalPrefix("api/v1");
-  app.enableCors({
-    origin: server.corsOrigins ?? ["http://localhost:5173"],
-  });
+  const globalPrefix = config.app.basePath.replace(/^\/+|\/+$/g, "");
+  if (globalPrefix) app.setGlobalPrefix(globalPrefix);
+  app.enableCors({ origin: config.server.corsOrigins });
 
-  const port = Number(process.env.PORT ?? server.port ?? 3000);
-  await app.listen(port, server.host ?? "0.0.0.0");
-  console.log(`VisionHub API listening on :${port}/api/v1`);
+  await app.listen(config.server.port, config.server.host);
+  console.log("VisionHub API listening on :" + config.server.port + config.app.basePath);
 }
 
 void bootstrap().catch((error: unknown) => {
-  console.error("VisionHub API failed to start:", error);
+  const message = error instanceof Error ? error.message : "Unexpected startup error.";
+  console.error("VisionHub API failed to start:", message);
   process.exitCode = 1;
 });

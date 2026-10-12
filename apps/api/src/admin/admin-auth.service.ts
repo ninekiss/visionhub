@@ -1,8 +1,10 @@
 import {
+  Inject,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { APP_CONFIG, type AppConfig } from "@visionhub/config";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 const COOKIE_NAME = "visionhub_admin";
@@ -13,16 +15,20 @@ type AdminCredentials = { username: string; password: string; secret: string };
 
 @Injectable()
 export class AdminAuthService {
+  constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
+
   private getCredentials(): AdminCredentials {
-    const username = process.env.ADMIN_USERNAME?.trim();
-    const password = process.env.ADMIN_PASSWORD;
-    const secret = process.env.ADMIN_SESSION_SECRET;
-    if (!username || !password || !secret || secret.length < 32) {
+    const { username, password, sessionSecret } = this.config.admin;
+    if (!username || !password || !sessionSecret || sessionSecret.length < 32) {
       throw new ServiceUnavailableException(
         "Admin access is not configured. Set ADMIN_USERNAME, ADMIN_PASSWORD, and a random ADMIN_SESSION_SECRET of at least 32 characters.",
       );
     }
-    return { username, password, secret };
+    return { username, password, secret: sessionSecret };
+  }
+
+  getConfiguredUsername(): string {
+    return this.getCredentials().username;
   }
 
   login(username: string, password: string): { username: string; token: string } {
@@ -68,13 +74,19 @@ export class AdminAuthService {
   }
 
   sessionCookie(token: string): string {
-    const secure = process.env.ADMIN_COOKIE_SECURE === "true" ? "; Secure" : "";
-    return `${COOKIE_NAME}=${token}; Max-Age=${SESSION_LIFETIME_SECONDS}; Path=/api/v1/admin; HttpOnly; SameSite=Lax${secure}`;
+    const secure = this.config.admin.cookieSecure ? "; Secure" : "";
+    return COOKIE_NAME + "=" + token + "; Max-Age=" + SESSION_LIFETIME_SECONDS +
+      "; Path=" + this.adminCookiePath() + "; HttpOnly; SameSite=Lax" + secure;
   }
 
   clearSessionCookie(): string {
-    const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-    return `${COOKIE_NAME}=; Max-Age=0; Path=/api/v1/admin; HttpOnly; SameSite=Lax${secure}`;
+    const secure = this.config.admin.cookieSecure ? "; Secure" : "";
+    return COOKIE_NAME + "=; Max-Age=0; Path=" + this.adminCookiePath() +
+      "; HttpOnly; SameSite=Lax" + secure;
+  }
+
+  private adminCookiePath(): string {
+    return this.config.app.basePath.replace(/\/+$/, "") + "/admin";
   }
 
   private sign(value: string, secret: string): string {

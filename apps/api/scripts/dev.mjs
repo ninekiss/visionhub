@@ -1,14 +1,7 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { loadEnvironmentFiles } from "@visionhub/config";
 
-function loadEnvironmentFile(path) {
-  if (existsSync(path)) process.loadEnvFile(path);
-}
-
-// Load local and root secrets before applying explicit development-only overrides.
-loadEnvironmentFile(resolve(process.cwd(), ".env"));
-loadEnvironmentFile(resolve(process.cwd(), "../../.env"));
+loadEnvironmentFiles();
 
 const env = {
   ...process.env,
@@ -30,7 +23,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 child.on("error", (error) => {
-  console.error("Unable to start the development API:", error);
+  console.error("Unable to start the development API:", error.message);
   process.exitCode = 1;
 });
 

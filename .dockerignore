@@ -21,6 +21,7 @@ node_modules
 .env.*
 !.env.example
 configs/app.yaml
+configs/secrets.yaml
 
 # TypeScript incremental compiler state can become stale in container builds.
 **/*.tsbuildinfo

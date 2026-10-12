@@ -1,6 +1,9 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { loadEnvironmentFiles } from "@visionhub/config";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { MOCK_CATALOG, MOCK_EPISODES } from "../src/catalog/mock/catalog.mock-data.js";
+
+loadEnvironmentFiles();
 
 const CATEGORY_IDS: Record<string, string> = {
   科幻: "science-fiction",

@@ -46,8 +46,6 @@ export class AdminAuthController {
   @Get("me")
   @UseGuards(AdminAuthGuard)
   me(): { data: { authenticated: true; username: string } } {
-    // The guard has already validated the session. The username is intentionally
-    // not read back from client-controlled input.
-    return { data: { authenticated: true, username: process.env.ADMIN_USERNAME ?? "admin" } };
+    return { data: { authenticated: true, username: this.auth.getConfiguredUsername() } };
   }
 }

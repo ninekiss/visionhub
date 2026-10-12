@@ -15,8 +15,6 @@ import { APP_CONFIG, type AppConfig } from "../config/app-config.js";
 import { PrismaService } from "../database/prisma.service.js";
 
 const MAX_PAGE_SIZE = 50;
-const FALLBACK_PAGE_SIZE = 8;
-
 const catalogItemInclude = {
   categoryLinks: { include: { category: true } },
   _count: { select: { episodes: true } },
@@ -186,9 +184,8 @@ export class CatalogService {
   }
 
   private getDefaultPageSize(): number {
-    const configured = this.config.catalog?.pageSize ?? FALLBACK_PAGE_SIZE;
-    if (!Number.isInteger(configured) || configured < 1) return FALLBACK_PAGE_SIZE;
-    return Math.min(configured, MAX_PAGE_SIZE);
+    // Startup validation guarantees this value is an integer between 1 and MAX_PAGE_SIZE.
+    return this.config.catalog.pageSize;
   }
 
   private parsePositiveInteger(
