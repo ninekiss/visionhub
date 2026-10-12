@@ -268,8 +268,8 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
       </a>
       <nav id="public-primary-nav" className={"main-nav" + (mobileNavOpen ? " mobile-nav-open" : "")}>
         <NavigationItem variant="top" to="/" onNavigate={navigateFromHeader} active={discoverActive} icon={<Compass size={16} />} label="发现" />
-        <NavigationItem variant="top" to="/#catalog" onNavigate={navigate} active={libraryActive} icon={<Tv2 size={16} />} label="影视库" />
-        <NavigationItem variant="top" to="/series" onNavigate={navigate} active={route.page === 'series'} label="剧集" />
+        <NavigationItem variant="top" to="/#catalog" onNavigate={navigateFromHeader} active={libraryActive} icon={<Tv2 size={16} />} label="影视库" />
+        <NavigationItem variant="top" to="/series" onNavigate={navigateFromHeader} active={route.page === 'series'} label="剧集" />
       </nav>
       <div className="top-actions">
         <button
