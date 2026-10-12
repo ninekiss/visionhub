@@ -380,8 +380,10 @@ function HomeView(props: HomeViewProps) {
             <span className="section-kicker">{seriesOnly ? 'SERIES COLLECTION' : 'CURATED FOR YOU'}</span>
             <h2>{seriesOnly ? '剧集片库' : '为你精选'}</h2>
           </div>
-          <button
-            className="view-all"
+          <Button
+            kind="ghost"
+            size="compact"
+            className="!px-0 !text-[11px] !text-[#a7adb7] hover:!text-[#c7f36b]"
             onClick={() => {
               onQueryChange('');
               onCategoryChange('');
@@ -390,7 +392,7 @@ function HomeView(props: HomeViewProps) {
             }}
           >
             {seriesOnly ? '返回全部片库' : '重置筛选'} <ChevronRight size={16} />
-          </button>
+          </Button>
         </div>
 
         {!seriesOnly && (
