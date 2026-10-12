@@ -253,7 +253,7 @@ Exit criteria:
 
 ### Phase 3 — Public UI package and Tailwind migration
 
-Status: shared UI foundation, admin migration slices, public catalog/detail/history, accessible confirmation dialog, playback navigation and catalog reset actions are merged into `main`. Remaining work focuses on interaction-flow review, responsive acceptance and regression verification.
+Status: shared UI foundation, admin migration slices, public catalog/detail/history, accessible confirmation dialog, playback navigation, catalog reset, mobile navigation and mobile search are merged into `main`. Interaction-flow source review is complete; manual responsive browser acceptance and end-to-end regression verification remain.
 
 Tasks:
 - [x] Establish shared semantic tokens and reusable Button, Field, Message, Badge and Panel primitives in `packages/ui`.
@@ -279,7 +279,7 @@ Tasks:
 - [x] Expose the selected state of admin media-type choice buttons to assistive technology.
 - [x] Standardize admin icon-only actions for logout, edit, episode management and delete flows on the shared IconButton primitive.
 - [x] Remove the inert public-header notification button because no notification behavior or backend exists yet.
-- [ ] Continue reviewing remaining playback states and other non-destructive interaction flows in manageable chunks.
+- [x] Review remaining public playback states and non-destructive interaction controls; remove the inert notification action and preserve clear navigation for invalid/missing playback states.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
 Exit criteria:
