@@ -262,7 +262,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   };
   return (
     <header className={'topbar' + (mobileSearchOpen ? ' mobile-search-visible' : '')}>
-      <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate('/'); }}>
+      <a className="brand" href="/" onClick={(event) => { event.preventDefault(); setMobileNavOpen(false); setMobileSearchOpen(false); navigate('/'); }}>
         <span className="brand-mark"><Clapperboard size={20} /></span>
         <span>VISION<span className="brand-accent">HUB</span></span>
       </a>
