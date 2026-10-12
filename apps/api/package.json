@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "node scripts/dev.mjs",
     "build": "prisma generate && tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "lint": "prisma generate && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.seed.json",

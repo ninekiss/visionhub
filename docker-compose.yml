@@ -7,11 +7,11 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: ${DATABASE_URL_DOCKER:-${DATABASE_URL}}
-      APP_CONFIG_PATH: /app/configs/app.yaml
+      APP_CONFIG_PATH: /app/configs/app.production.yaml
     ports:
       - "${API_PORT:-3000}:3000"
     volumes:
-      - ${APP_CONFIG_PATH:-./configs/app.yaml}:/app/configs/app.yaml:ro
+      - ./configs/app.production.yaml:/app/configs/app.production.yaml:ro
     networks:
       - app
       - existing_db

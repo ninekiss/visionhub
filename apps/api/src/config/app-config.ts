@@ -24,16 +24,18 @@ export interface AppConfig {
 
 export const APP_CONFIG = Symbol("APP_CONFIG");
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const DEFAULT_CONFIG: AppConfig = {
   app: {
     name: "VisionHub",
-    environment: "development",
+    environment: isProduction ? "production" : "development",
     basePath: "/api/v1",
   },
   server: {
     host: "0.0.0.0",
-    port: 3000,
-    corsOrigins: ["http://localhost:5173"],
+    port: isProduction ? 3000 : 3001,
+    corsOrigins: isProduction ? [] : ["http://localhost:5173", "http://127.0.0.1:5173"],
   },
   web: {
     title: "VisionHub",
@@ -45,7 +47,8 @@ const DEFAULT_CONFIG: AppConfig = {
 };
 
 export async function loadAppConfig(): Promise<AppConfig> {
-  const configuredPath = process.env.APP_CONFIG_PATH ?? "configs/app.yaml";
+  const environment = process.env.NODE_ENV === "production" ? "production" : "development";
+  const configuredPath = process.env.APP_CONFIG_PATH ?? `configs/app.${environment}.yaml`;
   const configPaths = [
     resolve(configuredPath),
     resolve(process.cwd(), configuredPath),
