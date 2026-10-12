@@ -213,6 +213,15 @@ export class AdminService {
     const input = parseItemInput(body);
     try {
       const record = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.catalogItem.findUnique({
+          where: { id },
+          select: { id: true, _count: { select: { episodes: true } } },
+        });
+        if (!current) throw new NotFoundException("没有找到这部作品。");
+        if (input.mediaType === "movie" && current._count.episodes > 0) {
+          throw new ConflictException("请先删除这部剧集的全部分集，再将作品类型改为电影。");
+        }
+
         const categoryIds = await this.resolveCategoryIds(tx, input.categories);
         return tx.catalogItem.update({
           where: { id },

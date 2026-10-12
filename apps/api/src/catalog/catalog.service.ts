@@ -138,7 +138,7 @@ export class CatalogService {
   async getEpisodes(id: string): Promise<CatalogEpisode[]> {
     const item = await this.prisma.catalogItem.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, mediaType: true },
     });
     if (!item) {
       throw new NotFoundException({
@@ -146,6 +146,7 @@ export class CatalogService {
         message: "Catalog item not found",
       });
     }
+    if (item.mediaType === "movie") return [];
 
     return this.prisma.catalogEpisode.findMany({
       where: { seriesId: id },
