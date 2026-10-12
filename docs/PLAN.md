@@ -34,7 +34,7 @@ The following status is based on the repository code and lockfile on 2026-10-12.
 | Data changes | Explicit migration and seed commands; no migration on ordinary API startup | Aligned with safety constraint |
 | Runtime baseline | Node.js 24.21.0 is pinned in `.nvmrc`, CI and Docker build stages; package engine requires `>=24.21.0 <25` | Verified in CI; aligned |
 | Package manager | pnpm 12.11.2 with a committed lockfile | Implemented; retain reproducible installs |
-| Configuration | `@visionhub/config` centralizes YAML/env loading, precedence and Zod validation; desktop has an independent config file | Phase 2 implementation on branch; CI verification pending |
+| Configuration | `@visionhub/config` centralizes YAML/env loading, precedence and Zod validation; desktop has an independent config file | Phase 2 implemented; CI and both Docker builds passed |
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
 | Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
 | HLS | No `hls.js` adapter is present | Not started |
@@ -233,7 +233,7 @@ Exit criteria:
 
 ### Phase 2 — Shared configuration and contracts
 
-Status: implementation is on `phase-2/config-contracts`; CI and Docker verification remain pending.
+Status: implemented on `phase-2/config-contracts` and submitted as [PR #1](https://github.com/ninekiss/visionhub/pull/1). CI run 53 passed, including both application Docker builds.
 
 Tasks:
 - [x] Create `packages/config` with deterministic YAML/env precedence, recursive object merge and Zod schemas.
@@ -242,13 +242,13 @@ Tasks:
 - [x] Move catalog types to `packages/contracts` and wire both Web and API to the workspace package.
 - [x] Ignore local secret files and document precedence, variable mapping and secret handling.
 - [x] Add config tests for precedence, missing files, invalid database/admin values and desktop endpoint overrides.
-- [ ] Confirm frozen install, type checks, unit tests, production builds and both Docker builds in CI.
+- [x] CI run 53 passed frozen install, Prisma validation, type checks, unit tests, production builds and both Docker builds.
 
 Exit criteria:
 - [x] Invalid or missing required config fails with a field-specific message that omits secret values.
 - [x] Web and API reference one maintained contracts package.
 - [x] Secret file paths are ignored, and config validation does not print secret values.
-- [ ] CI and both application Docker images pass with the new workspace layout.
+- [x] CI and both application Docker images pass with the new workspace layout.
 - [x] No database service was added, and migrations remain explicit commands.
 
 ### Phase 3 — Public UI package and Tailwind migration
