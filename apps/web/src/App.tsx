@@ -289,6 +289,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
 
 type HomeViewProps = {
   route: Route;
+  categoryOptions: { label: string; value: string }[];
   items: CatalogItem[];
   loading: boolean;
   notice: string;
@@ -305,7 +306,7 @@ type HomeViewProps = {
 
 function HomeView(props: HomeViewProps) {
   const {
-    route, items, loading, notice, category, page, pagination, watchHistory,
+    route, categoryOptions, items, loading, notice, category, page, pagination, watchHistory,
     onResume, onQueryChange, onCategoryChange, onPageChange, navigate,
   } = props;
   const firstItem = items[0] ?? fallback[0];
@@ -405,7 +406,7 @@ function HomeView(props: HomeViewProps) {
 
         {!seriesOnly && (
           <div className="category-filters" role="group" aria-label="按类型筛选">
-            {CATEGORY_FILTERS.map((option) => (
+            {categoryOptions.map((option) => (
               <button
                 type="button"
                 key={option.value || 'all'}
@@ -715,6 +716,7 @@ function WatchView({
 export default function App() {
   const { route, navigate, hash } = useAppRouter();
   const [items, setItems] = useState<CatalogItem[]>(fallback);
+  const [categoryOptions, setCategoryOptions] = useState(CATEGORY_FILTERS);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [page, setPage] = useState(1);
@@ -728,6 +730,27 @@ export default function App() {
   const [detailError, setDetailError] = useState('');
   const [playbackState, setPlaybackState] = useState<PlaybackState>('ready');
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>(readWatchHistory);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(API_BASE + '/catalog/categories', { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error('分类加载失败');
+        return response.json() as Promise<ApiResponse<string[]>>;
+      })
+      .then((result) => {
+        if (Array.isArray(result.data)) {
+          setCategoryOptions([
+            { label: '全部', value: '' },
+            ...result.data.map((name) => ({ label: name, value: name })),
+          ]);
+        }
+      })
+      .catch(() => {
+        // Keep the initial filters as a fallback while the API is unavailable.
+      });
+    return () => controller.abort();
+  }, []);
   const watchHistoryRef = useRef(watchHistory);
   watchHistoryRef.current = watchHistory;
 
@@ -882,6 +905,7 @@ export default function App() {
       {route.page === 'home' || route.page === 'series' ? (
         <HomeView
           route={route}
+          categoryOptions={categoryOptions}
           items={items}
           loading={loading}
           notice={notice}

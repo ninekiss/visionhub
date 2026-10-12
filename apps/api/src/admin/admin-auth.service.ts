@@ -68,7 +68,7 @@ export class AdminAuthService {
   }
 
   sessionCookie(token: string): string {
-    const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+    const secure = process.env.ADMIN_COOKIE_SECURE === "true" ? "; Secure" : "";
     return `${COOKIE_NAME}=${token}; Max-Age=${SESSION_LIFETIME_SECONDS}; Path=/api/v1/admin; HttpOnly; SameSite=Lax${secure}`;
   }
 

@@ -54,6 +54,29 @@ docker compose --env-file .env up --build -d
 
 Compose 只运行 Web 与 API，不会创建 PostgreSQL 容器。API 在容器内部固定监听 3000，默认发布到宿主机 3000；如要修改宿主机访问端口，只需更改 `API_PORT`，不影响容器内部 Nginx 的 `api:3000` 地址。Web 默认发布到宿主机 8080，可通过 `WEB_PORT` 调整。
 
+## 管理后台
+
+后台入口：`/admin`。首版包含内容总览、影视内容列表、作品新建/编辑、剧集分集管理和分类管理。所有写操作均由 API 服务端验证管理会话，前端隐藏导航不作为权限控制。
+
+首次启用前，在根目录 `.env` 中配置专用管理员账号和会话密钥：
+
+```dotenv
+ADMIN_USERNAME=你的管理员账号
+ADMIN_PASSWORD=替换为高强度唯一密码
+ADMIN_SESSION_SECRET=至少32字符的随机密钥
+ADMIN_COOKIE_SECURE=false
+```
+
+可用以下命令生成随机会话密钥：
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+本地开发时，访问 `http://localhost:5173/admin`；Docker 部署默认从 `http://localhost:8080/admin` 进入。当前 Compose/Nginx 示例默认使用 HTTP，因此 `ADMIN_COOKIE_SECURE=false` 才能在该地址正常维持登录；若站点已通过 HTTPS 对外服务，请将它设为 `true`。不要把真实密码或会话密钥提交到 Git。若之前已经存在旧的 `.env`，需要手动追加这些新变量后重启 API 容器。
+
+管理员 API 位于 `/api/v1/admin` 下。会话通过 HttpOnly、SameSite=Lax cookie 传递，8 小时过期。首版使用单管理员环境变量认证，不提供公开注册或多用户角色管理。
+
 ## 数据库设计与初始数据
 
 Prisma schema 位于 `apps/api/prisma/schema.prisma`。片库使用独立的 PostgreSQL schema：`visionhub`。迁移历史也放在该 schema 中，避免与默认 `public` schema 内其他应用的迁移历史混用。
