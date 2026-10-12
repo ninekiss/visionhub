@@ -1,0 +1,334 @@
+# VisionHub Development Plan
+
+> Status date: 2026-10-12  
+> Repository: [ninekiss/visionhub](https://github.com/ninekiss/visionhub)  
+> Scope: current Web/API foundation → reusable application architecture → Electron desktop client  
+> This document is a roadmap and current-state assessment. It does not claim that future-phase work is already implemented.
+
+## 1. Product and architecture direction
+
+VisionHub is intended to become a desktop-first media browsing and playback application with a reusable React UI, a NestJS API, a Plyr-based player, optional background processing, and configuration-driven deployment.
+
+Core constraints:
+
+1. Use stable versions and verify compatibility before upgrades. Do not upgrade solely to maximize version numbers.
+2. Reuse the existing PostgreSQL service. Compose must not create, own, or automatically replace the database container.
+3. Keep operational configuration outside business code. Validate required configuration at startup and fail with an actionable error rather than silently accepting malformed configuration.
+4. Keep Plyr as the player UI. Add protocol adapters such as HTML5 and HLS as needed; do not treat Plyr as a video decoder.
+5. Keep shared contracts, UI and configuration reusable across the web frontend and the planned desktop application.
+6. Prefer incremental, testable changes. Preserve working features and avoid broad rewrites without a migration need.
+
+## 2. Current state snapshot
+
+The following status is based on the repository code and lockfile on 2026-10-12.
+
+| Area | Current state | Status against target |
+|---|---|---|
+| Web application | React + Vite + TypeScript; catalog browse, details, playback pages | Implemented foundation |
+| Admin UI | Dashboard, catalog editor, episodes and category management; admin session API | Implemented foundation |
+| Styling | Tailwind CSS 4.3.3 is installed, but most screen styling still lives in custom CSS files | Partial; migrate incrementally |
+| API | NestJS 12.1.2; catalog and admin routes | Implemented foundation |
+| Database | Prisma 7.10.0 and PostgreSQL; data lives in the separate `visionhub` schema | Implemented foundation |
+| Database ownership | Compose has API and web services only; PostgreSQL is reached through an external Docker network | Aligned |
+| Data changes | Explicit migration and seed commands; no migration on ordinary API startup | Aligned with safety constraint |
+| Runtime baseline | Repository engine requirement is Node >=22.13.0; CI and Dockerfiles use Node 22 | Upgrade to Node 24 LTS is planned |
+| Package manager | pnpm 12.11.2 with a committed lockfile | Implemented; retain reproducible installs |
+| Configuration | Environment-specific YAML and environment variables exist | Partial; no strict Zod validation or single shared config package |
+| Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
+| Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
+| HLS | No `hls.js` adapter is present | Not started |
+| Desktop | No `apps/desktop` or Electron shell | Not started |
+| Shared packages | Root `contracts/` exists, but reusable UI and config workspace packages do not | Partial |
+| Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
+| CI | Prisma validation, TypeScript checks and build run in GitHub Actions | Partial; automated tests are still needed |
+
+The current implementation is useful and should be retained. It is a browser-based product foundation, not yet the complete Electron desktop application described by the target architecture.
+
+## 3. Version baseline and upgrade policy
+
+### 3.1 Versions currently resolved by the lockfile
+
+| Dependency | Current resolved version / baseline |
+|---|---:|
+| Node.js in CI and Docker images | 22.x image; repository engine minimum is >=22.13.0 |
+| pnpm | 12.11.2 |
+| React / React DOM | 19.3.0 |
+| Vite | 8.3.4 |
+| TypeScript | 7.0.2 |
+| Tailwind CSS / PostCSS integration | 4.3.3 |
+| Plyr | 3.8.5 |
+| NestJS packages | 12.1.2 |
+| Prisma ORM / Prisma Client / PostgreSQL adapter | 7.10.0 |
+| Zod | Not installed |
+| Electron | Not installed |
+| hls.js | Not installed |
+
+### 3.2 Target baseline
+
+- Node.js: 24.x LTS, latest compatible maintenance patch at implementation time.
+- Electron: target 44.6.0 as listed in the project specification; verify the then-current stable release and compatibility before installing.
+- React: 19.3.0 baseline.
+- Vite: 8.3.4 baseline.
+- TypeScript: 7.0.2 baseline; validate the entire build, test, lint and plugin chain.
+- Tailwind CSS: 4.3.3 baseline.
+- Plyr: keep the current compatible 3.8.x release line; currently locked to 3.8.5.
+- NestJS: keep the stable 12.x line after compatibility validation.
+- Prisma: retain 7.10.0 until a later major is stable and its migration path is verified.
+- Add Zod for configuration schemas.
+- Add hls.js only with the HLS player-adapter phase.
+
+The versions above are planning baselines, not a promise that each number will remain the latest stable release forever. Before upgrading, check official release information, lock exact dependency versions using the chosen repository policy, regenerate the lockfile intentionally, and run validation, type checks, tests and production builds. Avoid relying on `latest` as the only version policy.
+
+## 4. Target repository structure
+
+Evolve toward the following structure in small steps:
+
+```text
+visionhub/
+├── apps/
+│   ├── desktop/              # Electron main process, preload and React renderer
+│   ├── web/                  # Browser experience; preserve while migration is useful
+│   ├── api/                  # NestJS API
+│   └── worker/               # Optional background jobs, introduced only when needed
+├── packages/
+│   ├── ui/                   # Shared React UI primitives and design tokens
+│   ├── contracts/            # API/domain contracts shared by web, desktop and API
+│   └── config/               # YAML/env loading, merge rules and Zod schemas
+├── config/
+│   ├── app.yaml              # Shared non-secret application defaults
+│   ├── production.yaml       # Production overrides
+│   ├── secrets.yaml          # Optional local/deployment secret file; never committed
+│   └── desktop.yaml          # Desktop API endpoint and client behavior
+├── infra/
+│   └── compose.yaml          # Application services only; external database network
+├── .gitignore
+├── pnpm-workspace.yaml
+└── README.md
+```
+
+Migration principles:
+
+- Move `contracts/` to `packages/contracts/` only with a coordinated import and workspace update; do not leave multiple conflicting sources of truth.
+- Extract UI components when they are truly shared, rather than creating a UI package that only wraps one-off page markup.
+- Keep the existing `apps/web` running until the desktop renderer has feature parity for the agreed MVP.
+- Keep environment-specific files and secrets out of the source code. Secret files must be ignored by Git, mounted read-only if used, and never logged.
+- The optional worker is not a prerequisite for the first desktop release.
+
+## 5. Configuration design
+
+### 5.1 Responsibilities
+
+| File / mechanism | Responsibility |
+|---|---|
+| `config/app.yaml` | Shared non-secret defaults: logging, service settings, request limits, media paths and feature flags |
+| `config/production.yaml` | Production-only overrides |
+| `config/secrets.yaml` | Optional local secret source; ignored by Git and mounted read-only |
+| `config/desktop.yaml` | Desktop API base URL and user-facing client defaults |
+| Environment variables / deployment secrets | Override or supply secrets without committing them |
+| `packages/config` | Load, merge, validate and type resolved configuration |
+| `infra/compose.yaml` | Container topology, mounts, port binding, restart policy and networks |
+
+### 5.2 Required behavior
+
+1. Load configuration in a deterministic order: defaults → common YAML → environment-specific YAML → environment variables / deployment secrets.
+2. Validate the final configuration with Zod before starting a service.
+3. Fail startup when a required value is missing or invalid; report the field name and remediation without printing secret values.
+4. Keep API port, browser API base URL, desktop API base URL, database URL, media locations and request limits out of hard-coded business logic wherever they are operational settings.
+5. Test the configuration package independently and test the API startup path with missing, malformed and valid configuration.
+6. Do not silently fall back to a default configuration in production if an explicitly selected configuration file cannot be read.
+
+The existing environment-specific YAML files and `.env.example` are a starting point, not the final shared configuration system.
+
+## 6. Deployment and existing database boundary
+
+Target deployment remains intentionally small:
+
+- Compose runs application services only: API and, where needed, the web frontend/reverse proxy.
+- No PostgreSQL or Redis service is added to Compose.
+- The API uses the hostname or network alias of the existing PostgreSQL service on the configured external Docker network. Inside the API container, `localhost` refers to the API container itself.
+- Prefer exposing the web/reverse-proxy port publicly and keeping the API internal. If a host API port is needed for debugging, bind it to loopback unless a deliberate network policy requires broader access.
+- Move the Compose file to `infra/compose.yaml` in a separate, verified change; update build contexts, relative volume mounts, documentation and commands at the same time.
+- Database migrations remain explicit deploy steps. Never run destructive schema changes automatically on normal API startup.
+- Before any schema change, inspect the existing database and keep changes scoped to the `visionhub` schema. Do not modify unrelated schemas or tables.
+- Use read-only configuration mounts where appropriate and never commit database credentials or signing keys.
+
+Acceptance criteria:
+
+- `docker compose config` resolves the intended external network and mounts.
+- Compose has no database or Redis service.
+- A clean API startup can connect to the existing database using a network-resolvable host.
+- No production migration runs as a side effect of container boot.
+- The API port is not exposed more broadly than intended.
+
+## 7. Player architecture
+
+Keep Plyr as the UI and retain the existing working player during refactoring.
+
+Target layout:
+
+```text
+apps/desktop/src/features/player/
+├── components/
+│   ├── VideoPlayer.tsx
+│   ├── PlayerControls.tsx
+│   └── SubtitleSelector.tsx
+├── adapters/
+│   ├── html5.adapter.ts
+│   └── hls.adapter.ts
+├── hooks/
+│   ├── usePlaybackProgress.ts
+│   └── usePlayerSettings.ts
+└── types.ts
+```
+
+Implementation rules:
+
+- HTML5 video remains the first adapter for browser/Electron Chromium-supported formats.
+- Add hls.js for HLS playback where native playback is unavailable; use the native path when it is supported and appropriate.
+- Plyr provides the player UI, not a universal decoder.
+- Test actual media files and target Electron/Chromium builds before claiming support for MKV, HEVC, HDR, unusual subtitles or other codec/container combinations.
+- Keep playback progress and user settings behind hooks/services so they can be reused by web and desktop.
+- Test source changes, cleanup/disposal, buffering/error states, seeking, progress restoration and unsupported media behavior.
+
+## 8. Phased execution plan
+
+### Phase 0 — Stabilize the existing baseline
+
+Tasks:
+- Preserve the current browse, details, playback, playback history, admin and database behaviors.
+- Replace broad `latest` declarations with a deliberate dependency policy, without upgrading packages blindly.
+- Add the minimum automated test harness needed to refactor safely: config tests, catalog service tests and player behavior tests where feasible.
+- Keep `pnpm install --frozen-lockfile`, Prisma validation, type checking and production build in CI.
+
+Exit criteria:
+- CI is green from a clean checkout.
+- The supported local development and Compose startup commands are documented and repeatable.
+- Existing database data remains untouched by ordinary startup.
+
+### Phase 1 — Runtime and dependency baseline
+
+Tasks:
+- Move CI and Docker build/runtime stages from Node 22 to Node 24 LTS.
+- Confirm pnpm 12.11.2 and Prisma 7.10.0 compatibility with the selected Node release.
+- Validate Vite, TypeScript 7 and NestJS against clean CI and production builds.
+- Document the tested Node/pnpm versions and dependency upgrade procedure.
+
+Exit criteria:
+- CI and both Docker images build on the selected Node 24 maintenance version.
+- Prisma validation, type checks, tests and production builds pass.
+- The lockfile is the source of truth for reproducible installation.
+
+### Phase 2 — Shared configuration and contracts
+
+Tasks:
+- Create `packages/config` with YAML/env loading, explicit merge precedence and Zod schemas.
+- Move API configuration reads behind this package and remove permissive production fallbacks.
+- Add `desktop.yaml` and define the API URL resolution mechanism.
+- Move the shared catalog contracts to `packages/contracts` with coordinated imports.
+- Define secret handling and update `.gitignore`, Compose mounts and setup documentation.
+- Add a configuration validation matrix for development, production and desktop settings.
+
+Exit criteria:
+- Invalid or missing required config fails early with a clear, non-secret error.
+- Web and API use one maintained contract source.
+- Secret values cannot accidentally be committed and do not appear in logs.
+- Existing database connections still work without introducing a new database service.
+
+### Phase 3 — Public UI package and Tailwind migration
+
+Tasks:
+- Establish shared design tokens and a small set of reusable primitives in `packages/ui`.
+- Use Tailwind CSS as the default for layout, spacing, colors, responsive behavior and interaction states.
+- Migrate the admin pages first, then the web frontend, in manageable components.
+- Keep custom CSS only for genuinely complex player styling, animations or cases where utilities are not a good fit.
+- Preserve visual behavior and responsive layout while migrating.
+
+Exit criteria:
+- New UI work follows the shared component and Tailwind conventions.
+- Duplicate page-level styles are reduced rather than moved wholesale into another file.
+- Admin forms, tables, navigation and dialogs are usable on supported desktop and mobile widths.
+- No regression in catalog, login, CRUD or player navigation.
+
+### Phase 4 — Electron desktop MVP
+
+Tasks:
+- Add `apps/desktop` with Electron main process, preload and React renderer.
+- Configure secure defaults: `contextIsolation: true`, `nodeIntegration: false`, and a narrow preload API.
+- Reuse shared UI components and contracts; avoid duplicating the domain/API layer.
+- Resolve the API address from validated desktop configuration rather than hard-coding a deployment host.
+- Implement a desktop development command, packaging pipeline, app identity and environment-specific settings.
+- Define how local development, packaged desktop builds and the remote API communicate.
+
+Exit criteria:
+- A packaged desktop application launches on the agreed target OS.
+- It can connect to a configured API endpoint, browse/search the catalog, display details and play supported media.
+- Renderer code cannot access arbitrary Node APIs.
+- Web remains buildable during the desktop MVP rollout.
+
+### Phase 5 — Player adapters and playback preferences
+
+Tasks:
+- Split the current Plyr wrapper into player UI, adapter selection and progress/settings hooks.
+- Add hls.js as the HLS adapter and define fallback behavior for unsupported sources.
+- Implement playback preference persistence and prepare subtitle selection UI.
+- Test the Electron Chromium runtime against a documented sample media matrix.
+
+Exit criteria:
+- MP4/HTML5 playback and supported HLS playback both have repeatable tests.
+- Source changes properly dispose old players and adapters.
+- Resume behavior, seeking, buffering, errors and unsupported media states are handled predictably.
+- Supported formats are documented based on testing, not assumptions.
+
+### Phase 6 — Deployment layout and operational hardening
+
+Tasks:
+- Move Compose to `infra/compose.yaml` with corrected relative contexts and mounts.
+- Bind public traffic to the web/reverse proxy; keep API internal unless explicitly required.
+- Apply the shared validated configuration to API and deployment setup.
+- Review health checks, logs, restart behavior, graceful shutdown and secret mounts.
+- Document safe migration, backup and rollback procedures for the existing PostgreSQL schema.
+
+Exit criteria:
+- Compose manages application services only and attaches to the existing external database network.
+- The deployed API connects using the correct database hostname and secrets.
+- No database or Redis service is created, and no automatic destructive migration occurs.
+- A deployment and rollback can be performed from documented steps.
+
+### Phase 7 — Optional worker, downloads and media processing
+
+Start only when a concrete user-facing requirement justifies it.
+
+Potential tasks:
+- Add `apps/worker` for long-running download or media-processing jobs.
+- Define persisted job states, retry rules, cancellation, progress reporting and bounded concurrency.
+- Add FFmpeg only if the chosen media workflow requires it; do not add Redis or other infrastructure by default.
+- Reuse the current PostgreSQL only where the data model and workload make that appropriate; evaluate separate queue infrastructure only with measured need.
+
+Exit criteria:
+- Jobs survive API restarts and expose observable states.
+- Retries and cancellation are safe and idempotent.
+- Resource consumption is bounded and job failures do not compromise normal catalog/API operations.
+
+## 9. Cross-phase quality gates
+
+Every phase should meet these gates before merge:
+
+- Clean dependency install using the committed lockfile.
+- Prisma schema validation whenever database schema/client changes.
+- Type checks and production builds for all affected workspaces.
+- Unit/integration tests for changed behavior, including error paths.
+- No credentials, tokens, secret files or real connection strings in Git.
+- No accidental changes to schemas/tables outside `visionhub`.
+- A concise README update for any changed command, config path, port, migration or deployment behavior.
+- CI result recorded on the merge commit; do not report success until the run completes successfully.
+
+## 10. Immediate next actions
+
+The recommended next slice is:
+
+1. **Phase 0/1:** establish a test harness and migrate the CI/Docker Node baseline to Node 24 LTS with verified compatibility.
+2. **Phase 2:** implement shared configuration loading and strict Zod validation before adding desktop-specific settings.
+3. **Phase 3 and 4:** prepare reusable UI/contracts, then create the Electron desktop shell without breaking the existing web app.
+4. Continue to the HLS adapter and deployment layout once the shared foundation is stable.
+
+Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
