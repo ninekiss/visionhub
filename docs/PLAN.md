@@ -276,6 +276,7 @@ Tasks:
 - [x] Ensure shared sidebar navigation links keep accessible names and titles when the admin sidebar collapses to icon-only mode.
 - [x] Restore a keyboard-accessible expandable search field on mobile, where the previous responsive CSS hid the input without providing a way to reveal it.
 - [x] Restore access to primary discovery/library/series navigation on mobile via an accessible collapsible menu.
+- [x] Keep keyboard focus predictable for mobile navigation/search: focus the first nav link on open and restore focus to the trigger on Escape/close.
 - [x] Expose the selected state of admin media-type choice buttons to assistive technology.
 - [x] Standardize admin icon-only actions for logout, edit, episode management and delete flows on the shared IconButton primitive.
 - [x] Remove the inert public-header notification button because no notification behavior or backend exists yet.

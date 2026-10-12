@@ -248,19 +248,38 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   const showSearch = route.page === 'home' || route.page === 'series';
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavToggleRef = useRef<HTMLButtonElement>(null);
+  const mobileSearchToggleRef = useRef<HTMLButtonElement>(null);
   const discoverActive = route.page === 'home' && hash !== '#catalog';
   const libraryActive = route.page === 'detail' || route.page === 'watch' || (route.page === 'home' && hash === '#catalog');
   useEffect(() => {
     if (!showSearch && mobileSearchOpen) setMobileSearchOpen(false);
     setMobileNavOpen(false);
   }, [route.page, showSearch, mobileSearchOpen]);
+  useEffect(() => {
+    if (mobileNavOpen) {
+      document.querySelector<HTMLAnchorElement>('#public-primary-nav a')?.focus();
+    }
+  }, [mobileNavOpen]);
   const navigateFromHeader = (path: string) => {
     setMobileNavOpen(false);
     setMobileSearchOpen(false);
     navigate(path);
   };
   return (
-    <header className={'topbar' + (mobileSearchOpen ? ' mobile-search-visible' : '')}>
+    <header
+      className={'topbar' + (mobileSearchOpen ? ' mobile-search-visible' : '')}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        if (mobileSearchOpen) {
+          setMobileSearchOpen(false);
+          mobileSearchToggleRef.current?.focus();
+        } else if (mobileNavOpen) {
+          setMobileNavOpen(false);
+          mobileNavToggleRef.current?.focus();
+        }
+      }}
+    >
       <a className="brand" href="/" onClick={(event) => { event.preventDefault(); setMobileNavOpen(false); setMobileSearchOpen(false); navigate('/'); }}>
         <span className="brand-mark"><Clapperboard size={20} /></span>
         <span>VISION<span className="brand-accent">HUB</span></span>
@@ -277,6 +296,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
           aria-label={mobileNavOpen ? '关闭导航菜单' : '打开导航菜单'}
           aria-expanded={mobileNavOpen}
           aria-controls="public-primary-nav"
+          ref={mobileNavToggleRef}
           onClick={() => { setMobileSearchOpen(false); setMobileNavOpen((open) => !open); }}
         >{mobileNavOpen ? <X size={18} /> : <Menu size={18} />}</button>
         {showSearch && (
@@ -297,6 +317,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
               aria-label="打开搜索"
               aria-expanded={mobileSearchOpen}
               aria-controls="public-search-mobile"
+              ref={mobileSearchToggleRef}
               onClick={() => { setMobileNavOpen(false); setMobileSearchOpen(true); }}
             ><Search size={17} /></button>
             {mobileSearchOpen && (
@@ -306,7 +327,7 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
                 id="public-search-mobile"
                 autoFocus
                 leading={<Search size={17} />}
-                trailing={<button type="button" className="mobile-search-close" aria-label="关闭搜索" onClick={() => setMobileSearchOpen(false)}><X size={15} /></button>}
+                trailing={<button type="button" className="mobile-search-close" aria-label="关闭搜索" onClick={() => { setMobileSearchOpen(false); mobileSearchToggleRef.current?.focus(); }}><X size={15} /></button>}
                 value={query}
                 onChange={(event) => onQueryChange(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Escape') setMobileSearchOpen(false); }}
