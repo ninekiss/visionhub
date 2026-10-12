@@ -96,7 +96,8 @@ const initialPagination: PaginationMetadata = {
 };
 
 type Route =
-  | { page: 'home' | 'series' }
+  | { page: 'home' }
+  | { page: 'series' }
   | { page: 'detail'; id: string }
   | { page: 'watch'; id: string; episodeId?: string };
 
