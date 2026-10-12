@@ -2,12 +2,12 @@
   "name": "visionhub",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@latest",
+  "packageManager": "pnpm@12.11.2",
   "scripts": {
     "dev": "pnpm --parallel --filter @visionhub/api --filter @visionhub/web dev",
     "build": "pnpm --filter @visionhub/api build && pnpm --filter @visionhub/web build",
     "lint": "pnpm --recursive lint",
     "typecheck": "pnpm --recursive typecheck"
   },
-  "engines": { "node": ">=22" }
+  "engines": { "node": ">=22.13.0" }
 }
