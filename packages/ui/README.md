@@ -1,6 +1,6 @@
 # @visionhub/ui
 
-Shared, source-first React primitives for VisionHub clients. The package centralizes design tokens and common controls without moving whole pages or specialized Plyr styling into a generic component library.
+Shared, source-first React primitives for VisionHub clients. The package centralizes design tokens and common controls without moving whole pages or specialized Plyr styling into a generic component library. Navigation and search controls offer sidebar/top and admin/public variants respectively.
 
 ## Exports
 
