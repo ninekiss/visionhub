@@ -1,0 +1,19 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model MediaItem {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  posterUrl   String   @map("poster_url")
+  videoUrl    String   @map("video_url")
+  releaseYear Int?     @map("release_year")
+  category    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  @@map("media_items")
+}
