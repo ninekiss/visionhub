@@ -172,7 +172,7 @@ function ItemEditor({ id, go, notify }: { id?: string; go: (path: string) => voi
     catch (cause) { const message = cause instanceof Error ? cause.message : '保存失败。'; setError(message); notify(message, 'error'); } finally { setSaving(false); }
   }
   if (loading) return <div className="adm-loading"><LoaderCircle className="adm-spin" />加载作品…</div>;
-  return <div className="adm-page"><div className="adm-back-row"><button onClick={() => go('/admin/catalog')}><ArrowLeft size={15} />返回影视内容</button><span>{id ? '编辑作品资料' : '创建新作品'}</span></div>
+  return <div className="adm-page"><div className="adm-back-row"><Button kind="ghost" size="compact" className="!px-0 !text-[10px] !text-[#a5aebb] hover:!text-[var(--vh-accent)]" onClick={() => go('/admin/catalog')}><ArrowLeft size={15} />返回影视内容</Button><span>{id ? '编辑作品资料' : '创建新作品'}</span></div>
     <Heading eyebrow="TITLE METADATA" title={id ? '编辑作品' : '新增作品'} description="维护基础信息、分类标签与默认媒体资源。" actions={id && form.mediaType === 'series' ? <Button kind="secondary" onClick={() => go('/admin/catalog/' + encodeURIComponent(id) + '/episodes')}><Video size={15} />管理分集</Button> : undefined} />
     {error && <Message>{error}</Message>}
     <form className="adm-editor-layout" onSubmit={submit}><div className="adm-editor-main">
@@ -240,7 +240,7 @@ function EpisodesPage({ id, go, notify }: { id: string; go: (path: string) => vo
   if (loading) return <div className="adm-loading"><LoaderCircle className="adm-spin" />正在加载分集…</div>;
   if (error || !item) return <div className="adm-page"><Message>{error || '没有找到作品。'}</Message><Button kind="secondary" onClick={() => go('/admin/catalog')}>返回片库</Button></div>;
   if (item.mediaType !== 'series') return <div className="adm-page"><Message tone="info">电影不需要管理分集。</Message><Button kind="secondary" onClick={() => go('/admin/catalog/' + id + '/edit')}>返回作品编辑</Button></div>;
-  return <div className="adm-page"><div className="adm-back-row"><button onClick={() => go('/admin/catalog/' + encodeURIComponent(id) + '/edit')}><ArrowLeft size={15} />返回作品编辑</button><span>剧集 / {item.title}</span></div><Heading eyebrow="EPISODE MANAGEMENT" title="分集管理" description={'为「' + item.title + '」维护集数、简介与视频源。'} actions={<a className="adm-btn secondary" target="_blank" rel="noreferrer" href={'/title/' + encodeURIComponent(id)}><ArrowUpRight size={14} />前台预览</a>} />
+  return <div className="adm-page"><div className="adm-back-row"><Button kind="ghost" size="compact" className="!px-0 !text-[10px] !text-[#a5aebb] hover:!text-[var(--vh-accent)]" onClick={() => go('/admin/catalog/' + encodeURIComponent(id) + '/edit')}><ArrowLeft size={15} />返回作品编辑</Button><span>剧集 / {item.title}</span></div><Heading eyebrow="EPISODE MANAGEMENT" title="分集管理" description={'为「' + item.title + '」维护集数、简介与视频源。'} actions={<a className="adm-btn secondary" target="_blank" rel="noreferrer" href={'/title/' + encodeURIComponent(id)}><ArrowUpRight size={14} />前台预览</a>} />
     <div className="adm-series-strip"><div>{item.poster && <img src={item.poster} alt="" />}</div><span><strong>{item.title}</strong><small>{episodes.length} 集 · {item.year} · {item.categories.join(' / ')}</small></span><b>{episodes.length} 集</b></div>
     <section className="adm-panel"><div className="adm-panel-head"><div><h2>已录入分集</h2><p>每集独立设置视频源；集数不能与其他分集重复。</p></div></div>
       {!episodes.length && <div className="adm-empty"><Video size={25} /><strong>还没有分集</strong><p>在下方添加第一集。</p></div>}
