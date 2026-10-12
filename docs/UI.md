@@ -13,8 +13,8 @@ Import `@visionhub/ui/tokens.css` in the client entry point. Use the semantic CS
 - `Message`: accessible error/success/info feedback, using alert/status roles.
 - `Badge`: compact neutral, accent, success, danger and series variants.
 - `Panel`: shared panel surface and border convention.
-- `NavigationItem`: accessible route link with active state; the host client supplies navigation behavior.
-- `SearchField` and `SelectControl`: consistent catalog filters with native input/select semantics.
+- `NavigationItem`: accessible route link with active state; the host client supplies navigation behavior. Sidebar and top-navigation variants share route semantics but retain different visual layouts.
+- `SearchField` and `SelectControl`: consistent catalog filters with native input/select semantics. `SearchField` includes an admin form variant and a public header variant, while responsive conceal/show behavior remains owned by the page.
 - `TextInput` and `TextAreaControl`: shared form-control focus, border, spacing and text styles.
 - `ChoiceChip`: selected/unselected category chips with standard compact and pill variants.
 - `DataTable`, `TableContainer`, `TableHeaderCell`, `TableRow` and `TableCell`: shared table structure and responsive cell spacing.
@@ -28,4 +28,4 @@ The Web Tailwind CSS v4 entry explicitly scans `packages/ui/src`, so utility cla
 
 ## Migration scope
 
-Phase 3 deliberately migrates in slices. The admin navigation, catalog search/filter controls, catalog table and pagination, basic form controls and category chips use shared primitives. The public Web catalog category filters and pagination buttons have begun using the same package with their own pill/compact variants. Page grids, data-specific content layout, a few specialized controls and custom Plyr styling remain in feature CSS until each section can be migrated and verified without changing behavior.
+Phase 3 deliberately migrates in slices. The admin navigation, catalog search/filter controls, catalog table and pagination, basic form controls and category chips use shared primitives. The public Web catalog category filters and pagination buttons use the same package with their own pill/compact variants; the top navigation links and search input have also moved to shared components. The logo, notification icon, avatar, hero, media cards and Plyr-specific layout remain feature-specific. Page grids, data-specific content layout, a few specialized controls and custom Plyr styling remain in feature CSS until each section can be migrated and verified without changing behavior.
