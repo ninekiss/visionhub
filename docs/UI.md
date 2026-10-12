@@ -8,7 +8,7 @@ Import `@visionhub/ui/tokens.css` in the client entry point. Use the semantic CS
 
 ## Primitives
 
-- `Button`: primary, secondary, ghost and surface variants with default/compact sizing, keyboard focus and disabled states. Existing admin call sites retain the `kind` prop and default size.
+- `Button`: primary, secondary, ghost, surface, hero-primary and hero-secondary variants with default/compact/hero sizing, keyboard focus and disabled states. Existing admin call sites retain the `kind` prop and default size.
 - `Field`: consistent field labels and layout; feature-specific inputs can keep specialized styling until migrated.
 - `Message`: accessible error/success/info feedback, using alert/status roles.
 - `Badge`: compact neutral, accent, success, danger and series variants.
@@ -28,4 +28,4 @@ The Web Tailwind CSS v4 entry explicitly scans `packages/ui/src`, so utility cla
 
 ## Migration scope
 
-Phase 3 deliberately migrates in slices. The admin navigation, catalog search/filter controls, catalog table and pagination, basic form controls and category chips use shared primitives. The public Web catalog category filters and pagination buttons use the same package with their own pill/compact variants; the top navigation links and search input have also moved to shared components. The logo, notification icon, avatar, hero, media cards and Plyr-specific layout remain feature-specific. Page grids, data-specific content layout, a few specialized controls and custom Plyr styling remain in feature CSS until each section can be migrated and verified without changing behavior.
+Phase 3 deliberately migrates in slices. The admin navigation, catalog search/filter controls, catalog table and pagination, basic form controls and category chips use shared primitives. The public Web catalog category filters and pagination buttons use the same package with their own pill/compact variants; top navigation, search input and Hero CTA buttons also use shared components. The logo, notification icon, avatar, Hero layout, media cards and Plyr-specific styling remain feature-specific. Page grids, data-specific content layout, a few specialized controls and custom Plyr styling remain in feature CSS until each section can be migrated and verified without changing behavior.
