@@ -1,19 +1,78 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
+
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  schemas  = ["visionhub"]
 }
-model MediaItem {
-  id          String   @id @default(cuid())
-  title       String
-  description String   @default("")
-  posterUrl   String   @map("poster_url")
-  videoUrl    String   @map("video_url")
-  releaseYear Int?     @map("release_year")
-  category    String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  @@map("media_items")
+
+enum CatalogMediaType {
+  movie
+  series
+
+  @@map("catalog_media_type")
+  @@schema("visionhub")
+}
+
+model CatalogItem {
+  id            String                 @id
+  title         String
+  description   String                 @default("")
+  posterUrl     String                 @map("poster_url")
+  videoUrl      String                 @map("video_url")
+  year          Int                    @map("release_year")
+  mediaType     CatalogMediaType       @map("media_type")
+  sortOrder     Int                    @default(0) @map("sort_order")
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt     DateTime               @updatedAt @map("updated_at") @db.Timestamp(3)
+  categoryLinks CatalogItemCategory[]
+  episodes      CatalogEpisode[]
+
+  @@index([mediaType, year])
+  @@index([sortOrder])
+  @@map("catalog_items")
+  @@schema("visionhub")
+}
+
+model CatalogCategory {
+  id        String                 @id
+  name      String                 @unique
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt DateTime               @updatedAt @map("updated_at") @db.Timestamp(3)
+  itemLinks CatalogItemCategory[]
+
+  @@map("catalog_categories")
+  @@schema("visionhub")
+}
+
+model CatalogItemCategory {
+  catalogItemId String          @map("catalog_item_id")
+  categoryId    String          @map("category_id")
+  catalogItem   CatalogItem     @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  category      CatalogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([catalogItemId, categoryId])
+  @@index([categoryId])
+  @@map("catalog_item_categories")
+  @@schema("visionhub")
+}
+
+model CatalogEpisode {
+  id              String      @id
+  seriesId        String      @map("series_id")
+  episodeNumber   Int         @map("episode_number")
+  title           String
+  summary         String      @default("")
+  videoUrl        String      @map("video_url")
+  durationMinutes Int         @map("duration_minutes")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamp(3)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamp(3)
+  series          CatalogItem @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, episodeNumber])
+  @@index([seriesId])
+  @@map("catalog_episodes")
+  @@schema("visionhub")
 }

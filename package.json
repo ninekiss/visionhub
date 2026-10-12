@@ -7,7 +7,13 @@
     "dev": "pnpm --parallel --filter @visionhub/api --filter @visionhub/web dev",
     "build": "pnpm --filter @visionhub/api build && pnpm --filter @visionhub/web build",
     "lint": "pnpm --recursive lint",
-    "typecheck": "pnpm --recursive typecheck"
+    "typecheck": "pnpm --recursive typecheck",
+    "db:generate": "pnpm --filter @visionhub/api db:generate",
+    "db:migrate": "pnpm --filter @visionhub/api db:migrate:deploy",
+    "db:seed": "pnpm --filter @visionhub/api db:seed",
+    "db:setup": "pnpm --filter @visionhub/api db:setup"
   },
-  "engines": { "node": ">=22.13.0" }
+  "engines": {
+    "node": ">=22.13.0"
+  }
 }
