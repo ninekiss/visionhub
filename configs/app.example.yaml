@@ -1,0 +1,33 @@
+app:
+  name: VisionHub
+  environment: development
+  basePath: /api/v1
+
+server:
+  host: 0.0.0.0
+  port: 3000
+  corsOrigins:
+    - http://localhost:5173
+
+web:
+  title: VisionHub
+  apiBaseUrl: http://localhost:3000/api/v1
+
+player:
+  autoplay: false
+  muted: false
+  controls:
+    - play-large
+    - play
+    - progress
+    - current-time
+    - duration
+    - mute
+    - volume
+    - settings
+    - pip
+    - fullscreen
+
+catalog:
+  pageSize: 24
+  mockData: true
