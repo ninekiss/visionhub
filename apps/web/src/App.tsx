@@ -490,7 +490,7 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
   return (
     <main className="detail-page">
       <div className="page-utility">
-        <button className="back-link" onClick={() => navigate('/')}><ArrowLeft size={16} /> 返回片库</button>
+        <Button kind="ghost" size="compact" className="!px-0 !text-xs !text-[#aeb4bf] hover:!text-[#c7f36b]" onClick={() => navigate('/')}><ArrowLeft size={16} /> 返回片库</Button>
         <span>影视库 <ChevronRight size={13} /> {item.title}</span>
       </div>
       <section className="detail-hero">
@@ -609,7 +609,7 @@ function WatchView({
 }: WatchViewProps) {
   if (loading) return <main className="page-state"><div className="section-kicker">PLAYER</div><h1>正在准备播放器…</h1></main>;
   if (!item) {
-    return <main className="page-state"><h1>无法打开播放页面</h1><p>{error || '请稍后重试。'}</p><button className="primary" onClick={() => navigate('/')}>返回片库</button></main>;
+    return <main className="page-state"><h1>无法打开播放页面</h1><p>{error || '请稍后重试。'}</p><Button kind="primary" onClick={() => navigate('/')}>返回片库</Button></main>;
   }
 
   const selectedEpisode = episodes.find((episode) => episode.id === route.episodeId) ?? (!route.episodeId ? episodes[0] : undefined);
