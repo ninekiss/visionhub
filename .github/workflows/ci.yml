@@ -20,3 +20,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Build API Docker image
+        run: docker build -f deploy/api.Dockerfile -t visionhub-api:ci .
+      - name: Build Web Docker image
+        run: docker build -f deploy/web.Dockerfile -t visionhub-web:ci .
