@@ -1,2 +1,12 @@
 packages:
   - "apps/*"
+
+# Allow only the native build needed by the frontend toolchain.
+onlyBuiltDependencies:
+  - esbuild
+
+# These packages are not intentionally used as build tools by this project.
+# Keep their install-time scripts blocked unless a future dependency requires them.
+ignoredBuiltDependencies:
+  - plyr
+  - workerd
