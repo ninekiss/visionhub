@@ -338,6 +338,8 @@ export function NavigationItem({
   return (
     <a
       href={to}
+      aria-label={label}
+      title={label}
       aria-current={active ? "page" : undefined}
       className={baseClasses + " " + stateClasses + (className ? " " + className : "")}
       onClick={(event) => {
