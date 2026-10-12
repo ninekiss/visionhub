@@ -29,5 +29,5 @@ player:
     - fullscreen
 
 catalog:
-  pageSize: 24
+  pageSize: 8
   mockData: true

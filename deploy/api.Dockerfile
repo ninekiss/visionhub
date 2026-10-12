@@ -6,6 +6,7 @@ COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
 RUN pnpm install --frozen-lockfile --filter @visionhub/api...
 COPY apps/api apps/api
+COPY contracts contracts
 COPY configs configs
 RUN pnpm --filter @visionhub/api build
 

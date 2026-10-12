@@ -47,6 +47,43 @@ docker compose --env-file .env up --build
 - `apps/api/prisma/schema.prisma`: 数据模型起点，暂不执行迁移
 - API 的 `/api/v1/catalog` 和 `/api/v1/catalog/:id` 使用 Mock 数据
 
+## Mock catalog API
+
+Base path: `/api/v1`. All successful responses use a `data` field. The list endpoint returns pagination metadata alongside the data array.
+
+- `GET /catalog?q=space&category=科幻&page=1&pageSize=8` — case-insensitive search across title, description and categories, exact category filtering, and pagination. `page` defaults to 1; `pageSize` defaults to `catalog.pageSize` in the app config and is capped at 50.
+- `GET /catalog/categories` — available category values from the active catalog source.
+- `GET /catalog/:id` — one catalog item; unknown IDs return 404.
+- Invalid page values return 400.
+
+List response:
+
+```json
+{
+  "data": [
+    {
+      "id": "1",
+      "title": "星际回响",
+      "year": 2026,
+      "categories": ["科幻", "剧情"],
+      "description": "一段来自深空的微弱信号。",
+      "poster": "https://example.com/poster.jpg",
+      "videoUrl": "https://example.com/video.mp4"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 8,
+    "totalItems": 12,
+    "totalPages": 2,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+}
+```
+
+The shared response and catalog types live in `contracts/catalog.d.ts`; Mock records are separated into `apps/api/src/catalog/mock/catalog.mock-data.ts`, so controllers don't own data and the UI consumes the same contract.
+
 ## Project layout
 
 ```

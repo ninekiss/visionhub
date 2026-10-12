@@ -16,7 +16,12 @@
     "rootDir": "./src",
     "types": [
       "node"
-    ]
+    ],
+    "paths": {
+      "@visionhub/contracts": [
+        "../../contracts/catalog.d.ts"
+      ]
+    }
   },
   "include": [
     "src/**/*.ts"
