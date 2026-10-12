@@ -18,12 +18,7 @@
     "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "paths": {
-      "@visionhub/contracts": [
-        "../../contracts/catalog.d.ts"
-      ]
-    }
+    "noUnusedParameters": true
   },
   "include": [
     "src"

@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AppConfigModule } from "../config/app-config.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { DatabaseModule } from "../database/database.module.js";
 import { AdminAuthController } from "./admin-auth.controller.js";
@@ -8,7 +9,7 @@ import { AdminController } from "./admin.controller.js";
 import { AdminService } from "./admin.service.js";
 
 @Module({
-  imports: [CatalogModule, DatabaseModule],
+  imports: [AppConfigModule, CatalogModule, DatabaseModule],
   controllers: [AdminAuthController, AdminController],
   providers: [AdminAuthService, AdminAuthGuard, AdminService],
 })

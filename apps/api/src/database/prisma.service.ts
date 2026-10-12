@@ -1,22 +1,13 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { APP_CONFIG, type AppConfig } from "@visionhub/config";
 import { PrismaClient } from "../generated/prisma/client.js";
-
-function getDatabaseUrl(): string {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error(
-      "DATABASE_URL is required. Configure the existing PostgreSQL connection before starting the API.",
-    );
-  }
-  return connectionString;
-}
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-  constructor() {
+  constructor(@Inject(APP_CONFIG) config: AppConfig) {
     super({
-      adapter: new PrismaPg({ connectionString: getDatabaseUrl() }, { schema: "visionhub" }),
+      adapter: new PrismaPg({ connectionString: config.database.url }, { schema: "visionhub" }),
     });
   }
 

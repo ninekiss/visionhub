@@ -1,0 +1,23 @@
+{
+  "name": "@visionhub/config",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.mjs"
+    }
+  },
+  "scripts": {
+    "lint": "node --check src/index.mjs",
+    "typecheck": "node --check src/index.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "yaml": "2.9.1",
+    "zod": "4.6.6"
+  }
+}

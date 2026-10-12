@@ -1,0 +1,12 @@
+{
+  "name": "@visionhub/contracts",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "types": "./catalog.d.ts",
+  "exports": {
+    ".": {
+      "types": "./catalog.d.ts"
+    }
+  }
+}

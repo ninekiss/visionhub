@@ -1,16 +1,8 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { Pool } from "pg";
-
-function loadEnvironment(): void {
-  const localEnvPath = resolve(process.cwd(), ".env");
-  const rootEnvPath = resolve(process.cwd(), "../../.env");
-  if (existsSync(localEnvPath)) process.loadEnvFile(localEnvPath);
-  if (existsSync(rootEnvPath)) process.loadEnvFile(rootEnvPath);
-}
+import { loadEnvironmentFiles } from "@visionhub/config";
 
 async function bootstrapSchema(): Promise<void> {
-  loadEnvironment();
+  loadEnvironmentFiles();
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     throw new Error("DATABASE_URL is required before creating the VisionHub schema.");
@@ -26,6 +18,7 @@ async function bootstrapSchema(): Promise<void> {
 }
 
 void bootstrapSchema().catch((error: unknown) => {
-  console.error("Could not prepare the VisionHub PostgreSQL schema:", error);
+  const message = error instanceof Error ? error.message : "Unexpected database setup error.";
+  console.error("Could not prepare the VisionHub PostgreSQL schema:", message);
   process.exitCode = 1;
 });
