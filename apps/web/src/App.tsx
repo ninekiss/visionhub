@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Bell,
@@ -13,7 +13,7 @@ import {
   Sparkles,
   Tv2,
 } from 'lucide-react';
-import { Button, ChoiceChip } from '@visionhub/ui';
+import { Button, ChoiceChip, NavigationItem, SearchField } from '@visionhub/ui';
 import type {
   ApiResponse,
   CatalogEpisode,
@@ -247,39 +247,27 @@ function Header({ route, navigate, hash, query, onQueryChange }: HeaderProps) {
   const showSearch = route.page === 'home' || route.page === 'series';
   const discoverActive = route.page === 'home' && hash !== '#catalog';
   const libraryActive = route.page === 'detail' || route.page === 'watch' || (route.page === 'home' && hash === '#catalog');
-  const followLink = (event: MouseEvent<HTMLAnchorElement>, path: string) => {
-    event.preventDefault();
-    navigate(path);
-  };
-
   return (
     <header className="topbar">
-      <a className="brand" href="/" onClick={(event) => followLink(event, '/')}>
+      <a className="brand" href="/" onClick={(event) => { event.preventDefault(); navigate('/'); }}>
         <span className="brand-mark"><Clapperboard size={20} /></span>
         <span>VISION<span className="brand-accent">HUB</span></span>
       </a>
       <nav className="main-nav">
-        <a className={discoverActive ? 'selected' : ''} href="/" onClick={(event) => followLink(event, '/')}>
-          <Compass size={16} />发现
-        </a>
-        <a className={libraryActive ? 'selected' : ''} href="/#catalog" onClick={(event) => { event.preventDefault(); navigate('/#catalog'); }}>
-          <Tv2 size={16} />影视库
-        </a>
-        <a className={route.page === 'series' ? 'selected' : ''} href="/series" onClick={(event) => followLink(event, '/series')}>
-          剧集
-        </a>
+        <NavigationItem variant="top" to="/" onNavigate={navigate} active={discoverActive} icon={<Compass size={16} />} label="发现" />
+        <NavigationItem variant="top" to="/#catalog" onNavigate={navigate} active={libraryActive} icon={<Tv2 size={16} />} label="影视库" />
+        <NavigationItem variant="top" to="/series" onNavigate={navigate} active={route.page === 'series'} label="剧集" />
       </nav>
       <div className="top-actions">
         {showSearch && (
-          <label className="search">
-            <Search size={17} />
-            <input
-              value={query}
-              onChange={(event) => onQueryChange(event.target.value)}
-              placeholder="搜索片名、简介、类型…"
-              aria-label="搜索片名、简介或类型"
-            />
-          </label>
+          <SearchField
+            variant="public"
+            leading={<Search size={17} />}
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="搜索片名、简介、类型…"
+            aria-label="搜索片名、简介或类型"
+          />
         )}
         <button className="icon-button" aria-label="通知"><Bell size={18} /></button>
         <div className="avatar">V</div>

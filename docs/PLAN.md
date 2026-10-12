@@ -261,7 +261,8 @@ Tasks:
 - [x] Add compact/surface button and pill-chip variants for the public catalog without changing the admin defaults.
 - [x] Make Tailwind CSS v4 scan the shared UI package and use utility classes for migrated primitives.
 - [x] Migrate admin buttons, field labels, feedback messages, media badges, navigation, catalog filters, catalog table, pagination, form inputs and category chips.
-- [x] Migrate the Web catalog category filters and pagination buttons to shared primitives; keep hero, navigation shell, media cards and Plyr layout feature-specific.
+- [x] Migrate the Web catalog category filters and pagination buttons to shared primitives; keep hero, media cards and Plyr layout feature-specific.
+- [x] Migrate the Web top navigation links and search field to shared navigation/search variants while preserving mobile collapse and route semantics.
 - [x] Remove legacy CSS rules that duplicated the styling now owned by shared Tailwind primitives.
 - [ ] Review confirmation flows and dialogs; keep native browser confirmations unless a reusable accessible dialog is justified.
 - [ ] Continue migrating the Web header, hero and remaining page layouts in manageable chunks.
