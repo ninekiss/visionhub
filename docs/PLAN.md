@@ -253,21 +253,23 @@ Exit criteria:
 
 ### Phase 3 — Public UI package and Tailwind migration
 
-Status: shared UI foundation and the first two admin migration slices are on `main` / `phase-3/admin-ui-migration`; Web page-level migration and final responsive acceptance checks remain.
+Status: shared UI foundation and two admin migration slices are merged into `main`; the first Web client migration slice is on `phase-3/web-layout-migration`. Final responsive acceptance checks and broader Web layout migration remain.
 
 Tasks:
 - [x] Establish shared semantic tokens and reusable Button, Field, Message, Badge and Panel primitives in `packages/ui`.
 - [x] Add shared NavigationItem, SearchField, SelectControl, TextInput, TextAreaControl, ChoiceChip, table primitives, IconButton and PaginationBar.
+- [x] Add compact/surface button and pill-chip variants for the public catalog without changing the admin defaults.
 - [x] Make Tailwind CSS v4 scan the shared UI package and use utility classes for migrated primitives.
 - [x] Migrate admin buttons, field labels, feedback messages, media badges, navigation, catalog filters, catalog table, pagination, form inputs and category chips.
+- [x] Migrate the Web catalog category filters and pagination buttons to shared primitives; keep hero, navigation shell, media cards and Plyr layout feature-specific.
 - [x] Remove legacy CSS rules that duplicated the styling now owned by shared Tailwind primitives.
 - [ ] Review confirmation flows and dialogs; keep native browser confirmations unless a reusable accessible dialog is justified.
-- [ ] Migrate Web layout components in manageable chunks after shared admin patterns are stable.
-- [x] Keep Plyr styles and complex feature/page layouts in their existing CSS during the incremental migration.
+- [ ] Continue migrating the Web header, hero and remaining page layouts in manageable chunks.
+- [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
 Exit criteria:
 - [x] New shared primitive work follows the shared component and Tailwind conventions.
-- [x] Duplicate styling for migrated navigation, filters, table cells, and basic form controls is removed from legacy CSS.
+- [x] Duplicate styling for migrated admin navigation, filters, table cells, basic form controls, public category chips and pagination buttons is removed from legacy CSS.
 - [ ] Admin forms, tables, navigation and confirmation flows are verified at supported desktop and mobile widths.
 - [ ] No regression in catalog, login, CRUD or player navigation after the full migration and CI validation.
 
