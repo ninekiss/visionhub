@@ -271,6 +271,7 @@ Tasks:
 - [x] Migrate playback-page back/details actions, episode rows and previous/next controls to shared Button/Tailwind utilities while preserving episode routing and disabled-state logic.
 - [x] Migrate detail-page and player not-found return-to-catalog actions to shared Button variants while preserving route behavior.
 - [x] Migrate the catalog reset/return action to the shared ghost Button and remove its duplicated legacy CSS.
+- [x] Remove unused pre-migration watch-sidebar and episode-row CSS after confirming those classes are no longer present in the public Web source.
 - [x] Migrate admin item-editor and episode-manager back actions to shared Button variants and remove duplicated legacy CSS.
 - [x] Ensure shared sidebar navigation links keep accessible names and titles when the admin sidebar collapses to icon-only mode.
 - [x] Expose the selected state of admin media-type choice buttons to assistive technology.
