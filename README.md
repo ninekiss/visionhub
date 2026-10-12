@@ -56,7 +56,7 @@ pnpm test
 pnpm build
 ```
 
-`pnpm test` 会先构建 API，然后运行不依赖真实数据库的配置与片库服务单元测试。CI 会执行同样的测试及完整生产构建。
+`pnpm test` 会先运行共享配置包测试，再构建 API，最后运行不依赖真实数据库的 API 单元测试。CI 会执行同样的测试及完整生产构建。
 
 ## Docker Compose 部署
 
