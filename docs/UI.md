@@ -54,3 +54,9 @@ Keyboard and state checks:
 - Exercise loading, empty, error and disabled states for catalog, editor, episode management and playback.
 
 Record the browser, viewport and result in the pull request before checking off the visual acceptance exit criterion.
+
+
+Public header interaction:
+- The notification icon opens a clearly labeled, keyboard-focusable empty-state panel rather than behaving as an inert button.
+- Verify its expanded state, close control, visible focus ring and narrow viewport placement.
+- This is a local empty state only; it does not imply a notification API or persisted notification data exists.
