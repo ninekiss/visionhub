@@ -98,7 +98,16 @@ export default function PlyrPlayer({
         }
       }
     };
-    const handlePlaying = () => updateStatus('playing');
+    let hasStartedPlayback = false;
+    const handlePlaying = () => {
+      hasStartedPlayback = true;
+      updateStatus('playing');
+    };
+    const handleCanPlay = () => {
+      if (video.paused && !video.ended) {
+        updateStatus(hasStartedPlayback ? 'paused' : 'ready');
+      }
+    };
     const handlePause = () => {
       if (!video.ended) updateStatus('paused');
       reportProgress(true);
@@ -116,6 +125,7 @@ export default function PlyrPlayer({
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('playing', handlePlaying);
+    video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('pause', handlePause);
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('waiting', handleWaiting);
@@ -125,6 +135,7 @@ export default function PlyrPlayer({
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('waiting', handleWaiting);
