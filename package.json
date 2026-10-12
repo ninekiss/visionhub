@@ -11,7 +11,8 @@
     "db:generate": "pnpm --filter @visionhub/api db:generate",
     "db:migrate": "pnpm --filter @visionhub/api db:migrate:deploy",
     "db:seed": "pnpm --filter @visionhub/api db:seed",
-    "db:setup": "pnpm --filter @visionhub/api db:setup"
+    "db:setup": "pnpm --filter @visionhub/api db:setup",
+    "test": "pnpm --filter @visionhub/api build && pnpm --filter @visionhub/api test"
   },
   "engines": {
     "node": ">=24.21.0 <25"

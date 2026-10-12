@@ -44,6 +44,16 @@ pnpm dev
 
 Vite 会把本地的 `/api/*` 请求代理到 `http://127.0.0.1:3001`。如需更改端口，调整 `.env` 里的 `API_DEV_PORT`；Vite 会同步代理到相同端口。
 
+核心验证命令：
+
+```powershell
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+`pnpm test` 会先构建 API，然后运行不依赖真实数据库的配置与片库服务单元测试。CI 会执行同样的测试及完整生产构建。
+
 ## Docker Compose 部署
 
 配置 `.env` 中的 `EXISTING_DB_NETWORK`、`DATABASE_URL`、`DATABASE_URL_DOCKER`。数据库容器必须已经存在，并加入 `EXISTING_DB_NETWORK` 指定的网络。然后运行：
