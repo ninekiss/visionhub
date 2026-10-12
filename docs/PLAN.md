@@ -266,15 +266,15 @@ Tasks:
 - [x] Migrate the Web Hero play/details actions to shared Button variants; keep the Hero layout and media artwork feature-specific.
 - [x] Add a shared `MediaCard` component for both the public catalog and related-content sections; migrate card layout, metadata, hover zoom, numbering and play affordance to Tailwind utilities while retaining the poster gradient as specialized CSS.
 - [x] Remove legacy CSS rules that duplicated the styling now owned by shared Tailwind primitives.
-- [ ] Review confirmation flows and dialogs; keep native browser confirmations unless a reusable accessible dialog is justified.
+- [x] Add a shared accessible `ConfirmDialog` with dialog semantics, Escape-to-cancel, focus containment/restoration and busy-state handling; replace native confirms for item, episode and category deletion.
 - [x] Migrate detail-page episode cards and continue-watching history cards to Tailwind utilities; keep the poster gradient and Plyr-specific player internals in feature CSS.
-- [ ] Continue reviewing remaining playback controls and native confirmation flows in manageable chunks.
+- [ ] Continue reviewing remaining playback controls and other non-destructive interaction flows in manageable chunks.
 - [x] Keep Plyr styles and complex player-specific styling in feature CSS during the incremental migration.
 
 Exit criteria:
 - [x] New shared primitive work follows the shared component and Tailwind conventions.
 - [x] Duplicate styling for migrated admin navigation, filters, table cells, basic form controls, public category chips, pagination, catalog/related cards, episode cards and continue-watching cards is removed from legacy CSS.
-- [ ] Admin forms, tables, navigation and confirmation flows are verified at supported desktop and mobile widths.
+- [ ] Admin forms, tables, navigation and confirmation dialog are visually verified at supported desktop and mobile widths.
 - [ ] No regression in catalog, login, CRUD or player navigation after the full migration and CI validation.
 
 ### Phase 4 — Electron desktop MVP
