@@ -4,7 +4,7 @@ Shared, source-first React primitives for VisionHub clients. The package central
 
 ## Exports
 
-- `@visionhub/ui`: `Button`, `Field`, `Message`, `Badge`, `Panel`, `NavigationItem`, `SearchField`, `SelectControl`, `TextInput`, `TextAreaControl`, `ChoiceChip`, table primitives, `IconButton`, and `PaginationBar`. `Button` offers default/compact/hero sizes and a `surface` plus Hero-specific variants; `ChoiceChip` offers standard/pill variants so the public catalog can retain its existing styling.
+- `@visionhub/ui`: `Button`, `Field`, `Message`, `Badge`, `Panel`, `NavigationItem`, `SearchField`, `SelectControl`, `TextInput`, `TextAreaControl`, `ChoiceChip`, table primitives, `IconButton`, `PaginationBar`, and `MediaCard` for public catalog and related content. `Button` offers default/compact/hero sizes and a `surface` plus Hero-specific variants; `ChoiceChip` offers standard/pill variants so the public catalog can retain its existing styling.
 - `@visionhub/ui/tokens.css`: semantic CSS variables used by Web today and desktop later.
 
 Tailwind CSS v4 is the default for shared primitive layout and visual variants. The host app must include `packages/ui/src` in Tailwind's source scan. Page-specific layout and Plyr integration can remain in feature styles until migrated deliberately.

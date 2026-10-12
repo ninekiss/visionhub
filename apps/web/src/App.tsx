@@ -13,7 +13,7 @@ import {
   Sparkles,
   Tv2,
 } from 'lucide-react';
-import { Button, ChoiceChip, NavigationItem, SearchField } from '@visionhub/ui';
+import { Button, ChoiceChip, MediaCard, NavigationItem, SearchField } from '@visionhub/ui';
 import type {
   ApiResponse,
   CatalogEpisode,
@@ -353,20 +353,20 @@ function HomeView(props: HomeViewProps) {
             {watchHistory.slice(0, 4).map((progress) => (
               <button
                 key={progress.item.id + ':' + (progress.episodeId ?? 'movie')}
-                className="continue-card"
+                className="group flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-[10px] border border-[#242832] bg-[#101319] p-0 text-left text-[inherit] transition-[border-color,transform] duration-[180ms] hover:-translate-y-0.5 hover:border-[#c7f36b77] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b]"
                 onClick={() => onResume(progress)}
               >
-                <span className="continue-poster">
-                  <img src={progress.item.poster} alt="" loading="lazy" />
-                  <span className="continue-play"><Play size={15} fill="currentColor" /></span>
-                  <span className="continue-progress-track">
-                    <span style={{ width: playbackPercent(progress) + '%' }} />
+                <span className="relative block aspect-video w-full overflow-hidden bg-[#171b23]">
+                  <img className="block h-full w-full object-cover" src={progress.item.poster} alt="" loading="lazy" />
+                  <span className="absolute inset-0 grid place-items-center bg-[#06080b40] text-[#c7f36b] opacity-0 transition-opacity duration-[180ms] group-hover:opacity-100"><Play size={15} fill="currentColor" /></span>
+                  <span className="absolute inset-x-0 bottom-0 h-[3px] bg-white/25">
+                    <span className="block h-full bg-[#c7f36b]" style={{ width: playbackPercent(progress) + '%' }} />
                   </span>
                 </span>
-                <span className="continue-card-info">
-                  <strong>{progress.item.title}</strong>
-                  <span>{progress.episodeTitle ?? '电影正片'}</span>
-                  <small>{formatPlaybackTime(progress.currentTime)} / {formatPlaybackTime(progress.duration)}</small>
+                <span className="flex min-w-0 flex-col gap-[5px] p-3 max-[600px]:p-2.5">
+                  <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-semibold max-[600px]:text-[11px]">{progress.item.title}</strong>
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-[#9ba2ad]">{progress.episodeTitle ?? '电影正片'}</span>
+                  <small className="text-[10px] text-[#707987]">{formatPlaybackTime(progress.currentTime)} / {formatPlaybackTime(progress.duration)}</small>
                 </span>
               </button>
             ))}
@@ -417,33 +417,16 @@ function HomeView(props: HomeViewProps) {
 
         <div className="catalog-grid" aria-busy={loading}>
           {items.map((item, index) => (
-            <button
+            <MediaCard
               key={item.id}
-              className="group media-card cursor-pointer overflow-hidden rounded-[10px] border border-transparent bg-transparent p-0 text-left text-[inherit] transition-transform duration-200 hover:-translate-y-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b]"
+              poster={item.poster}
+              title={item.title}
+              rank={String((page - 1) * pagination.pageSize + index + 1).padStart(2, '0')}
+              metadata={<>{item.year} <i className="mx-1 not-italic text-[#4f5560]">·</i> {categoryText(item)}</>}
+              secondaryMetadata={<>{mediaTypeText(item)}{item.episodeCount > 0 ? ' · ' + item.episodeCount + ' 集' : ''}</>}
+              playIcon={<Play size={12} fill="currentColor" />}
               onClick={() => navigate('/title/' + encodeURIComponent(item.id))}
-            >
-              <div className="poster-wrap relative aspect-[16/10] overflow-hidden bg-[#171a22] max-[600px]:aspect-[4/3]">
-                <img
-                  className="block h-full w-full object-cover transition-transform duration-[350ms] group-hover:scale-[1.04]"
-                  src={item.poster}
-                  alt=""
-                  loading="lazy"
-                />
-                <span className="poster-number absolute left-3 top-3 z-[1] rounded-[4px] border border-white/15 bg-[#080a10a6] px-1.5 py-1 text-[10px] text-white">
-                  {String((page - 1) * pagination.pageSize + index + 1).padStart(2, '0')}
-                </span>
-                <span className="poster-play absolute bottom-3 right-3 z-[1] grid h-[30px] w-[30px] place-items-center rounded-full bg-[#c7f36b] text-[11px] text-[#10150a] opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                  <Play size={12} fill="currentColor" />
-                </span>
-              </div>
-              <div className="media-info flex flex-col gap-[7px] px-[3px] pt-[13px] pb-3 max-[600px]:pt-[10px]">
-                <strong className="text-[13px] font-semibold max-[600px]:text-[12px]">{item.title}</strong>
-                <span className="text-[10px] text-[#818793]">{item.year} <i className="mx-1 not-italic text-[#4f5560]">·</i> {categoryText(item)}</span>
-                <span className="media-type-label text-[10px] tracking-[.15px] text-[#a5adba]">
-                  {mediaTypeText(item)}{item.episodeCount > 0 ? ' · ' + item.episodeCount + ' 集' : ''}
-                </span>
-              </div>
-            </button>
+            />
           ))}
         </div>
         {items.length === 0 && <p className="empty">没有找到匹配的内容，请尝试其他关键词或类型。</p>}
@@ -527,10 +510,10 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
           </div>
           <p className="detail-description">{item.description}</p>
           <div className="hero-buttons">
-            <button className="primary" onClick={() => navigate(playPath(item, episodes))}>
+            <Button kind="heroPrimary" size="hero" onClick={() => navigate(playPath(item, episodes))}>
               <Play size={15} fill="currentColor" /> {item.mediaType === 'series' ? '从第一集开始' : '立即播放'}
-            </button>
-            <button className="secondary" onClick={() => navigate('/')}>继续浏览</button>
+            </Button>
+            <Button kind="heroSecondary" size="hero" onClick={() => navigate('/')}>继续浏览</Button>
           </div>
           {error && <div className="inline-notice" role="status">{error}</div>}
           <div className="detail-facts">
@@ -550,10 +533,18 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
           {episodes.length > 0 ? (
             <div className="episode-grid">
               {episodes.map((episode) => (
-                <button key={episode.id} className="episode-card" onClick={() => navigate(playPath(item, [episode]))}>
-                  <span className="episode-card-number">{String(episode.episodeNumber).padStart(2, '0')}</span>
-                  <span className="episode-card-copy"><strong>{episode.title}</strong><small>{episode.summary}</small><small>{episode.durationMinutes} 分钟</small></span>
-                  <span className="episode-card-play"><Play size={14} fill="currentColor" /></span>
+                <button
+                  key={episode.id}
+                  className="group flex min-w-0 cursor-pointer items-center gap-[15px] rounded-[10px] border border-[#252a34] bg-[#101319] p-[17px] text-left text-[#eff1f5] transition-colors hover:border-[#c7f36b70] hover:bg-[#141922] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7f36b]"
+                  onClick={() => navigate(playPath(item, [episode]))}
+                >
+                  <span className="min-w-[27px] text-[19px] font-bold text-[#c7f36b]">{String(episode.episodeNumber).padStart(2, '0')}</span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <strong className="text-[12px] font-semibold">{episode.title}</strong>
+                    <small className="text-[10px] leading-[1.6] text-[#838b98]">{episode.summary}</small>
+                    <small className="text-[10px] leading-[1.6] text-[#838b98]">{episode.durationMinutes} 分钟</small>
+                  </span>
+                  <span className="grid h-[31px] w-[31px] flex-none place-items-center rounded-full bg-[#c7f36b] text-[#11160b]"><Play size={14} fill="currentColor" /></span>
                 </button>
               ))}
             </div>
@@ -569,10 +560,14 @@ function DetailView({ item, episodes, related, loading, error, navigate }: Detai
         </div>
         <div className="related-grid">
           {related.filter((entry) => entry.id !== item.id).slice(0, 4).map((entry) => (
-            <button key={entry.id} className="media-card" onClick={() => navigate('/title/' + encodeURIComponent(entry.id))}>
-              <div className="poster-wrap"><img src={entry.poster} alt="" loading="lazy" /><span className="poster-play"><Play size={12} fill="currentColor" /></span></div>
-              <div className="media-info"><strong>{entry.title}</strong><span>{entry.year} <i>·</i> {categoryText(entry)}</span></div>
-            </button>
+            <MediaCard
+              key={entry.id}
+              poster={entry.poster}
+              title={entry.title}
+              metadata={<>{entry.year} <i className="mx-1 not-italic text-[#4f5560]">·</i> {categoryText(entry)}</>}
+              playIcon={<Play size={12} fill="currentColor" />}
+              onClick={() => navigate('/title/' + encodeURIComponent(entry.id))}
+            />
           ))}
         </div>
       </section>
