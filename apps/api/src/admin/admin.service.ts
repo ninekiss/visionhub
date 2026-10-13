@@ -92,7 +92,7 @@ function safeHttpUrl(value: unknown, field: string, required = true): string {
   const result = requiredText(value, field, 4000);
   try {
     const parsed = new URL(result);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("protocol");
+    if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.username || parsed.password) throw new Error("protocol or credentials");
     return result;
   } catch {
     throw new BadRequestException(`${field} 必须是有效的 HTTP 或 HTTPS URL。`);
