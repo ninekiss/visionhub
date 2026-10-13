@@ -401,8 +401,8 @@ function createWindow() {
   window.webContents.on("will-navigate", blockUntrustedNavigation);
   window.webContents.on("will-redirect", blockUntrustedNavigation);
 
-  // Forward the owner-window events too: on Electron, HTML fullscreen from a guest
-  // can change the native window before the renderer's <webview> event is observed.
+  // Forward the owner-window events through IPC as the authoritative layout signal:
+  // Electron may change native fullscreen state before the renderer observes the guest event.
   window.on("enter-html-full-screen", () => sendExternalPlayerFullscreen(true));
   window.on("leave-html-full-screen", () => sendExternalPlayerFullscreen(false));
   attachExternalPlayerWebviewGuards(window);
