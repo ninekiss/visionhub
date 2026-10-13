@@ -55,8 +55,13 @@ const playbackProviderSchema = z.object({
   timeoutMs: z.coerce.number().int().min(1000).max(60000).default(15000),
 }).strict().superRefine((provider, context) => {
   const validateTemplate = (template, field) => {
-    if (!template.includes("{contentId}") || /\\{(?!contentId\\})|(?<!\\{contentId)\\}/.test(template.replaceAll("{contentId}", ""))) {
-      context.addIssue({ code: "custom", path: [field], message: "must contain {contentId} and no other template variables" });
+    if (!template.includes("{contentId}")) {
+      context.addIssue({ code: "custom", path: [field], message: "must contain the {contentId} placeholder" });
+      return;
+    }
+    const normalizedTemplate = template.replaceAll("{contentId}", "content-id-check");
+    if (normalizedTemplate.includes("{") || normalizedTemplate.includes("}")) {
+      context.addIssue({ code: "custom", path: [field], message: "must not contain unknown template variables" });
       return;
     }
     try {
@@ -76,7 +81,15 @@ export const playbackSourcesConfigSchema = z.object({
   playback: z.object({
     providers: z.array(playbackProviderSchema).max(100).default([]),
   }).strict(),
-}).strict();
+}).strict().superRefine((config, context) => {
+  const seen = new Set();
+  config.playback.providers.forEach((provider, index) => {
+    if (seen.has(provider.id)) {
+      context.addIssue({ code: "custom", path: ["playback", "providers", index, "id"], message: "provider IDs must be unique" });
+    }
+    seen.add(provider.id);
+  });
+});
 
 export const appConfigSchema = z.object({
   app: z.object({
