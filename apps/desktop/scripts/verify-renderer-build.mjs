@@ -9,7 +9,7 @@ const htmlPath = resolve(rendererRoot, "index.html");
 
 async function main() {
   const html = await readFile(htmlPath, "utf8");
-  const cssReferences = [...html.matchAll(/\\bhref=["']([^"']+\\.css(?:\\?[^"']*)?)["']/gi)]
+  const cssReferences = [...html.matchAll(/\bhref=["']([^"']+\.css(?:\?[^"']*)?)["']/gi)]
     .map((match) => match[1]);
   assert.ok(cssReferences.length > 0, "Desktop renderer index.html must reference a built CSS asset.");
 
@@ -29,7 +29,7 @@ async function main() {
     loadedCss.push(await readFile(assetPath, "utf8"));
   }
 
-  const stylesheet = loadedCss.join("\\n");
+  const stylesheet = loadedCss.join("\n");
   assert.ok(stylesheet.includes(".plyr"), "Plyr's stylesheet must be included in the desktop renderer CSS bundle.");
   assert.ok(stylesheet.includes(".player-shell"), "VisionHub player layout styles must be included in the desktop renderer CSS bundle.");
   assert.ok(stylesheet.includes(".topbar"), "The public app stylesheet must be included in the desktop renderer CSS bundle.");

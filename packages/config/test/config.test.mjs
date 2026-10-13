@@ -153,7 +153,7 @@ test("loads an independent desktop API endpoint and allows an environment overri
 
 test("rejects desktop API endpoints containing credentials, query strings, fragments, or unsupported schemes", async () => {
   const configDir = await createConfigDirectory({
-    "desktop.yaml": "desktop:\\n  apiBaseUrl: http://127.0.0.1:3001/api/v1\\n",
+    "desktop.yaml": "desktop:\n  apiBaseUrl: http://127.0.0.1:3001/api/v1\n",
   });
   try {
     for (const apiBaseUrl of [
@@ -169,7 +169,7 @@ test("rejects desktop API endpoints containing credentials, query strings, fragm
           configDir,
           env: { DESKTOP_API_BASE_URL: apiBaseUrl },
         }),
-        /must be an HTTP\\(S\\) API base URL without credentials, query, or hash/,
+        /must be an HTTP\(S\) API base URL without credentials, query, or hash/,
       );
     }
   } finally {

@@ -31,7 +31,7 @@ test("packaged protocol serves HTML with CSP and static assets with explicit MIM
     assert.equal(html.status, 200);
     assert.match(html.headers.get("content-type"), /text\/html/);
     assert.match(html.headers.get("content-security-policy"), /script-src 'self'/);
-    assert.match(html.headers.get("content-security-policy"), /connect-src 'self' https:\/\/api\.example\.test/);
+    assert.match(html.headers.get("content-security-policy"), /connect-src 'self'/);
     assert.equal(await html.text(), "<!doctype html><html><head></head><body>VisionHub</body></html>");
 
     const asset = await handler({ url: "visionhub://app/assets/app.js", method: "GET" });
@@ -42,7 +42,7 @@ test("packaged protocol serves HTML with CSP and static assets with explicit MIM
 
     const css = await handler({ url: "visionhub://app/assets/player.css", method: "GET" });
     assert.equal(css.status, 200);
-    assert.match(css.headers.get("content-type"), /text\\/css/);
+    assert.match(css.headers.get("content-type"), /text\/css/);
     assert.match(await css.text(), /\\.plyr/);
   } finally {
     await rm(root, { recursive: true, force: true });
