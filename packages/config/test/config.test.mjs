@@ -231,7 +231,7 @@ test("rejects provider templates outside allowlisted origins, duplicate IDs, and
       "      urlTemplate: https://player.example.test/watch/{contentId}",
       "      allowedOrigins:",
       "        - https://player.example.test",
-      "      playerSelector: \\".player\\"",
+      "      playerSelector: .player",
     ].join("\n");
     const duplicateYaml = validPlaybackSourcesYaml + duplicateProvider + "\n";
     await writeFile(join(duplicateDir, "playback-sources.yaml"), duplicateYaml, "utf8");
