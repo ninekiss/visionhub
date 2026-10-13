@@ -11,12 +11,9 @@ type Item = CatalogItem & { sortOrder: number; updatedAt?: string };
 type Dashboard = { items: number; movies: number; series: number; episodes: number; categories: number; recentItems: Item[] };
 type ItemForm = { title: string; year: number; mediaType: CatalogMediaType; description: string; posterUrl: string; videoUrl: string; playbackSourcesText: string; categories: string[]; sortOrder: number };
 type EpisodeForm = { episodeNumber: number; title: string; summary: string; videoUrl: string; playbackSourcesText: string; durationMinutes: number };
-const EMPTY_ITEM: ItemForm = { title: '', year: new Date().getFullYear(), mediaType: 'movie', description: '', posterUrl: '', videoUrl: '', playbackSourcesText: '', categories: [], sortOrder: 0 };
+const EMPTY_ITEM: ItemForm = { title: '', year: new Date().getFullYear(), mediaType: 'movie', description: '', posterUrl: '', videoUrl: '', playbackSourcesText: '[]', categories: [], sortOrder: 0 };
 const EMPTY_EPISODE: EpisodeForm = { episodeNumber: 1, title: '', summary: '', videoUrl: '', playbackSourcesText: '[]', durationMinutes: 20 };
-const PLAYBACK_SOURCES_EXAMPLE = "[\n  { \"id\": \"official\", \"label\": \"官方源\", \"kind\": \"provider\", \"providerId\": \"example-source\", \"contentId\": \"12345\" },\n  { \"id\": \"backup\", \"label\": \"备用直连\", \"kind\": \"direct\", \"url\": \"https://example.com/video.mp4\" }\n]";
-  { "id": "official", "label": "官方源", "kind": "provider", "providerId": "example-source", "contentId": "12345" },
-  { "id": "backup", "label": "备用直连", "kind": "direct", "url": "https://example.com/video.mp4" }
-]';
+const PLAYBACK_SOURCES_EXAMPLE = "[\\n  { \"id\": \"official\", \"label\": \"官方源\", \"kind\": \"provider\", \"providerId\": \"example-source\", \"contentId\": \"12345\" },\\n  { \"id\": \"backup\", \"label\": \"备用直连\", \"kind\": \"direct\", \"url\": \"https://example.com/video.mp4\" }\\n]";
 function parsePlaybackSourcesText(text: string): unknown[] {
   const value: unknown = JSON.parse(text.trim() || '[]');
   if (!Array.isArray(value)) throw new Error('播放源配置必须是 JSON 数组。');
