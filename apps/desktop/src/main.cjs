@@ -10,6 +10,7 @@ const {
 const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
 const {
   createPlayerIsolationScript,
+  isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
 } = require("./external-player.cjs");
@@ -263,7 +264,7 @@ function attachExternalPlayerWebviewGuards(window) {
 
 function openExternalPlayer(providerId, contentId, requestId) {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error("VisionHub 播放窗口不可用。");
-  if (typeof requestId !== "string" || !/^[a-zA-Z0-9:._-]{8,160}$/.test(requestId)) {
+  if (!isValidExternalPlayerRequestId(requestId)) {
     throw new Error("外部播放请求 ID 无效。");
   }
   const provider = playbackProviders.find((candidate) => candidate.id === providerId);
