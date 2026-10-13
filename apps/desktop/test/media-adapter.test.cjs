@@ -43,8 +43,23 @@ test("adapter selection uses HTML5 for standard media and reports missing HLS ad
 test("HTML5 adapter attaches a typed source and releases media resources idempotently", async () => {
   const { createHtml5Adapter } = await import("../../web/src/player/media-adapter.js");
   const operations = [];
+  const listeners = new Map();
   const video = {
     children: [],
+    addEventListener(name, listener) {
+      const entries = listeners.get(name) ?? new Set();
+      entries.add(listener);
+      listeners.set(name, entries);
+    },
+    removeEventListener(name, listener) {
+      listeners.get(name)?.delete(listener);
+    },
+    dispatch(name) {
+      for (const listener of [...(listeners.get(name) ?? [])]) listener();
+    },
+    listenerCount() {
+      return [...listeners.values()].reduce((total, entries) => total + entries.size, 0);
+    },
     ownerDocument: {
       createElement(name) {
         return { tagName: name.toUpperCase(), src: "", type: "" };
@@ -89,4 +104,101 @@ test("HTML5 adapter attaches a typed source and releases media resources idempot
   );
   assert.equal(operations.filter(([name]) => name === "pause").length, 1);
   assert.equal(operations.filter(([name]) => name === "load").length, 2);
+});
+
+
+test("reports a fatal load timeout if an HTML5 source never becomes playable", async () => {
+  const { createHtml5Adapter } = await import("../../web/src/player/media-adapter.js");
+  const listeners = new Map();
+  const operations = [];
+  let onTimeout = null;
+  const cancelled = [];
+  const video = {
+    children: [],
+    addEventListener(name, listener) {
+      const entries = listeners.get(name) ?? new Set();
+      entries.add(listener);
+      listeners.set(name, entries);
+    },
+    removeEventListener(name, listener) { listeners.get(name)?.delete(listener); },
+    listenerCount() {
+      return [...listeners.values()].reduce((total, entries) => total + entries.size, 0);
+    },
+    ownerDocument: {
+      createElement: (name) => ({ tagName: name.toUpperCase(), src: "", type: "" }),
+      createTextNode: (text) => ({ nodeType: 3, textContent: text }),
+    },
+    replaceChildren(...children) { this.children = children; },
+    load() { operations.push("load"); },
+    pause() { operations.push("pause"); },
+    removeAttribute(name) { operations.push(["removeAttribute", name]); },
+  };
+  let reportedFailure = null;
+  const adapter = createHtml5Adapter({
+    loadTimeoutMs: 25,
+    scheduleTimeout(callback, delay) {
+      assert.equal(delay, 25);
+      onTimeout = callback;
+      return "fake-timeout";
+    },
+    cancelTimeout(handle) { cancelled.push(handle); },
+  });
+
+  const detach = adapter.attach(video, {
+    url: "https://unreachable.invalid/video.mp4",
+    mimeType: "video/mp4",
+    onFatalError: (failure) => { reportedFailure = failure; },
+  });
+
+  assert.equal(reportedFailure, null);
+  assert.equal(typeof onTimeout, "function");
+  onTimeout();
+  assert.deepEqual(reportedFailure, { kind: "load-timeout" });
+
+  detach();
+  detach();
+  assert.equal(video.listenerCount(), 0);
+  assert.equal(cancelled.includes("fake-timeout"), false);
+  assert.equal(operations.filter((item) => item === "pause").length, 1);
+});
+
+test("cancels the initial-load timeout as soon as playable media data arrives", async () => {
+  const { createHtml5Adapter } = await import("../../web/src/player/media-adapter.js");
+  const listeners = new Map();
+  let onTimeout = null;
+  const cancelled = [];
+  let fatalCount = 0;
+  const video = {
+    children: [],
+    addEventListener(name, listener) {
+      const entries = listeners.get(name) ?? new Set();
+      entries.add(listener);
+      listeners.set(name, entries);
+    },
+    removeEventListener(name, listener) { listeners.get(name)?.delete(listener); },
+    dispatch(name) { for (const listener of [...(listeners.get(name) ?? [])]) listener(); },
+    ownerDocument: {
+      createElement: (name) => ({ tagName: name.toUpperCase(), src: "", type: "" }),
+      createTextNode: (text) => ({ nodeType: 3, textContent: text }),
+    },
+    replaceChildren(...children) { this.children = children; },
+    load() {},
+    pause() {},
+    removeAttribute() {},
+  };
+  const detach = createHtml5Adapter({
+    loadTimeoutMs: 25,
+    scheduleTimeout(callback) { onTimeout = callback; return 9; },
+    cancelTimeout(handle) { cancelled.push(handle); },
+  }).attach(video, {
+    url: "https://media.test/valid.mp4",
+    mimeType: "video/mp4",
+    onFatalError: () => { fatalCount += 1; },
+  });
+
+  video.dispatch("canplay");
+  assert.deepEqual(cancelled, [9]);
+  onTimeout();
+  assert.equal(fatalCount, 0);
+  detach();
 });

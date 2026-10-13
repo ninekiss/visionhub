@@ -13,11 +13,16 @@ export interface MediaQualityController {
   setLevel(levelId: number): void;
 }
 
+export interface MediaSourceFailure {
+  /** The HTML5 media request failed to become playable before its timeout. */
+  kind: "load-timeout";
+}
+
 export interface MediaSource {
   url: string;
   mimeType: string;
-  /** Called once when the adapter exhausts its fatal-error recovery attempts. */
-  onFatalError?: () => void;
+  /** Called for adapter-level fatal errors, such as a media load timeout. */
+  onFatalError?: (failure?: MediaSourceFailure) => void;
   /** HLS adapter callback; null indicates manual quality selection is unavailable. */
   onQualityControlReady?: (controller: MediaQualityController | null) => void;
   /** Distinct, known-height HLS renditions currently available in the manifest. */
@@ -34,6 +39,8 @@ export class UnsupportedMediaAdapterError extends Error {
   constructor(adapterId: MediaAdapterId);
 }
 
+export const DEFAULT_HTML5_LOAD_TIMEOUT_MS: number;
+
 export function inferMediaMimeType(sourceUrl: string): string;
 
 export function resolveMediaAdapter(
@@ -41,4 +48,9 @@ export function resolveMediaAdapter(
   adapters: Partial<Record<MediaAdapterId, MediaAdapter>>,
 ): { adapter: MediaAdapter; adapterId: MediaAdapterId; mimeType: string };
 
-export function createHtml5Adapter(): MediaAdapter;
+export function createHtml5Adapter(options?: {
+  /** Timeout before the browser reports media readiness (default 15000ms). */
+  loadTimeoutMs?: number;
+  scheduleTimeout?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
+  cancelTimeout?: (handle: ReturnType<typeof setTimeout>) => void;
+}): MediaAdapter;

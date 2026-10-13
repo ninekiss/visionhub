@@ -8,6 +8,7 @@ const MIME_TYPES_BY_EXTENSION = new Map([
 ]);
 
 const HLS_MIME_TYPE = "application/vnd.apple.mpegurl";
+export const DEFAULT_HTML5_LOAD_TIMEOUT_MS = 15000;
 
 export class UnsupportedMediaAdapterError extends Error {
   constructor(adapterId) {
@@ -45,7 +46,11 @@ export function resolveMediaAdapter(sourceUrl, adapters) {
   return { adapter, adapterId, mimeType };
 }
 
-export function createHtml5Adapter() {
+export function createHtml5Adapter({
+  loadTimeoutMs = DEFAULT_HTML5_LOAD_TIMEOUT_MS,
+  scheduleTimeout = (callback, delay) => setTimeout(callback, delay),
+  cancelTimeout = (handle) => clearTimeout(handle),
+} = {}) {
   return {
     id: "html5",
     attach(video, source) {
@@ -57,12 +62,58 @@ export function createHtml5Adapter() {
         "当前浏览器不支持 HTML5 视频播放。",
       );
       video.replaceChildren(sourceElement, fallbackText);
-      video.load();
 
       let detached = false;
+      let mediaReady = false;
+      let mediaFailed = false;
+      let timeoutHandle = null;
+
+      const clearLoadTimeout = () => {
+        if (timeoutHandle === null) return;
+        cancelTimeout(timeoutHandle);
+        timeoutHandle = null;
+      };
+
+      const handleMediaReady = () => {
+        mediaReady = true;
+        clearLoadTimeout();
+      };
+
+      const handleMediaError = () => {
+        mediaFailed = true;
+        clearLoadTimeout();
+      };
+
+      const handleLoadTimeout = () => {
+        timeoutHandle = null;
+        if (detached || mediaReady || mediaFailed) return;
+
+        mediaFailed = true;
+        source.onFatalError?.({ kind: "load-timeout" });
+      };
+
+      video.addEventListener("loadeddata", handleMediaReady);
+      video.addEventListener("canplay", handleMediaReady);
+      video.addEventListener("playing", handleMediaReady);
+      video.addEventListener("error", handleMediaError);
+
+      // Browsers do not consistently dispatch an error event when a host is
+      // unreachable or a request remains pending. Bound the wait so the UI
+      // cannot remain in a loading/buffering state forever.
+      if (Number.isFinite(loadTimeoutMs) && loadTimeoutMs > 0) {
+        timeoutHandle = scheduleTimeout(handleLoadTimeout, loadTimeoutMs);
+      }
+
+      video.load();
+
       return () => {
         if (detached) return;
         detached = true;
+        clearLoadTimeout();
+        video.removeEventListener("loadeddata", handleMediaReady);
+        video.removeEventListener("canplay", handleMediaReady);
+        video.removeEventListener("playing", handleMediaReady);
+        video.removeEventListener("error", handleMediaError);
 
         try {
           video.pause();

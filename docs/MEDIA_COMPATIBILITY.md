@@ -45,5 +45,6 @@ The player maps standard HTML media error codes to these messages:
 - Decode: the runtime could not decode the media; its format/codec or file may be unsupported.
 - Source not supported: the runtime may not support the format/codec, or the media source may be invalid.
 - Unknown error: retain the source-specific fallback message.
+- No playable media data within 15 seconds (and no browser error event): show a loading-timeout message asking the user to check the network or source. Successful media readiness cancels this timer.
 
 These messages are diagnostic guidance, not proof that a specific codec is unsupported. Confirm the diagnosis against the actual file and runtime.

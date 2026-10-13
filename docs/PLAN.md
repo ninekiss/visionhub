@@ -431,6 +431,7 @@ Status: in progress. See [`docs/MEDIA_COMPATIBILITY.md`](./MEDIA_COMPATIBILITY.m
 - [x] Add a compatibility matrix that distinguishes observed playback from unverified codec/container support.
 - [x] Add a short, redistributable CC BY 3.0 MP4 fixture and record its required attribution.
 - [x] Map HTMLMediaElement abort, network, decode and unsupported-source errors to actionable messages without leaking source URLs; add deterministic unit coverage.
+- [x] Add and test a cancellable 15-second HTML5 startup timeout so unreachable hosts that never dispatch a browser error event do not leave the player indefinitely loading.
 - [ ] Test the redistributable fixture in Web and Windows Electron; record OS/browser/Electron versions and inspect the actual stream codec metadata before asserting a codec-level result.
 - [ ] Verify source switching, seek, buffering, progress restoration, network failure and unsupported-format behavior in both clients.
 - [ ] Claim support only for the exact fixtures and codec/container combinations actually tested; do not infer MKV/HEVC/HDR/subtitle support from Plyr.
