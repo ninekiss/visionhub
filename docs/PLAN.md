@@ -391,7 +391,7 @@ P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until th
 
 ### Phase 5 — Player adapters and playback preferences
 
-Status: P5.1 adapter foundation and Windows manual regression passed on 2026-10-13. P5.2 HLS implementation is in this PR and awaits actual Web/Windows Electron playback verification. Plyr remains the player UI.
+Status: P5.1 adapter foundation and P5.2 HLS playback manual acceptance passed in Web and Windows Electron on 2026-10-13. Plyr remains the player UI. macOS-specific acceptance remains deferred.
 
 #### P5.1 — Separate media source, playback events and cleanup
 
@@ -409,7 +409,7 @@ Status: P5.1 adapter foundation and Windows manual regression passed on 2026-10-
 - [x] Handle fatal network/media errors with at most one recovery attempt per category, report exhausted fatal errors and release HLS instances/listeners on source changes.
 - [x] Permit HTTPS HLS manifest/segment requests through the packaged Electron CSP, while keeping scripts self-hosted and HTTP connections restricted to the configured API origin.
 - [x] Add unit tests for native-HLS capability selection, hls.js attachment, fatal network/media recovery, unsupported-runtime messaging and idempotent cleanup.
-- [ ] Verify the public HLS source in Web and Windows Electron; test start/play, seek, quality selection where available, source switching, error behavior and cleanup.
+- [x] Verify the public HLS source in Web and Windows Electron: playback, pause/resume, seeking, error handling, source switching and resource cleanup (user acceptance, 2026-10-13).
 
 Public test source (Mux-hosted HLS test stream; requires network access and cross-origin requests to remain permitted): `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8`.
 
