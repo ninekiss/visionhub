@@ -71,6 +71,8 @@ export default function PlyrPlayer({
 
     const player = new Plyr(video, {
       autoplay: false,
+      // Keep the control strip available in the desktop app instead of auto-hiding it during playback.
+      hideControls: false,
       muted: false,
       clickToPlay: true,
       keyboard: { focused: true, global: false },

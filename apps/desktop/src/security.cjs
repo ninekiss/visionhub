@@ -21,6 +21,39 @@ function createWebPreferences(preloadPath) {
   };
 }
 
+function createPackagedRendererCsp(apiBaseUrl) {
+  // Plyr loads its SVG icon sprite with fetch(); packaged CSP must allow its documented sprite origin.
+  const connectSources = ["'self'", "https://cdn.plyr.io"];
+  if (apiBaseUrl) {
+    try {
+      const apiUrl = new URL(apiBaseUrl);
+      if (
+        (apiUrl.protocol === "http:" || apiUrl.protocol === "https:") &&
+        !apiUrl.username &&
+        !apiUrl.password
+      ) {
+        connectSources.push(apiUrl.origin);
+      }
+    } catch {
+      // An invalid endpoint is not added to the policy; runtime config validation is separate.
+    }
+  }
+
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: https:",
+    "media-src 'self' blob: https:",
+    "connect-src " + connectSources.join(" "),
+  ].join("; ");
+}
+
 function getSafeExternalUrl(candidate) {
   try {
     const url = new URL(candidate);
@@ -33,18 +66,27 @@ function getSafeExternalUrl(candidate) {
 
 function isTrustedRendererUrl(candidate, options) {
   try {
+    const candidateUrl = new URL(candidate);
     if (options.developmentUrl) {
       const devServer = parseDevelopmentServerUrl(options.developmentUrl);
       if (!devServer) return false;
-      return new URL(candidate).origin === devServer.origin;
+      return candidateUrl.origin === devServer.origin;
     }
-    return new URL(candidate).href === new URL(options.packagedUrl).href;
+
+    const packagedUrl = new URL(options.packagedUrl);
+    if (packagedUrl.protocol === "file:") return candidateUrl.href === packagedUrl.href;
+    return candidateUrl.protocol === packagedUrl.protocol &&
+      candidateUrl.hostname === packagedUrl.hostname &&
+      candidateUrl.port === packagedUrl.port &&
+      !candidateUrl.username &&
+      !candidateUrl.password;
   } catch {
     return false;
   }
 }
 
 module.exports = {
+  createPackagedRendererCsp,
   createWebPreferences,
   getSafeExternalUrl,
   isTrustedRendererUrl,

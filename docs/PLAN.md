@@ -38,7 +38,7 @@ The following status is based on the repository code and lockfile on 2026-10-13.
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
 | Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
 | HLS | No `hls.js` adapter is present | Not started |
-| Desktop | `apps/desktop` provides the initial Electron main/preload shell and opens the existing Web renderer in development | P4.1 scaffold in review; API-aware packaged runtime and release pipeline remain pending |
+| Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | P4.1 merged; P4.2 CSP and custom-protocol hardening in PR #32; API-aware runtime and release pipeline pending |
 | Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation and planned Phase 3 migration slices implemented; Web remains first-class |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
 | CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
@@ -292,7 +292,7 @@ Exit criteria:
 
 ### Phase 4 — Electron desktop MVP
 
-Status: P4.0 scope/compatibility decisions are recorded and P4.1 development shell scaffold is implemented on `phase-4/electron-shell` (PR pending). The first release target is macOS Apple Silicon (`arm64`) based on the existing self-hosted Mac runner plan. The Web client remains independently buildable and deployable; P4.2–P4.5 remain incomplete.
+Status: P4.0 decisions and P4.1 are merged via [PR #31](https://github.com/ninekiss/visionhub/pull/31). PR #32 now includes P4.2 secure renderer protocol/CSP plus P4.3 API configuration loading and same-origin API proxy. Actual macOS packaged-app verification and release packaging remain outstanding.
 
 #### Product goal
 
@@ -303,7 +303,7 @@ Deliver a small, secure desktop shell that reuses the existing React screens, sh
 - [x] Set the first packaged target to macOS Apple Silicon (`arm64`); defer Intel/universal and other operating systems until explicitly requested.
 - [x] Pin Electron 44.7.0, the official stable release verified on 2026-10-13; its embedded Node.js 24.21.0 matches the repository runtime baseline. Do not use a floating `latest`.
 - [x] Record the current public MP4 mock URL as a playback-test candidate and explicitly mark codec/container support unverified until tested on Electron/macOS ARM64; HLS remains a later adapter phase. See `docs/DESKTOP_MVP.md`.
-- [x] Define the endpoint contract: `configs/desktop.yaml` is loaded via `loadDesktopConfig()`, `DESKTOP_API_BASE_URL` overrides the endpoint, and `DESKTOP_CONFIG_PATH` selects a config file. Wiring the validated value into the renderer is P4.3.
+- [x] Define the desktop endpoint contract and load it via `loadDesktopConfig()` in the Electron main process. `DESKTOP_API_BASE_URL` overrides the endpoint; `DESKTOP_CONFIG_PATH` selects a config file. Packaged `/api/v1` requests are proxied through the configured endpoint and stay same-origin in the renderer.
 
 Deliverable: target OS, exact Electron version, initial media-test candidate/known limitations, and the validated desktop configuration contract are recorded in `docs/DESKTOP_MVP.md`.
 
@@ -314,7 +314,7 @@ Deliverable: a short compatibility decision in the PR description or docs, inclu
 - [x] Create `apps/desktop` with the Electron main process, a sandboxed preload bridge, URL/security helpers and tests; leave `apps/web` as the same renderer.
 - [x] Add workspace commands for Electron development (`pnpm dev:desktop`), shell checks, and security tests. Packaging commands are intentionally deferred to P4.5.
 - [x] Reuse the existing `apps/web` React/Vite renderer instead of duplicating screens or contracts.
-- [x] Load a loopback Vite server in development and build a dedicated relative-base renderer into `apps/desktop/renderer-dist` for Electron file loading; keep the browser Web build configuration unchanged and show an actionable error if the desktop renderer build is missing.
+- [x] Load a loopback Vite server in development and build a dedicated renderer into `apps/desktop/renderer-dist` with app-root asset paths; serve packaged assets through `visionhub://app` so CSP response headers are honored, while keeping the browser Web build unchanged.
 - [x] Keep API and database services separate. Electron is a client and does not bundle or start the NestJS API, PostgreSQL, or migrations.
 
 Deliverable: the development Electron window opens the existing Web renderer on its own Vite port, while Web remains independently buildable. The app is a development scaffold, not yet a production-ready desktop release.
@@ -325,7 +325,8 @@ Deliverable: the development Electron window opens the existing Web renderer on 
 - [x] Expose only a narrow, typed `getAppInfo()` method through preload; never expose raw `ipcRenderer`, arbitrary Node APIs, filesystem access or unrestricted shell execution.
 - [x] Validate the sender URL for the single IPC handler; the handler accepts no renderer payload arguments.
 - [x] Block unexpected navigation and all new windows; only validated HTTPS URLs may be handed to the operating system.
-- [ ] Define and test a restrictive Content Security Policy for packaged renderer content before calling P4.2 complete.
+- [x] Serve packaged renderer assets through `visionhub://app`; attach CSP to HTML, reject traversal/unknown hosts, and verify resource MIME types and that the built Plyr/player CSS asset exists.
+- [ ] Verify the CSP behavior in an actual packaged Electron build on macOS ARM64 before marking P4.2 complete.
 - [x] Keep secrets out of renderer bundles and source; API endpoint configuration remains separate from credentials.
 
 Deliverable: a documented threat-boundary review and automated or repeatable checks for the chosen Electron security defaults.
@@ -333,7 +334,7 @@ Deliverable: a documented threat-boundary review and automated or repeatable che
 #### P4.3 — Reuse the core media workflow
 
 - [ ] Reuse the existing catalog, search/filter, detail, login/admin route behavior and shared UI wherever applicable; do not duplicate domain logic or API contracts.
-- [ ] Load the desktop API base URL from validated `configs/desktop.yaml` or an explicitly documented override. Fail with an actionable message if configuration is invalid; do not silently point at production.
+- [x] Load the validated desktop API endpoint via `loadDesktopConfig()` (`configs/desktop.yaml`), with `DESKTOP_API_BASE_URL` and `DESKTOP_CONFIG_PATH` overrides; fail with a clear error rather than silently choosing a fallback.
 - [ ] Verify catalog browsing, search/filter, details, login where configured, and the playback page against a running test API.
 - [ ] Verify Plyr playback for the formats actually supported by the target Electron runtime; include loading, buffering, source errors, seek, episode switching and progress restore in the test pass.
 - [ ] Keep browser-only behavior functional and buildable. Put platform-specific operations behind a small adapter instead of branching shared components throughout the UI.
@@ -443,8 +444,8 @@ Every phase should meet these gates before merge:
 ## 10. Immediate next actions
 
 1. **P4.0 decisions are recorded.** macOS ARM64 is the first package target; Electron is pinned to 44.7.0; the endpoint configuration contract and MP4 test candidate/limitations are documented.
-2. **Continue P4.2 security hardening.** Add and verify the packaged-renderer Content Security Policy; preserve the existing sandboxed preload and strict navigation policy.
-3. **Implement P4.3 API/config integration.** Load validated `configs/desktop.yaml` (or `DESKTOP_API_BASE_URL`) in the desktop runtime and pass only the needed endpoint information to Web through the typed bridge; verify catalog/search/detail/playback against the test API.
+2. **Finish packaged-app verification.** Test actual Electron launch on macOS ARM64, including CSP, fonts, remote posters, playback and blocked script injection.
+3. **Complete P4.3 workflow acceptance.** Validate catalog/search/detail/playback against a live test API through the same-origin protocol proxy; keep Web's browser/Vite API routing unchanged.
 4. **Keep P4.5 release work scoped to macOS ARM64.** Use the self-hosted Apple Silicon runner for Developer ID signing, notarization/stapling, DMG/ZIP artifacts and GitHub Release publishing. Keep secrets in GitHub Actions secrets and do not bundle database/API services.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
