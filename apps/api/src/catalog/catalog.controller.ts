@@ -12,6 +12,11 @@ import { CatalogService } from "./catalog.service.js";
 export class CatalogController {
   constructor(@Inject(CatalogService) private readonly catalogService: CatalogService) {}
 
+  @Get("playback-providers")
+  playbackProviders() {
+    return { data: this.catalogService.getPlaybackProviders() };
+  }
+
   @Get("categories")
   async categories(): Promise<ApiResponse<string[]>> {
     return { data: await this.catalogService.getCategories() };
