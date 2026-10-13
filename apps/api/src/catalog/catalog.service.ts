@@ -173,6 +173,7 @@ export class CatalogService {
       id: provider.id,
       name: provider.name,
       ...(provider.webEmbedUrlTemplate ? { webEmbedUrlTemplate: provider.webEmbedUrlTemplate } : {}),
+      ...(provider.urlTemplate ? { webOpenUrlTemplate: provider.urlTemplate } : {}),
     }));
   }
 
