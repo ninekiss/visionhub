@@ -22,5 +22,23 @@ interface Window {
       arch: string;
       releaseChannel: "packaged" | "development";
     }>;
+    openExternalPlayer: (request: {
+      providerId: string;
+      contentId: string;
+      requestId: string;
+      bounds: { x: number; y: number; width: number; height: number; visible?: boolean };
+    }) => Promise<boolean>;
+    resizeExternalPlayer: (request: {
+      providerId: string;
+      requestId: string;
+      bounds: { x: number; y: number; width: number; height: number; visible?: boolean };
+    }) => Promise<boolean>;
+    closeExternalPlayer: (request: { requestId: string }) => Promise<boolean>;
+    onExternalPlayerStatus: (listener: (payload: {
+      status: "loading" | "ready" | "error";
+      providerId: string;
+      requestId: string;
+      code?: string;
+    }) => void) => () => void;
   };
 }
