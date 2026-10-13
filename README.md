@@ -61,7 +61,7 @@ pnpm build
 
 ## Electron 桌面端开发壳（P4.1–P4.3）
 
-首个打包目标确定为 macOS Apple Silicon（ARM64）。已建立 Electron 主进程、受限 preload bridge 和复用现有 Web renderer 的开发壳；当前分支为打包版 renderer 引入受限的 `visionhub://app` 协议，并为 HTML 主文档设置 CSP 响应头。**这仍不是可发布的安装包**。主进程通过 `loadDesktopConfig()` 读取 API 地址，并将 `/api/v1` 请求代理到该地址，保持渲染器同源；macOS 签名/公证/自动发布属于 P4.5，当前已记录为暂缓；只有明确重新激活后才开始执行。
+首个打包目标确定为 macOS Apple Silicon（ARM64）。已建立 Electron 主进程、受限 preload bridge 和复用现有 Web renderer 的开发壳；当前分支为打包版 renderer 引入受限的 `visionhub://app` 协议，并为 HTML 主文档设置 CSP 响应头。**这仍不是可发布的安装包**。主进程通过 `loadDesktopConfig()` 读取 API 地址，并将 `/api/v1` 请求代理到该地址，保持渲染器同源；macOS 签名/公证/自动发布属于 P4.5。
 
 在一个终端启动开发 API（需要现有 PostgreSQL 可访问）：
 
@@ -82,7 +82,7 @@ pnpm --filter @visionhub/desktop build
 pnpm --filter @visionhub/desktop test
 ```
 
-开发壳复用 `apps/web` 的全部 React 页面和组件。`pnpm --filter @visionhub/desktop build` 会额外生成独立的 `apps/desktop/renderer-dist`，由 Electron 主进程注册的 `visionhub://app` 协议提供静态资源与 CSP；不通过 `file://` 加载打包页面，浏览器 Web 的默认构建仍使用原来的 Vite 配置。打包 renderer 通过主进程将 `/api/v1` 同源请求代理到 `configs/desktop.yaml` 中的 API 地址；可用 `DESKTOP_API_BASE_URL` 覆盖地址、`DESKTOP_CONFIG_PATH` 选择配置文件。执行 `pnpm --filter @visionhub/desktop start` 前先构建 renderer，并确保 API 服务已启动。正式安装包仍需 P4.5 完成外置配置打包、签名、公证、DMG/ZIP 与 GitHub Release 发布；P4.5 当前按用户决定暂缓，待明确重新激活后再执行。
+开发壳复用 `apps/web` 的全部 React 页面和组件。`pnpm --filter @visionhub/desktop build` 会额外生成独立的 `apps/desktop/renderer-dist`，由 Electron 主进程注册的 `visionhub://app` 协议提供静态资源与 CSP；不通过 `file://` 加载打包页面，浏览器 Web 的默认构建仍使用原来的 Vite 配置。打包 renderer 通过主进程将 `/api/v1` 同源请求代理到 `configs/desktop.yaml` 中的 API 地址；可用 `DESKTOP_API_BASE_URL` 覆盖地址、`DESKTOP_CONFIG_PATH` 选择配置文件。执行 `pnpm --filter @visionhub/desktop start` 前先构建 renderer，并确保 API 服务已启动。正式安装包仍需 P4.5 完成外置配置打包、签名、公证、DMG/ZIP 与 GitHub Release 发布。
 
 ## Docker Compose 部署
 

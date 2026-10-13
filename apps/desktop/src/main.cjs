@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, protocol, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, screen, shell } = require("electron");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const {
@@ -8,6 +8,14 @@ const {
   parseDevelopmentServerUrl,
 } = require("./security.cjs");
 const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
+const { createApplicationMenuTemplate } = require("./application-menu.cjs");
+const {
+  MIN_WINDOW_HEIGHT,
+  MIN_WINDOW_WIDTH,
+  normalizeWindowState,
+  readWindowState,
+  writeWindowState,
+} = require("./window-state.cjs");
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -32,6 +40,58 @@ const developmentUrl = configuredDevelopmentUrl
 const rendererPath = path.resolve(__dirname, "../renderer-dist/index.html");
 const packagedRendererUrl = "visionhub://app/index.html";
 let mainWindow = null;
+let windowStateSaveTimer = null;
+
+function getWindowStatePath() {
+  return path.join(app.getPath("userData"), "window-state.json");
+}
+
+function restoreWindowState() {
+  return readWindowState(getWindowStatePath(), screen.getAllDisplays());
+}
+
+function saveWindowState(window) {
+  if (!window || window.isDestroyed()) return;
+  const bounds = window.isMaximized() || window.isFullScreen()
+    ? window.getNormalBounds()
+    : window.getBounds();
+  const state = normalizeWindowState({
+    ...bounds,
+    isMaximized: window.isMaximized(),
+  }, screen.getAllDisplays());
+  writeWindowState(getWindowStatePath(), state);
+}
+
+function attachWindowStatePersistence(window) {
+  const persistImmediately = () => {
+    if (windowStateSaveTimer) {
+      clearTimeout(windowStateSaveTimer);
+      windowStateSaveTimer = null;
+    }
+    try {
+      saveWindowState(window);
+    } catch (error) {
+      console.warn("Unable to save VisionHub window state:", error);
+    }
+  };
+  const schedulePersist = () => {
+    if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+    windowStateSaveTimer = setTimeout(persistImmediately, 250);
+  };
+
+  window.on("move", schedulePersist);
+  window.on("resize", schedulePersist);
+  window.on("maximize", schedulePersist);
+  window.on("unmaximize", schedulePersist);
+  window.on("minimize", schedulePersist);
+  window.on("close", persistImmediately);
+  window.on("closed", () => {
+    if (windowStateSaveTimer) {
+      clearTimeout(windowStateSaveTimer);
+      windowStateSaveTimer = null;
+    }
+  });
+}
 
 function isTrustedAppUrl(url) {
   return isTrustedRendererUrl(url, {
@@ -83,15 +143,19 @@ function createWindow() {
     return null;
   }
 
+  const restoredState = restoreWindowState();
+  const { isMaximized, ...restoredBounds } = restoredState;
   const window = new BrowserWindow({
     title: "VisionHub",
-    width: 1280,
-    height: 820,
-    minWidth: 800,
-    minHeight: 560,
+    ...restoredBounds,
+    minWidth: Math.min(MIN_WINDOW_WIDTH, restoredState.width),
+    minHeight: Math.min(MIN_WINDOW_HEIGHT, restoredState.height),
     backgroundColor: "#090b10",
     webPreferences: createWebPreferences(path.join(__dirname, "preload.cjs")),
   });
+
+  if (isMaximized) window.maximize();
+  attachWindowStatePersistence(window);
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     const externalUrl = getSafeExternalUrl(url);
@@ -129,6 +193,8 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(createApplicationMenuTemplate(process.platform)));
+
   if (!developmentUrl) {
     let apiBaseUrl;
     try {
