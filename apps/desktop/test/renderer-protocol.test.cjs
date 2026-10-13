@@ -32,6 +32,7 @@ test("packaged protocol serves HTML with CSP and static assets with explicit MIM
     assert.match(html.headers.get("content-type"), /text\/html/);
     assert.match(html.headers.get("content-security-policy"), /script-src 'self'/);
     assert.match(html.headers.get("content-security-policy"), /connect-src 'self'/);
+    assert.match(html.headers.get("content-security-policy"), /connect-src[^;]*https:/, "Packaged HLS requests must reach HTTPS stream hosts.");
     assert.equal(await html.text(), "<!doctype html><html><head></head><body>VisionHub</body></html>");
 
     const asset = await handler({ url: "visionhub://app/assets/app.js", method: "GET" });

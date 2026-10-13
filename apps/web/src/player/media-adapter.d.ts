@@ -3,6 +3,8 @@ export type MediaAdapterId = "html5" | "hls";
 export interface MediaSource {
   url: string;
   mimeType: string;
+  /** Called once when the adapter exhausts its fatal-error recovery attempts. */
+  onFatalError?: () => void;
 }
 
 export interface MediaAdapter {

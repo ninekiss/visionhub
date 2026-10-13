@@ -16,7 +16,8 @@
     "lucide-react": "1.55.0",
     "plyr": "3.8.5",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "hls.js": "1.7.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",

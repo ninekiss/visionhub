@@ -391,22 +391,27 @@ P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until th
 
 ### Phase 5 — Player adapters and playback preferences
 
-Status: P5.1 adapter foundation is implemented in the current PR; HLS and new playback preferences are intentionally separate follow-up slices. Plyr remains the player UI.
+Status: P5.1 adapter foundation and Windows manual regression passed on 2026-10-13. P5.2 HLS implementation is in this PR and awaits actual Web/Windows Electron playback verification. Plyr remains the player UI.
 
 #### P5.1 — Separate media source, playback events and cleanup
 
 - [x] Add a media-adapter contract and isolate HTML5 source attachment/release from the Plyr UI component.
 - [x] Infer common source MIME types from URL paths while ignoring query strings; retain the existing MP4 fallback for extensionless/unknown URLs.
 - [x] Extract media-event binding for playback state, resume position, progress throttling and error callbacks into a separately testable module.
-- [x] Add unit tests for adapter selection, safe HLS-not-yet-supported errors, source attachment/release, state transitions, progress reporting and event-listener cleanup.
-- [ ] Verify the refactor manually in Web and Windows Electron after CI passes, confirming the current MP4 playback UI/controls and progress restoration remain unchanged.
-- Keep the adapter contract small. Do not add a runtime dependency or change the database/API contracts in this slice.
+- [x] Add unit tests for adapter selection, source attachment/release, state transitions, progress reporting and event-listener cleanup.
+- [x] Verify the refactor in Web and Windows Electron: MP4 playback and controls, resource release after source switching, progress recording and resume positioning (user acceptance, 2026-10-13).
+- Keep the adapter contract small. Do not add unrelated dependencies or change database/API contracts for this slice.
 
-#### P5.2 — Add HLS support (follow-up)
+#### P5.2 — Add HLS support
 
-- [ ] Add hls.js only after verifying the current stable version and compatibility with the selected Electron/Web targets.
-- [ ] Route HLS sources through the HLS adapter, use native HLS only where capability checks show it is supported, and dispose HLS instances and event handlers on source changes.
-- [ ] Test a redistributable sample HLS stream and errors including unavailable manifests and segment failures.
+- [x] Pin hls.js 1.7.3, the stable release verified for this implementation, as a Web runtime dependency.
+- [x] Route .m3u8 sources through the HLS adapter; prefer native HLS only when both canPlayType and ManagedMediaSource are available, otherwise use hls.js when MSE is supported.
+- [x] Handle fatal network/media errors with at most one recovery attempt per category, report exhausted fatal errors and release HLS instances/listeners on source changes.
+- [x] Permit HTTPS HLS manifest/segment requests through the packaged Electron CSP, while keeping scripts self-hosted and HTTP connections restricted to the configured API origin.
+- [x] Add unit tests for native-HLS capability selection, hls.js attachment, fatal network/media recovery, unsupported-runtime messaging and idempotent cleanup.
+- [ ] Verify the public HLS source in Web and Windows Electron; test start/play, seek, quality selection where available, source switching, error behavior and cleanup.
+
+Public test source (Mux-hosted HLS test stream; requires network access and cross-origin requests to remain permitted): `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8`.
 
 #### P5.3 — Playback preferences (follow-up)
 
@@ -422,8 +427,8 @@ Status: P5.1 adapter foundation is implemented in the current PR; HLS and new pl
 
 Exit criteria:
 - [ ] The media adapter and playback-event modules have unit coverage and the Web/desktop production builds pass.
-- [ ] Existing MP4/HTML5 playback, source switching, resume position, buffering and error states remain functional.
-- [ ] HLS support is tested before being claimed; unsupported media fail with a clear message.
+- [x] Existing MP4/HTML5 playback, source switching, resume position, buffering and error states remain functional (Windows manual acceptance, 2026-10-13).
+- [ ] HLS playback is tested in Web and Windows Electron before support is claimed; unsupported media fail with a clear message.
 - [ ] Playback preferences are consistent across Web and desktop without duplicate storage.
 - [ ] Supported formats are documented based on testing, not assumptions.
 
