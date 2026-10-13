@@ -30,7 +30,9 @@ async function main() {
   }
 
   const stylesheet = loadedCss.join("\n");
-  assert.ok(stylesheet.includes(".plyr"), "Plyr's stylesheet must be included in the desktop renderer CSS bundle.");
+  assert.ok(stylesheet.includes(".plyr__controls"), "Plyr control-bar styles must be included in the desktop renderer CSS bundle.");
+  assert.ok(stylesheet.includes(".plyr__control"), "Plyr button styles must be included in the desktop renderer CSS bundle.");
+  assert.ok(stylesheet.includes(".plyr__progress__container"), "Plyr progress-bar styles must be included in the desktop renderer CSS bundle.");
   assert.ok(stylesheet.includes(".player-shell"), "VisionHub player layout styles must be included in the desktop renderer CSS bundle.");
   assert.ok(stylesheet.includes(".topbar"), "The public app stylesheet must be included in the desktop renderer CSS bundle.");
   console.log("Verified desktop renderer CSS bundle: Plyr, player layout, and public UI styles are present.");

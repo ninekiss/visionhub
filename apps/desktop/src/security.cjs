@@ -22,7 +22,8 @@ function createWebPreferences(preloadPath) {
 }
 
 function createPackagedRendererCsp(apiBaseUrl) {
-  const connectSources = ["'self'"];
+  // Plyr loads its SVG icon sprite with fetch(); packaged CSP must allow its documented sprite origin.
+  const connectSources = ["'self'", "https://cdn.plyr.io"];
   if (apiBaseUrl) {
     try {
       const apiUrl = new URL(apiBaseUrl);
