@@ -12,6 +12,7 @@ export interface PlaybackProvider {
   id: string;
   name: string;
   webEmbedUrlTemplate?: string;
+  webOpenUrlTemplate?: string;
 }
 
 export interface CatalogItem {
