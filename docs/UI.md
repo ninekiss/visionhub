@@ -52,5 +52,7 @@ Keyboard and state checks:
 - Media type choices announce their selected state; category chips announce their pressed/selected state.
 - Confirmation dialogs keep focus contained while open, restore focus after close, and prevent dismissal while a destructive request is pending.
 - Exercise loading, empty, error and disabled states for catalog, editor, episode management and playback.
+- On a detail page with an unusually long title and synopsis, confirm the title stays within two lines and the synopsis within three while the copy column uses the available width; test long unbroken text for horizontal overflow.
+- While switching Admin catalog pages, confirm the loading indicator overlays the existing table area and the pagination/footer do not move during the request.
 
 Record the browser, viewport and result in the pull request before checking off the visual acceptance exit criterion.
