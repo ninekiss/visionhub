@@ -26,6 +26,20 @@ test("first-run window state is centered inside the primary display work area", 
   });
 });
 
+test("first-run defaults center on the primary display even when it is not at the origin", () => {
+  const offsetDisplays = [
+    { id: 1, primary: false, workArea: { x: 0, y: 0, width: 1440, height: 900 } },
+    { id: 2, primary: true, workArea: { x: 1440, y: -200, width: 1600, height: 1000 } },
+  ];
+  assert.deepEqual(normalizeWindowState(null, offsetDisplays), {
+    x: 1600,
+    y: -110,
+    width: DEFAULT_WINDOW_WIDTH,
+    height: DEFAULT_WINDOW_HEIGHT,
+    isMaximized: false,
+  });
+});
+
 test("valid secondary-display bounds and maximized state are restored", () => {
   assert.deepEqual(normalizeWindowState({
     x: 1500,

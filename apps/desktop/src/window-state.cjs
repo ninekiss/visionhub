@@ -83,8 +83,8 @@ function normalizeWindowState(candidate, displays = []) {
   }
 
   const selectedDisplay = chooseDisplay({
-    x: isFiniteNumber(source.x) ? source.x : 0,
-    y: isFiniteNumber(source.y) ? source.y : 0,
+    x: isFiniteNumber(source.x) && isFiniteNumber(source.y) ? source.x : undefined,
+    y: isFiniteNumber(source.x) && isFiniteNumber(source.y) ? source.y : undefined,
     width: requestedWidth,
     height: requestedHeight,
   }, availableDisplays);
