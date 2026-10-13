@@ -17,11 +17,11 @@ No codec/container support is claimed yet. The following candidate must be teste
 
 | Candidate | Current source | Validation status | P4 acceptance checks |
 |---|---|---|---|
-| MP4 demo used by existing mock catalog | https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-720p.mp4 | Candidate only; Electron/macOS decode has not been tested in this branch | Load, play, pause, seek, progress restore, buffering/error behavior |
-| HLS playlist | `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8` | HLS adapter playback and lifecycle manually accepted in Web and Windows Electron on 2026-10-13; P5.3 quality selection awaits acceptance | Verify Auto/manual rendition selection for a multi-rendition master playlist, plus seek, pause/resume and source cleanup |
-| Local owned test fixture | Not yet committed | Open item for P4.3 playback verification; avoid adding large copyrighted samples to Git | Choose a small redistributable sample and record container/codec/audio details before declaring support |
+| Existing catalog MP4 demo | https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-720p.mp4 | Playback and controls were user-accepted in Web and Windows Electron on 2026-10-13; exact codecs were not independently recorded; macOS remains untested | Retest source switching, seek/resume and error handling; do not infer support for every MP4 codec |
+| Redistributable MP4 smoke fixture | https://raw.githubusercontent.com/bower-media-samples/big-buck-bunny-480p-30s/master/video.mp4 | CC BY 3.0 sample; newly added to the P5.4 matrix, manual playback verification pending | Verify real playback in Web and Windows Electron; record actual codecs, seek/resume and failure behavior |
+| HLS playlist | `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8` | HLS playback/lifecycle and P5.3 Auto/manual quality switching user-accepted in Web and Windows Electron on 2026-10-13; exact codecs are not asserted | Regression check source switching, seek, pause/resume and cleanup; remote test stream availability/content may change |
 
-Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR or subtitle support without explicit tests on the actual Electron/macOS runtime. HLS playback has passed Web and Windows Electron acceptance; manual quality selection applies only to multi-rendition HLS streams handled by hls.js, not native HLS or single-file MP4 sources.
+Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR or subtitle support without explicit tests on the actual target runtime. HLS playback and P5.3 manual quality selection passed Web and Windows Electron acceptance; quality selection applies only to multi-rendition HLS streams handled by hls.js, not native HLS or single-file MP4 sources. The redistributable test fixture, codec-level matrix and error acceptance procedure are tracked in [`MEDIA_COMPATIBILITY.md`](./MEDIA_COMPATIBILITY.md).
 
 ## P4.1 development shell
 
