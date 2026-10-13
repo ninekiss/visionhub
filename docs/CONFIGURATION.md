@@ -36,8 +36,48 @@ Nested objects merge recursively. Arrays replace the prior array as a whole. Unk
 | `ADMIN_SESSION_SECRET` | `admin.sessionSecret` | At least 32 characters when admin authentication is configured |
 | `ADMIN_COOKIE_SECURE` | `admin.cookieSecure` | Strict `true`/`false`; use true behind HTTPS |
 | `DESKTOP_API_BASE_URL` | `desktop.apiBaseUrl` | Electron-only override; leaves Web/API settings untouched |
+| `PLAYBACK_SOURCES_CONFIG_PATH` | — | Selects provider URLs, exact HTTPS origin allowlists, player selectors and startup timeout; selected file must exist |
 
 The development launcher loads a workspace-local `.env` first and then the repository-root `.env`, without replacing values already set by the process/container.
+
+## External playback providers
+
+External source-site rules are kept separately in `configs/playback-sources.yaml`; this file is loaded by the API and the Electron main process. The committed file intentionally starts with an empty provider list, so no source site is assumed or opened until a real provider has been explicitly configured.
+
+Example only — replace the example domains and selectors with values verified for a source site you are authorized to use:
+
+```yaml
+playback:
+  providers:
+    - id: example-source
+      name: Example Source
+      urlTemplate: "https://player.example.test/watch/{contentId}"
+      # Optional official embed URL; without it, Web offers an external-open fallback.
+      webEmbedUrlTemplate: "https://embed.example.test/player/{contentId}"
+      # Every main-frame and sub-frame navigation must remain within this exact HTTPS origin allowlist.
+      allowedOrigins:
+        - https://player.example.test
+        - https://embed.example.test
+      # Local CSS selectors only; metadata must never contain executable scripts.
+      playerSelector: ".player-container"
+      readinessSelector: ".player-container video"
+      timeoutMs: 15000
+```
+
+Each catalog movie or episode may store a `playbackSources` JSON array alongside the optional legacy `videoUrl`. A source is either:
+
+```json
+[
+  { "id": "official", "label": "源站", "kind": "provider", "providerId": "example-source", "contentId": "12345" },
+  { "id": "direct", "label": "直连", "kind": "direct", "url": "https://media.example.test/video.mp4" }
+]
+```
+
+The provider ID must match a configured provider. URL templates may contain only `{contentId}`; the generated URL must be HTTPS and match an exact allowed origin. Selectors, URL templates and the allowlist remain local configuration and are not exposed to the Web client.
+
+The desktop client uses an isolated Electron `WebContentsView` without Node integration or a preload bridge. The normal Web client uses only a provider's explicitly configured official embed URL. The Web iframe's `load` event cannot prove that an internal cross-origin player is actually ready; provider-specific readiness introspection is available only to the isolated desktop view. When no approved embed is configured, Web offers a safe external-open link instead of injecting code into a cross-origin page.
+
+Set `PLAYBACK_SOURCES_CONFIG_PATH` to select a non-default file. When that variable is explicitly set, the selected file must exist. Provider selectors and allowed origins are security-sensitive configuration: only configure source sites you are authorized to embed or automate, and do not attempt to bypass DRM, account restrictions, paywalls or anti-embedding protections.
 
 ## Desktop configuration isolation
 
