@@ -31,7 +31,7 @@ Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR, subtitle or
 
 ## Security/release acceptance still outstanding
 
-- Packaged renderer HTML receives a restrictive CSP response header from the `visionhub://app` protocol handler. Unit tests cover script restrictions, resource classes, API-origin allowlisting, asset MIME types, deep-link refresh and path traversal rejection. Verify fonts/images/media and blocked script injection in an actual packaged Electron run; API-origin wiring is part of P4.3.
+- Packaged renderer HTML receives a restrictive CSP response header from the `visionhub://app` protocol handler. Unit tests cover script restrictions, resource classes, CSS/media/font MIME types, deep-link refresh, API proxy mapping and path traversal rejection. The renderer uses a same-origin API path; verify fonts/images/media and blocked script injection in an actual packaged Electron run.
 - Verify runtime API configuration and same-origin API proxy against a live API in Electron, including API unavailability and invalid-config behavior.
 - Test catalog/search/detail/playback and player lifecycle against a test API, including source failure and progress restore.
 - Configure reproducible ARM64 packaging, signatures, notarization/stapling verification, GitHub Release upload and a secret-only signing path on the self-hosted Mac runner.

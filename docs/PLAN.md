@@ -303,7 +303,7 @@ Deliver a small, secure desktop shell that reuses the existing React screens, sh
 - [x] Set the first packaged target to macOS Apple Silicon (`arm64`); defer Intel/universal and other operating systems until explicitly requested.
 - [x] Pin Electron 44.7.0, the official stable release verified on 2026-10-13; its embedded Node.js 24.21.0 matches the repository runtime baseline. Do not use a floating `latest`.
 - [x] Record the current public MP4 mock URL as a playback-test candidate and explicitly mark codec/container support unverified until tested on Electron/macOS ARM64; HLS remains a later adapter phase. See `docs/DESKTOP_MVP.md`.
-- [x] Define the endpoint contract: `configs/desktop.yaml` is loaded via `loadDesktopConfig()`, `DESKTOP_API_BASE_URL` overrides the endpoint, and `DESKTOP_CONFIG_PATH` selects a config file. Wiring the validated value into the renderer is P4.3.
+- [x] Define the desktop endpoint contract and load it via `loadDesktopConfig()` in the Electron main process. `DESKTOP_API_BASE_URL` overrides the endpoint; `DESKTOP_CONFIG_PATH` selects a config file. Packaged `/api/v1` requests are proxied through the configured endpoint and stay same-origin in the renderer.
 
 Deliverable: target OS, exact Electron version, initial media-test candidate/known limitations, and the validated desktop configuration contract are recorded in `docs/DESKTOP_MVP.md`.
 

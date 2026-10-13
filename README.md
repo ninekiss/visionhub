@@ -59,7 +59,7 @@ pnpm build
 
 `pnpm test` 会先运行共享配置包测试，再构建 API，最后运行不依赖真实数据库的 API 单元测试。CI 会执行同样的测试及完整生产构建。
 
-## Electron 桌面端开发壳（P4.1–P4.2）
+## Electron 桌面端开发壳（P4.1–P4.3）
 
 首个打包目标确定为 macOS Apple Silicon（ARM64）。已建立 Electron 主进程、受限 preload bridge 和复用现有 Web renderer 的开发壳；当前分支为打包版 renderer 引入受限的 `visionhub://app` 协议，并为 HTML 主文档设置 CSP 响应头。**这仍不是可发布的安装包**。主进程通过 `loadDesktopConfig()` 读取 API 地址，并将 `/api/v1` 请求代理到该地址，保持渲染器同源；macOS 签名/公证/自动发布属于 P4.5。
 

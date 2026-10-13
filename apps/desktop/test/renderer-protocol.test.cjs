@@ -43,7 +43,7 @@ test("packaged protocol serves HTML with CSP and static assets with explicit MIM
     const css = await handler({ url: "visionhub://app/assets/player.css", method: "GET" });
     assert.equal(css.status, 200);
     assert.match(css.headers.get("content-type"), /text\/css/);
-    assert.match(await css.text(), /\\.plyr/);
+    assert.ok((await css.text()).includes(".plyr"));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
