@@ -150,3 +150,29 @@ test("loads an independent desktop API endpoint and allows an environment overri
     await rm(configDir, { recursive: true, force: true });
   }
 });
+
+test("rejects desktop API endpoints containing credentials, query strings, fragments, or unsupported schemes", async () => {
+  const configDir = await createConfigDirectory({
+    "desktop.yaml": "desktop:\\n  apiBaseUrl: http://127.0.0.1:3001/api/v1\\n",
+  });
+  try {
+    for (const apiBaseUrl of [
+      "https://user:secret@api.example.test/api/v1",
+      "https://api.example.test/api/v1?token=secret",
+      "https://api.example.test/api/v1#fragment",
+      "file:///tmp/api",
+      "javascript:alert(1)",
+    ]) {
+      await assert.rejects(
+        loadDesktopConfig({
+          cwd: configDir,
+          configDir,
+          env: { DESKTOP_API_BASE_URL: apiBaseUrl },
+        }),
+        /must be an HTTP\\(S\\) API base URL without credentials, query, or hash/,
+      );
+    }
+  } finally {
+    await rm(configDir, { recursive: true, force: true });
+  }
+});

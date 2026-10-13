@@ -84,9 +84,19 @@ export const appConfigSchema = z.object({
 export const desktopConfigSchema = z.object({
   desktop: z.object({
     apiBaseUrl: z.string().trim().url().refine((value) => {
-      const protocol = new URL(value).protocol;
-      return protocol === "http:" || protocol === "https:";
-    }, { message: "must be an HTTP(S) API base URL" }),
+      try {
+        const url = new URL(value);
+        return (
+          (url.protocol === "http:" || url.protocol === "https:") &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash
+        );
+      } catch {
+        return false;
+      }
+    }, { message: "must be an HTTP(S) API base URL without credentials, query, or hash" }),
   }).strict(),
 }).strict();
 

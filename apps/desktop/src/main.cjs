@@ -40,9 +40,36 @@ function isTrustedAppUrl(url) {
   });
 }
 
-function installPackagedRendererProtocol() {
+async function loadDesktopApiBaseUrl() {
+  const workspaceRoot = path.resolve(__dirname, "../../..");
+  const { loadDesktopConfig, loadEnvironmentFiles } = await import("@visionhub/config");
+
+  if (app.isPackaged) {
+    if (!process.env.DESKTOP_CONFIG_PATH) {
+      process.env.DESKTOP_CONFIG_PATH = path.join(process.resourcesPath, "configs", "desktop.yaml");
+    }
+  } else {
+    loadEnvironmentFiles({
+      cwd: workspaceRoot,
+      envPaths: [path.join(workspaceRoot, ".env")],
+    });
+  }
+
+  const configRoot = app.isPackaged ? process.resourcesPath : workspaceRoot;
+  const configDirectory = process.env.APP_CONFIG_DIR && process.env.APP_CONFIG_DIR.trim()
+    ? path.resolve(configRoot, process.env.APP_CONFIG_DIR)
+    : path.join(configRoot, "configs");
+  const config = await loadDesktopConfig({
+    cwd: configRoot,
+    configDir: configDirectory,
+  });
+  return config.desktop.apiBaseUrl;
+}
+
+function installPackagedRendererProtocol(apiBaseUrl) {
   protocol.handle("visionhub", createPackagedRendererHandler({
     rendererRoot: path.dirname(rendererPath),
+    apiBaseUrl,
   }));
 }
 
@@ -101,8 +128,24 @@ function createWindow() {
   return window;
 }
 
-app.whenReady().then(() => {
-  if (!developmentUrl) installPackagedRendererProtocol();
+app.whenReady().then(async () => {
+  if (!developmentUrl) {
+    let apiBaseUrl;
+    try {
+      apiBaseUrl = await loadDesktopApiBaseUrl();
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : "Check configs/desktop.yaml or set DESKTOP_API_BASE_URL.";
+      dialog.showErrorBox(
+        "VisionHub desktop API configuration is invalid",
+        message + "\n\nThe desktop app will not silently use a fallback API endpoint.",
+      );
+      app.quit();
+      return;
+    }
+    installPackagedRendererProtocol(apiBaseUrl);
+  }
 
   ipcMain.handle("desktop:get-app-info", (event) => {
     const senderUrl = event.senderFrame && event.senderFrame.url;

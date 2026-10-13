@@ -216,6 +216,10 @@ importers:
         version: 7.0.2
 
   apps/desktop:
+    dependencies:
+      '@visionhub/config':
+        specifier: workspace:*
+        version: link:../../packages/config
     devDependencies:
       electron:
         specifier: 44.7.0

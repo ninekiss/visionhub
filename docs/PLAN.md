@@ -292,7 +292,7 @@ Exit criteria:
 
 ### Phase 4 — Electron desktop MVP
 
-Status: P4.0 decisions and the P4.1 development shell scaffold are merged into `main` via [PR #31](https://github.com/ninekiss/visionhub/pull/31). P4.2 CSP header implementation and unit tests are in progress on `phase-4/p42-packaged-csp`; packaged-app runtime verification remains outstanding. The first release target is macOS Apple Silicon (`arm64`), and Web remains independently buildable and deployable.
+Status: P4.0 decisions and P4.1 are merged via [PR #31](https://github.com/ninekiss/visionhub/pull/31). PR #32 now includes P4.2 secure renderer protocol/CSP plus P4.3 API configuration loading and same-origin API proxy. Actual macOS packaged-app verification and release packaging remain outstanding.
 
 #### Product goal
 
@@ -325,7 +325,7 @@ Deliverable: the development Electron window opens the existing Web renderer on 
 - [x] Expose only a narrow, typed `getAppInfo()` method through preload; never expose raw `ipcRenderer`, arbitrary Node APIs, filesystem access or unrestricted shell execution.
 - [x] Validate the sender URL for the single IPC handler; the handler accepts no renderer payload arguments.
 - [x] Block unexpected navigation and all new windows; only validated HTTPS URLs may be handed to the operating system.
-- [x] Serve packaged renderer assets through a secure, standard `visionhub://app` protocol; attach CSP to HTML responses and reject traversal/unknown-host requests. Unit tests cover the policy, API-origin allowlisting, MIME types, deep-link refresh and traversal guards.
+- [x] Serve packaged renderer assets through `visionhub://app`; attach CSP to HTML, reject traversal/unknown hosts, and verify resource MIME types and that the built Plyr/player CSS asset exists.
 - [ ] Verify the CSP behavior in an actual packaged Electron build on macOS ARM64 before marking P4.2 complete.
 - [x] Keep secrets out of renderer bundles and source; API endpoint configuration remains separate from credentials.
 
@@ -334,7 +334,7 @@ Deliverable: a documented threat-boundary review and automated or repeatable che
 #### P4.3 — Reuse the core media workflow
 
 - [ ] Reuse the existing catalog, search/filter, detail, login/admin route behavior and shared UI wherever applicable; do not duplicate domain logic or API contracts.
-- [ ] Load the desktop API base URL from validated `configs/desktop.yaml` or an explicitly documented override. Fail with an actionable message if configuration is invalid; do not silently point at production.
+- [x] Load the validated desktop API endpoint via `loadDesktopConfig()` (`configs/desktop.yaml`), with `DESKTOP_API_BASE_URL` and `DESKTOP_CONFIG_PATH` overrides; fail with a clear error rather than silently choosing a fallback.
 - [ ] Verify catalog browsing, search/filter, details, login where configured, and the playback page against a running test API.
 - [ ] Verify Plyr playback for the formats actually supported by the target Electron runtime; include loading, buffering, source errors, seek, episode switching and progress restore in the test pass.
 - [ ] Keep browser-only behavior functional and buildable. Put platform-specific operations behind a small adapter instead of branching shared components throughout the UI.
@@ -444,8 +444,8 @@ Every phase should meet these gates before merge:
 ## 10. Immediate next actions
 
 1. **P4.0 decisions are recorded.** macOS ARM64 is the first package target; Electron is pinned to 44.7.0; the endpoint configuration contract and MP4 test candidate/limitations are documented.
-2. **Finish P4.2 verification.** Validate the packaged-renderer CSP in an actual Electron build, including fonts, remote posters, video playback, and blocked script injection; keep the CSP off the Vite dev server so HMR remains functional.
-3. **Implement P4.3 API/config integration.** Load validated `configs/desktop.yaml` (or `DESKTOP_API_BASE_URL`) in the desktop runtime, add the configured API origin to the generated CSP, and pass only the needed endpoint through the typed bridge; verify catalog/search/detail/playback against a test API.
+2. **Finish packaged-app verification.** Test actual Electron launch on macOS ARM64, including CSP, fonts, remote posters, playback and blocked script injection.
+3. **Complete P4.3 workflow acceptance.** Validate catalog/search/detail/playback against a live test API through the same-origin protocol proxy; keep Web's browser/Vite API routing unchanged.
 4. **Keep P4.5 release work scoped to macOS ARM64.** Use the self-hosted Apple Silicon runner for Developer ID signing, notarization/stapling, DMG/ZIP artifacts and GitHub Release publishing. Keep secrets in GitHub Actions secrets and do not bundle database/API services.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
