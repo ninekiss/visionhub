@@ -6,6 +6,7 @@ packages:
 allowBuilds:
   '@prisma/engines': true
   esbuild: true
+  electron: true
   plyr: false
   prisma: true
   workerd: false
