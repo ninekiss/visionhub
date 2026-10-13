@@ -11,6 +11,7 @@ type ExternalPlayerBounds = {
 type ExternalPlayerStatusPayload = {
   status: "loading" | "ready" | "error";
   providerId: string;
+  requestId: string;
   code?: string;
 };
 
@@ -26,13 +27,15 @@ declare global {
       openExternalPlayer(request: {
         providerId: string;
         contentId: string;
+        requestId: string;
         bounds: ExternalPlayerBounds;
       }): Promise<boolean>;
       resizeExternalPlayer(request: {
         providerId: string;
+        requestId: string;
         bounds: ExternalPlayerBounds;
       }): Promise<boolean>;
-      closeExternalPlayer(): Promise<boolean>;
+      closeExternalPlayer(request: { requestId: string }): Promise<boolean>;
       onExternalPlayerStatus(listener: (payload: ExternalPlayerStatusPayload) => void): () => void;
     };
   }
