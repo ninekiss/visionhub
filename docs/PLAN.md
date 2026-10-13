@@ -292,7 +292,7 @@ Exit criteria:
 
 ### Phase 4 — Electron desktop MVP
 
-Status: P4.0 decisions and P4.1 are merged via [PR #31](https://github.com/ninekiss/visionhub/pull/31). P4.2 secure renderer protocol/CSP and the P4.3 API configuration/same-origin proxy foundation are merged via [PR #32](https://github.com/ninekiss/visionhub/pull/32); the user confirmed the player controls now work. End-to-end P4.3 acceptance and actual packaged macOS security verification remain open. P4.5 release packaging is deliberately deferred until explicitly reactivated.
+Status: P4.0–P4.3 foundations are merged via [PR #31](https://github.com/ninekiss/visionhub/pull/31) and [PR #32](https://github.com/ninekiss/visionhub/pull/32); end-to-end P4.3 acceptance and actual packaged macOS security verification remain open. P4.4 native window behavior is being implemented on `phase-4/p44-native-window-behavior`. P4.5 release packaging is deliberately deferred until explicitly reactivated.
 
 #### Product goal
 
@@ -343,11 +343,11 @@ Deliverable: the core browse → detail → play workflow works in a desktop bui
 
 #### P4.4 — Add desktop-native behavior selectively
 
-- [ ] Add a minimal application menu and standard window controls; preserve expected operating-system shortcuts.
-- [ ] Persist window size/position and maximized state safely, validating restored bounds before applying them.
-- [ ] Define close/minimize behavior explicitly. Do not add tray residency, auto-start, global shortcuts or background services without a concrete requirement.
-- [ ] Ensure keyboard navigation, focus behavior, zoom and small-window layouts remain usable in the desktop window.
-- [ ] Keep settings limited to the first-release needs, starting with API endpoint and basic window behavior if required.
+- [x] Add a minimal platform-aware application menu with native close/minimize/quit roles and view zoom/reset/fullscreen actions; retain standard operating-system shortcuts.
+- [x] Persist window size/position and maximized state in the OS user-data directory using atomic writes; validate saved bounds and clamp them to a connected display work area.
+- [x] Keep close/minimize behavior OS-native: minimizing does not quit the app, closing the final window follows the existing platform lifecycle, and macOS can reopen a window through Activate. Do not add tray residency, auto-start, global shortcuts or background services without a concrete requirement.
+- [ ] Verify keyboard navigation, focus behavior, zoom and narrow-window layout in an interactive desktop run.
+- [x] Keep settings limited to the existing desktop API configuration and basic window behavior; do not introduce a second configuration UI without a concrete requirement.
 
 Deliverable: predictable desktop window lifecycle and basic native integration, with no unrelated background features.
 
@@ -448,8 +448,8 @@ Every phase should meet these gates before merge:
 ## 10. Immediate next actions
 
 1. **P4.0 decisions are recorded.** macOS ARM64 is the first package target; Electron is pinned to 44.7.0; the endpoint configuration contract and MP4 test candidate/limitations are documented.
-2. **Finish packaged-app verification.** Test actual Electron launch on macOS ARM64, including CSP, fonts, remote posters, playback and blocked script injection.
-3. **Complete P4.3 workflow acceptance.** Validate catalog/search/detail/playback against a live test API through the same-origin protocol proxy; keep Web's browser/Vite API routing unchanged.
+2. **Complete P4.3 workflow acceptance.** Validate catalog/search/detail/playback, the API proxy, and supported playback behavior against a live test API in the target Electron runtime.
+3. **Finish interactive P4.4 acceptance.** Check menu shortcuts, zoom/focus behavior, restored window state and narrow-window usability on the desktop target.
 4. **P4.5 is intentionally deferred.** Do not start macOS ARM64 packaging, signing, notarization or GitHub Release automation until the user explicitly reactivates this phase. On reactivation, revalidate the toolchain and runner before following the recorded release plan.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.

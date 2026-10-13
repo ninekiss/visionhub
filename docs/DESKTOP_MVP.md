@@ -30,6 +30,12 @@ Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR, subtitle or
 - apps/desktop/src/security.cjs centralizes secure renderer preferences, loopback development URL validation, exact packaged-file validation and HTTPS-only external links.
 - The desktop build generates a separate renderer at `apps/desktop/renderer-dist` with app-root asset paths, leaving the browser Web build unchanged. Packaged content is served only through the secure `visionhub://app` protocol; path traversal and unknown hosts are rejected, and HTML responses carry the CSP. The protocol is used because Electron does not apply `webRequest` response-header CSP injection to `file://` documents. API runtime configuration now comes from `loadDesktopConfig()` with the documented environment overrides. When P4.5 is reactivated, it must copy `configs/desktop.yaml` to `resources/configs/desktop.yaml` and finish installer/signing workflows. Do not treat the current shell as a production release.
 
+## P4.4 native window behavior
+
+The P4.4 foundation adds a platform-aware native application menu, OS-native close/minimize/quit roles, reload and view-zoom/reset/fullscreen actions, and persistence of window bounds/maximized state in the OS user-data directory. Persisted bounds are normalized against current display work areas to avoid restoring a window outside the visible desktop. The state file is written atomically; malformed or missing state falls back to first-launch defaults.
+
+The interactive desktop acceptance remains open: verify menu accelerators, keyboard focus, zoom, restored geometry after reconnecting/disconnecting a display, and narrow-window layout on the target Mac. P4.5 installer packaging/signing/notarization remains deferred and must not be started until reactivated.
+
 ## Security/release acceptance still outstanding
 
 - Packaged renderer HTML receives a restrictive CSP response header from the `visionhub://app` protocol handler. Unit tests cover script restrictions, resource classes, CSS/media/font MIME types, deep-link refresh, API proxy mapping and path traversal rejection. The renderer uses a same-origin API path; verify fonts/images/media and blocked script injection in an actual packaged Electron run.
