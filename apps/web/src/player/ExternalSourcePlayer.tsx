@@ -186,6 +186,8 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
       ref: webviewRef as never,
       className: 'external-source-frame external-source-webview',
       src: desktopTarget.url,
+      // The guest player may need fullscreen permission; boolean HTML attributes are enabled by presence.
+      allowfullscreen: '',
       partition: `persist:visionhub-source-${source.providerId}`,
       // Omit `allowpopups`: Electron webviews allow popups only when this attribute is present.
       title: title + ' - ' + (provider?.name ?? '源站'),
