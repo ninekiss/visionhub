@@ -25,7 +25,7 @@ export function getPlaybackErrorMessage(mediaError, fallbackMessage = DEFAULT_PL
   }
 }
 
-export function bindPlaybackEvents(video, callbacks = {})
+export function bindPlaybackEvents(video, callbacks = {}) {
   const getInitialTime = typeof callbacks.getInitialTime === "function"
     ? callbacks.getInitialTime
     : () => 0;
