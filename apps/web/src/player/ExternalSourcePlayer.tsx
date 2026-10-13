@@ -47,7 +47,9 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   const [retryNonce, setRetryNonce] = useState(0);
   const [desktopTarget, setDesktopTarget] = useState<DesktopTarget | null>(null);
   const webviewRef = useRef<HTMLElement | null>(null);
+  const playerRegionRef = useRef<HTMLDivElement | null>(null);
   const frameTimeoutRef = useRef<number | undefined>(undefined);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const requestId = useMemo(
     () => createExternalPlayerRequestId(retryNonce),
     [source.providerId, source.contentId, retryNonce],
@@ -60,6 +62,16 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     () => resolveTemplate(provider?.webOpenUrlTemplate, source.contentId),
     [provider?.webOpenUrlTemplate, source.contentId],
   );
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const region = playerRegionRef.current;
+      const active = document.fullscreenElement;
+      setIsFullscreen(Boolean(region && active && (active === region || region.contains(active))));
+    };
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+  }, []);
 
   useEffect(() => {
     setStatus('loading');
@@ -176,8 +188,35 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     } as never)
     : null;
 
+  const toggleFullscreen = async () => {
+    const region = playerRegionRef.current;
+    if (!region) return;
+    try {
+      const active = document.fullscreenElement;
+      if (active && (active === region || region.contains(active))) {
+        await document.exitFullscreen();
+      } else {
+        await region.requestFullscreen();
+      }
+    } catch (cause) {
+      console.warn('Unable to toggle external-player fullscreen:', cause);
+    }
+  };
+
+  const desktopUnavailable = !desktop && !embedUrl && Boolean(openUrl);
+  const browserEmbedFallbackNote = !desktop && embedUrl && status === 'ready'
+    ? '如果视频区域为空，源站可能禁止跨站嵌入。'
+    : desktopUnavailable
+      ? '此源站未提供可供网页内嵌的播放器地址。'
+      : '';
+
   return (
-    <div className="external-source-player" aria-label={'外部源站播放器：' + title}>
+    <div className="external-source-player-layout">
+      <div
+        ref={playerRegionRef}
+        className="external-source-player"
+        aria-label={'外部源站播放器：' + title}
+      >
       {desktopWebview}
       {embedUrl && !desktop && (
         <iframe
@@ -186,6 +225,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
           title={title + ' - ' + (provider?.name ?? '源站')}
           sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
           allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
           onLoad={() => {
             if (frameTimeoutRef.current !== undefined) {
@@ -209,18 +249,29 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
           <strong>暂时无法播放这个源站</strong>
           <small>{errorMessage || '请稍后重试，或选择其他播放源。'}</small>
           <div className="external-source-actions">
-            {openUrl && (
-              <a href={openUrl} target="_blank" rel="noopener noreferrer">在新标签页打开源站</a>
-            )}
             <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>重试</button>
           </div>
         </div>
       )}
-      {status === 'ready' && openUrl && (
-        <a className="external-source-open-link" href={openUrl} target="_blank" rel="noopener noreferrer">
-          源站无法显示？在新标签页打开
-        </a>
-      )}
+      </div>
+      <div className="external-source-footer">
+        <span className="external-source-footer-note">{browserEmbedFallbackNote}</span>
+        <div className="external-source-footer-actions">
+          <button
+            type="button"
+            className="external-source-fullscreen-button"
+            onClick={() => void toggleFullscreen()}
+            aria-label={isFullscreen ? '退出播放器全屏' : '播放器全屏'}
+          >
+            {isFullscreen ? '退出全屏' : '全屏'}
+          </button>
+          {openUrl && (
+            <a className="external-source-open-link" href={openUrl} target="_blank" rel="noopener noreferrer">
+              源站无法显示？在新标签页打开
+            </a>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
