@@ -59,9 +59,9 @@ pnpm build
 
 `pnpm test` 会先运行共享配置包测试，再构建 API，最后运行不依赖真实数据库的 API 单元测试。CI 会执行同样的测试及完整生产构建。
 
-## Electron 桌面端开发壳（P4.1）
+## Electron 桌面端开发壳（P4.1–P4.2）
 
-首个打包目标确定为 macOS Apple Silicon（ARM64）。当前阶段建立 Electron 主进程、受限 preload bridge 和复用现有 Web renderer 的开发壳；**这不是可发布的安装包**。桌面端的配置注入、生产 API 地址以及 macOS 签名/公证/自动发布会在后续 P4.3/P4.5 完成。
+首个打包目标确定为 macOS Apple Silicon（ARM64）。已建立 Electron 主进程、受限 preload bridge 和复用现有 Web renderer 的开发壳；当前分支正在为打包版主文档加上 CSP 响应头与测试。**这仍不是可发布的安装包**。运行时 API 地址接入属于 P4.3；macOS 签名/公证/自动发布属于 P4.5。
 
 在一个终端启动开发 API（需要现有 PostgreSQL 可访问）：
 

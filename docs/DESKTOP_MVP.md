@@ -1,6 +1,6 @@
 # VisionHub Desktop MVP — P4 decisions
 
-> Status: P4.0 scope decisions recorded; P4.1 development shell scaffold is in review. This is not a release-ready desktop build.
+> Status: P4.0 decisions and the P4.1 shell scaffold are merged into `main` via PR #31. P4.2 adds a packaged-renderer CSP response header and unit tests; actual packaged Electron verification is still required. This is not a release-ready desktop build.
 
 ## Scope decisions (2026-10-13)
 
@@ -31,7 +31,7 @@ Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR, subtitle or
 
 ## Security/release acceptance still outstanding
 
-- Add a restrictive packaged-renderer Content Security Policy and verify current external fonts/images/media/API needs against it.
+- A restrictive CSP response header is installed for the packaged renderer's main-frame response only. Unit tests cover script restrictions, resource classes, API-origin allowlisting and replacement of existing CSP headers. Verify fonts/images/media and blocked script injection in an actual packaged Electron run; API-origin wiring is part of P4.3.
 - Wire loadDesktopConfig() into the desktop runtime and bridge only the validated endpoint needed by Web.
 - Test catalog/search/detail/playback and player lifecycle against a test API, including source failure and progress restore.
 - Configure reproducible ARM64 packaging, signatures, notarization/stapling verification, GitHub Release upload and a secret-only signing path on the self-hosted Mac runner.

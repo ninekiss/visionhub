@@ -1,6 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  applyContentSecurityPolicy,
+  createPackagedRendererCsp,
   createWebPreferences,
   getSafeExternalUrl,
   isTrustedRendererUrl,
@@ -43,5 +45,43 @@ test("BrowserWindow renderer defaults preserve the sandbox boundary", () => {
     sandbox: true,
     webSecurity: true,
     webviewTag: false,
+  });
+});
+
+test("packaged renderer CSP restricts executable content and allows required resource types", () => {
+  const policy = createPackagedRendererCsp();
+  assert.ok(policy.includes("default-src 'self'"));
+  assert.ok(policy.includes("script-src 'self'"));
+  assert.ok(policy.includes("object-src 'none'"));
+  assert.ok(policy.includes("frame-ancestors 'none'"));
+  assert.ok(policy.includes("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com"));
+  assert.ok(policy.includes("font-src 'self' data: https://fonts.gstatic.com"));
+  assert.ok(policy.includes("img-src 'self' data: https:"));
+  assert.ok(policy.includes("media-src 'self' blob: https:"));
+  assert.ok(policy.includes("connect-src 'self'"));
+  assert.ok(!policy.includes("unsafe-eval"));
+  assert.ok(!policy.includes("script-src *"));
+});
+
+test("packaged renderer CSP can allow only the configured HTTP(S) API origin", () => {
+  assert.ok(createPackagedRendererCsp("https://api.example.test/api/v1")
+    .includes("connect-src 'self' https://api.example.test"));
+  assert.ok(createPackagedRendererCsp("http://127.0.0.1:3001/api/v1")
+    .includes("connect-src 'self' http://127.0.0.1:3001"));
+  assert.ok(!createPackagedRendererCsp("javascript:alert(1)").includes("alert"));
+  assert.ok(!createPackagedRendererCsp("https://user:pass@example.test").includes("example.test"));
+});
+
+test("CSP response header replaces existing CSP without dropping unrelated headers", () => {
+  const headers = applyContentSecurityPolicy({
+    "content-security-policy": ["default-src *"],
+    "Cache-Control": ["no-store"],
+    "X-Content-Type-Options": ["nosniff"],
+  }, "default-src 'self'; object-src 'none'");
+
+  assert.deepEqual(headers, {
+    "Cache-Control": ["no-store"],
+    "X-Content-Type-Options": ["nosniff"],
+    "Content-Security-Policy": ["default-src 'self'; object-src 'none'"],
   });
 });

@@ -1,8 +1,10 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require("electron");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const {
+  applyContentSecurityPolicy,
+  createPackagedRendererCsp,
   createWebPreferences,
   getSafeExternalUrl,
   isTrustedRendererUrl,
@@ -25,6 +27,21 @@ function isTrustedAppUrl(url) {
   return isTrustedRendererUrl(url, {
     developmentUrl,
     packagedUrl: packagedRendererUrl,
+  });
+}
+
+function installPackagedContentSecurityPolicy() {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.resourceType === "mainFrame" && isTrustedAppUrl(details.url)) {
+      callback({
+        responseHeaders: applyContentSecurityPolicy(
+          details.responseHeaders,
+          createPackagedRendererCsp(),
+        ),
+      });
+      return;
+    }
+    callback({ responseHeaders: details.responseHeaders });
   });
 }
 
@@ -84,6 +101,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!developmentUrl) installPackagedContentSecurityPolicy();
+
   ipcMain.handle("desktop:get-app-info", (event) => {
     const senderUrl = event.senderFrame && event.senderFrame.url;
     if (!senderUrl || !isTrustedAppUrl(senderUrl)) {
