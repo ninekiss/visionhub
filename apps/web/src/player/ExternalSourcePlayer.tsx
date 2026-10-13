@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import type { PlaybackProvider, PlaybackSource } from '@visionhub/contracts';
 
 type ProviderSource = Extract<PlaybackSource, { kind: 'provider' }>;
 type Status = 'loading' | 'ready' | 'error';
+type DesktopTarget = { requestId: string; url: string };
+type ExternalWebviewElement = HTMLElement & {
+  openDevTools?: () => void;
+};
 
 type Props = {
   source: ProviderSource;
@@ -23,27 +27,12 @@ function resolveTemplate(template: string | undefined, contentId: string): strin
   }
 }
 
-function getVisibleBounds(element: HTMLDivElement) {
-  const rect = element.getBoundingClientRect();
-  const left = Math.max(0, rect.left);
-  const top = Math.max(0, rect.top);
-  const right = Math.min(window.innerWidth, rect.right);
-  const bottom = Math.min(window.innerHeight, rect.bottom);
-  const visible = right > left && bottom > top;
-  return {
-    x: visible ? left : 0,
-    y: visible ? top : 0,
-    width: visible ? right - left : 1,
-    height: visible ? bottom - top : 1,
-    visible,
-  };
-}
-
 export default function ExternalSourcePlayer({ source, provider, title }: Props) {
-  const rootRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [retryNonce, setRetryNonce] = useState(0);
+  const [desktopTarget, setDesktopTarget] = useState<DesktopTarget | null>(null);
+  const webviewRef = useRef<HTMLElement | null>(null);
   const frameTimeoutRef = useRef<number | undefined>(undefined);
   const requestId = useMemo(() => {
     const random = window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
@@ -58,14 +47,10 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     [provider?.webOpenUrlTemplate, source.contentId],
   );
 
-  const getBounds = useCallback(() => {
-    const root = rootRef.current;
-    return root ? getVisibleBounds(root) : { x: 0, y: 0, width: 1, height: 1, visible: false };
-  }, []);
-
   useEffect(() => {
     setStatus('loading');
     setErrorMessage('');
+    setDesktopTarget(null);
 
     if (!provider) {
       setStatus('error');
@@ -96,22 +81,12 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
         }
       });
 
-      const resize = () => {
-        void desktop.resizeExternalPlayer({ providerId: source.providerId, requestId, bounds: getBounds() }).catch(() => {
-          // A source may have been closed while a queued resize was in flight.
-        });
-      };
-      const element = rootRef.current;
-      const observer = element ? new ResizeObserver(resize) : null;
-      if (element && observer) observer.observe(element);
-      window.addEventListener('resize', resize);
-      window.addEventListener('scroll', resize, true);
-
       void desktop.openExternalPlayer({
         providerId: source.providerId,
         contentId: source.contentId,
         requestId,
-        bounds: getBounds(),
+      }).then(({ url }) => {
+        if (!cancelled) setDesktopTarget({ requestId, url });
       }).catch((cause: unknown) => {
         if (cancelled) return;
         setStatus('error');
@@ -121,9 +96,6 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
       return () => {
         cancelled = true;
         unsubscribe();
-        observer?.disconnect();
-        window.removeEventListener('resize', resize);
-        window.removeEventListener('scroll', resize, true);
         void desktop.closeExternalPlayer({ requestId }).catch(() => {});
       };
     }
@@ -147,11 +119,53 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
         frameTimeoutRef.current = undefined;
       }
     };
-  }, [provider, source.providerId, source.contentId, embedUrl, getBounds, requestId, retryNonce]);
+  }, [provider, source.providerId, source.contentId, embedUrl, requestId]);
+
+  useEffect(() => {
+    if (!window.visionHubDesktop || desktopTarget?.requestId !== requestId) return;
+    const element = webviewRef.current as ExternalWebviewElement | null;
+    if (!element) return;
+
+    const onDomReady = () => {
+      if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_EXTERNAL_WEBVIEW === '1') {
+        element.openDevTools?.();
+      }
+    };
+    const onConsoleMessage = (event: Event) => {
+      const details = event as Event & { level?: number; message?: string; line?: number; sourceId?: string };
+      console.debug('[VisionHub source webview]', {
+        level: details.level,
+        message: details.message,
+        line: details.line,
+        sourceId: details.sourceId,
+      });
+    };
+    element.addEventListener('dom-ready', onDomReady, { once: true });
+    if (import.meta.env.DEV) element.addEventListener('console-message', onConsoleMessage);
+    return () => {
+      element.removeEventListener('dom-ready', onDomReady);
+      element.removeEventListener('console-message', onConsoleMessage);
+    };
+  }, [desktopTarget, requestId]);
+
+  const desktop = window.visionHubDesktop;
+  const desktopWebview = desktop && desktopTarget?.requestId === requestId
+    ? createElement('webview', {
+      key: requestId,
+      ref: webviewRef as never,
+      className: 'external-source-frame external-source-webview',
+      src: desktopTarget.url,
+      partition: `persist:visionhub-source-${source.providerId}`,
+      allowpopups: false,
+      title: title + ' - ' + (provider?.name ?? '源站'),
+      'aria-label': '外部源站播放器：' + title,
+    } as never)
+    : null;
 
   return (
-    <div className="external-source-player" ref={rootRef} aria-label={'外部源站播放器：' + title}>
-      {embedUrl && !window.visionHubDesktop && (
+    <div className="external-source-player" aria-label={'外部源站播放器：' + title}>
+      {desktopWebview}
+      {embedUrl && !desktop && (
         <iframe
           className="external-source-frame"
           src={embedUrl}
