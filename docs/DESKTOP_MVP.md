@@ -1,6 +1,6 @@
 # VisionHub Desktop MVP — P4 decisions
 
-> Status (2026-10-13): P4.1–P4.3 foundations are merged via PRs #31/#32, and the user confirmed the Plyr controls are restored in their Electron runtime. Full packaged macOS ARM64 security/acceptance testing remains outstanding. P4.5 (release packaging, signing, notarization, and GitHub Release automation) is intentionally deferred until explicitly reactivated. This is not a release-ready desktop build.
+> Status (2026-10-13): P4.1–P4.3 foundations are merged via PRs #31/#32. The user verified the live-API/core playback workflow and P4.4 interactive behavior in the Windows Electron runtime on 2026-10-13. macOS-specific native behavior and packaged macOS ARM64 security/acceptance testing remain outstanding. P4.5 (release packaging, signing, notarization, and GitHub Release automation) is intentionally deferred until explicitly reactivated. This is not a release-ready desktop build.
 
 ## Scope decisions (2026-10-13)
 
@@ -34,7 +34,7 @@ Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR, subtitle or
 
 The P4.4 foundation adds a platform-aware native application menu, OS-native close/minimize/quit roles, reload and view-zoom/reset/fullscreen actions, and persistence of window bounds/maximized state in the OS user-data directory. Persisted bounds are normalized against current display work areas to avoid restoring a window outside the visible desktop. The state file is written atomically; malformed or missing state falls back to first-launch defaults.
 
-The interactive desktop acceptance remains open: verify menu accelerators, keyboard focus, zoom, restored geometry after reconnecting/disconnecting a display, and narrow-window layout on the target Mac. P4.5 installer packaging/signing/notarization remains deferred and must not be started until reactivated.
+Windows interactive acceptance passed on 2026-10-13 (menu actions/shortcuts, zoom, window-state restoration, narrow-window layout, live API/proxy, renderer resources and Plyr controls). macOS-specific acceptance remains deferred until a Mac is available: verify the macOS application menu, close-last-window/Activate lifecycle, multi-display restoration, and packaged CSP/API behavior. P4.5 installer packaging/signing/notarization remains deferred and must not be started until reactivated.
 
 ## Security/release acceptance still outstanding
 
