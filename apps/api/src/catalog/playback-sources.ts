@@ -10,7 +10,7 @@ function isRecord(value: unknown): value is UnknownRecord {
 function text(value: unknown, field: string, maximum: number): string {
   if (typeof value !== "string") throw new BadRequestException(`${field} 必须是文本。`);
   const result = value.trim();
-  if (!result || result.length > maximum || /[\\u0000-\\u001f\\u007f]/.test(result)) {
+  if (!result || result.length > maximum || /[\u0000-\u001f\u007f]/.test(result)) {
     throw new BadRequestException(`${field} 不能为空且不能超过 ${maximum} 个字符。`);
   }
   return result;
