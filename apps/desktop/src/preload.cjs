@@ -12,6 +12,6 @@ contextBridge.exposeInMainWorld("visionHubDesktop", Object.freeze({
   getAppInfo: () => ipcRenderer.invoke("desktop:get-app-info"),
   openExternalPlayer: (request) => ipcRenderer.invoke("external-player:open", request),
   resizeExternalPlayer: (request) => ipcRenderer.invoke("external-player:resize", request),
-  closeExternalPlayer: () => ipcRenderer.invoke("external-player:close"),
+  closeExternalPlayer: (request) => ipcRenderer.invoke("external-player:close", request),
   onExternalPlayerStatus: (listener) => subscribeExternalPlayerStatus(listener),
 }));
