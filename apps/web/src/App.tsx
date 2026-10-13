@@ -681,6 +681,11 @@ function WatchView({
   route, item, episodes, loading, error, navigate, playbackState, playbackProviders, watchHistory,
   onPlaybackStateChange, onProgress,
 }: WatchViewProps) {
+  const [selectedSourceId, setSelectedSourceId] = useState('');
+  useEffect(() => {
+    setSelectedSourceId('');
+  }, [route.id, route.episodeId]);
+
   if (loading) return <main className="page-state"><div role="status" aria-live="polite"><div className="section-kicker">PLAYER</div><h1>正在准备播放器…</h1></div></main>;
   if (!item) {
     return <main className="page-state"><div role="alert"><h1>无法打开播放页面</h1><p>{error || '请稍后重试。'}</p></div><Button kind="primary" onClick={() => navigate('/')}>返回片库</Button></main>;
@@ -709,10 +714,6 @@ function WatchView({
       progress.item.id === item.id &&
       (progress.episodeId ?? '') === (selectedEpisode?.id ?? ''),
   );
-  const [selectedSourceId, setSelectedSourceId] = useState('');
-  useEffect(() => {
-    setSelectedSourceId(playbackSources[0]?.id ?? '');
-  }, [item.id, selectedEpisode?.id, route.episodeId]);
   const selectedSource = playbackSources.find((entry) => entry.id === selectedSourceId) ?? playbackSources[0];
 
   return (
