@@ -5,14 +5,16 @@
   "packageManager": "pnpm@12.11.2",
   "scripts": {
     "dev": "pnpm --parallel --filter @visionhub/api --filter @visionhub/web dev",
-    "build": "pnpm --filter @visionhub/api build && pnpm --filter @visionhub/web build",
+    "build": "pnpm --filter @visionhub/api build && pnpm --filter @visionhub/web build && pnpm --filter @visionhub/desktop build",
     "lint": "pnpm --recursive --if-present lint",
     "typecheck": "pnpm --recursive --if-present typecheck",
     "db:generate": "pnpm --filter @visionhub/api db:generate",
     "db:migrate": "pnpm --filter @visionhub/api db:migrate:deploy",
     "db:seed": "pnpm --filter @visionhub/api db:seed",
     "db:setup": "pnpm --filter @visionhub/api db:setup",
-    "test": "pnpm --filter @visionhub/config test && pnpm --filter @visionhub/api build && pnpm --filter @visionhub/api test"
+    "test": "pnpm --filter @visionhub/config test && pnpm --filter @visionhub/api build && pnpm --filter @visionhub/api test && pnpm --filter @visionhub/desktop test",
+    "dev:desktop": "pnpm --filter @visionhub/desktop dev",
+    "build:desktop": "pnpm --filter @visionhub/desktop build"
   },
   "engines": {
     "node": ">=24.21.0 <25"

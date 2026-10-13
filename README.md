@@ -59,6 +59,31 @@ pnpm build
 
 `pnpm test` 会先运行共享配置包测试，再构建 API，最后运行不依赖真实数据库的 API 单元测试。CI 会执行同样的测试及完整生产构建。
 
+## Electron 桌面端开发壳（P4.1）
+
+首个打包目标确定为 macOS Apple Silicon（ARM64）。当前阶段建立 Electron 主进程、受限 preload bridge 和复用现有 Web renderer 的开发壳；**这不是可发布的安装包**。桌面端的配置注入、生产 API 地址以及 macOS 签名/公证/自动发布会在后续 P4.3/P4.5 完成。
+
+在一个终端启动开发 API（需要现有 PostgreSQL 可访问）：
+
+```powershell
+pnpm --filter @visionhub/api dev
+```
+
+在另一个终端启动 Electron 与独立 Vite renderer（使用 5174 端口，不抢占 Web 默认的 5173）：
+
+```powershell
+pnpm dev:desktop
+```
+
+可分别运行桌面壳的检查和安全边界单元测试：
+
+```powershell
+pnpm --filter @visionhub/desktop build
+pnpm --filter @visionhub/desktop test
+```
+
+开发壳复用 `apps/web` 的全部 React 页面和组件。`pnpm --filter @visionhub/desktop build` 会额外生成采用相对资源路径的 `apps/desktop/renderer-dist`，供 Electron 的 `file://` 窗口加载；浏览器 Web 的默认构建仍使用原来的 Vite 配置。桌面 renderer 的运行时 API endpoint 尚未在本阶段注入，因此当前仍是开发壳而非可供实际片库使用的生产客户端。`configs/desktop.yaml` / `DESKTOP_API_BASE_URL` 的运行时集成属于 P4.3；签名、公证、DMG/ZIP 与 GitHub Release 发布属于 P4.5。
+
 ## Docker Compose 部署
 
 配置 `.env` 中的 `EXISTING_DB_NETWORK`、`DATABASE_URL`、`DATABASE_URL_DOCKER`。数据库容器必须已经存在，并加入 `EXISTING_DB_NETWORK` 指定的网络。然后运行：
@@ -147,6 +172,7 @@ Base path：`/api/v1`。成功响应包含 `data`；片库列表同时返回分�
 ```
 apps/
   web/       React UI、Plyr 播放器、Vite
+  desktop/   Electron 主进程、preload 与 Web renderer 开发壳
   api/       NestJS API、Prisma Client、数据库迁移与种子脚本
 packages/
   config/    YAML/env 合并、Zod 校验与独立桌面配置加载

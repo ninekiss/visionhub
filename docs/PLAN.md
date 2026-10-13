@@ -38,7 +38,7 @@ The following status is based on the repository code and lockfile on 2026-10-13.
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
 | Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
 | HLS | No `hls.js` adapter is present | Not started |
-| Desktop | No `apps/desktop` or Electron shell | Not started |
+| Desktop | `apps/desktop` provides the initial Electron main/preload shell and opens the existing Web renderer in development | P4.1 scaffold in review; API-aware packaged runtime and release pipeline remain pending |
 | Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation and planned Phase 3 migration slices implemented; Web remains first-class |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
 | CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
@@ -61,13 +61,13 @@ The current implementation is useful and should be retained. It is a browser-bas
 | NestJS packages | 12.1.2 |
 | Prisma ORM / Prisma Client / PostgreSQL adapter | 7.10.0 |
 | Zod | 4.6.6 in `packages/config` |
-| Electron | Not installed |
+| Electron | 44.7.0 pinned in `apps/desktop`; macOS ARM64 development shell scaffold added, release packaging pending |
 | hls.js | Not installed |
 
 ### 3.2 Target baseline
 
 - Node.js: 24.21.0 LTS selected as the verified maintenance baseline for this implementation; update deliberately after checking official release notes.
-- Electron: target 44.6.0 as listed in the project specification; verify the then-current stable release and compatibility before installing.
+- Electron: pin 44.7.0 after verifying the [official stable release list](https://releases.electronjs.org/) on 2026-10-13. It ships Chromium 152.0.7977.130 and Node.js 24.21.0, matching the repository's pinned Node runtime.
 - React: 19.3.0 baseline.
 - Vite: 8.3.4 baseline.
 - TypeScript: 7.0.2 baseline; validate the entire build, test, lint and plugin chain.
@@ -292,7 +292,7 @@ Exit criteria:
 
 ### Phase 4 — Electron desktop MVP
 
-Status: planned; implementation has not started. Phase 3 browser regression sign-off was recorded in `docs/UI.md` on 2026-10-13. This phase adds Electron as a second client; it does not replace or weaken the independently deployable Web client. Complete P4.0 scope/compatibility decisions before creating `apps/desktop`.
+Status: P4.0 scope/compatibility decisions are recorded and P4.1 development shell scaffold is implemented on `phase-4/electron-shell` (PR pending). The first release target is macOS Apple Silicon (`arm64`) based on the existing self-hosted Mac runner plan. The Web client remains independently buildable and deployable; P4.2–P4.5 remain incomplete.
 
 #### Product goal
 
@@ -300,31 +300,33 @@ Deliver a small, secure desktop shell that reuses the existing React screens, sh
 
 #### P4.0 — Confirm scope and compatibility
 
-- [ ] Confirm target operating systems and release formats before adding platform-specific packaging work.
-- [ ] Verify the then-current stable Electron release against the repository's Node/pnpm/Vite/React toolchain and select an exact version; do not install a floating `latest`.
-- [ ] Record the supported desktop playback test samples and known format limitations; do not make HLS support a prerequisite for the first shell unless the existing product requires it.
-- [ ] Define the desktop API endpoint/configuration contract and how development, packaged builds and remote deployments provide it.
+- [x] Set the first packaged target to macOS Apple Silicon (`arm64`); defer Intel/universal and other operating systems until explicitly requested.
+- [x] Pin Electron 44.7.0, the official stable release verified on 2026-10-13; its embedded Node.js 24.21.0 matches the repository runtime baseline. Do not use a floating `latest`.
+- [x] Record the current public MP4 mock URL as a playback-test candidate and explicitly mark codec/container support unverified until tested on Electron/macOS ARM64; HLS remains a later adapter phase. See `docs/DESKTOP_MVP.md`.
+- [x] Define the endpoint contract: `configs/desktop.yaml` is loaded via `loadDesktopConfig()`, `DESKTOP_API_BASE_URL` overrides the endpoint, and `DESKTOP_CONFIG_PATH` selects a config file. Wiring the validated value into the renderer is P4.3.
+
+Deliverable: target OS, exact Electron version, initial media-test candidate/known limitations, and the validated desktop configuration contract are recorded in `docs/DESKTOP_MVP.md`.
 
 Deliverable: a short compatibility decision in the PR description or docs, including the chosen OS target(s), Electron version and API configuration approach.
 
 #### P4.1 — Add the minimal Electron workspace
 
-- [ ] Create `apps/desktop` with separate main-process, preload and renderer entry points; keep the existing `apps/web` entry point and build path unchanged.
-- [ ] Add workspace scripts for desktop development, type checking, packaging and previewing a packaged build; keep command names documented at the repository root.
-- [ ] Use the existing React/Vite application and shared packages where practical. Prefer a shared renderer entry/configuration over copying Web pages into a second app; only introduce a renderer split if Electron-specific needs justify it.
-- [ ] Configure development loading and production packaged-asset loading explicitly, with clear failure messages when the renderer cannot start.
-- [ ] Keep API and database services separate. Electron is a client and must not bundle or start the NestJS API, PostgreSQL, or migrations.
+- [x] Create `apps/desktop` with the Electron main process, a sandboxed preload bridge, URL/security helpers and tests; leave `apps/web` as the same renderer.
+- [x] Add workspace commands for Electron development (`pnpm dev:desktop`), shell checks, and security tests. Packaging commands are intentionally deferred to P4.5.
+- [x] Reuse the existing `apps/web` React/Vite renderer instead of duplicating screens or contracts.
+- [x] Load a loopback Vite server in development and build a dedicated relative-base renderer into `apps/desktop/renderer-dist` for Electron file loading; keep the browser Web build configuration unchanged and show an actionable error if the desktop renderer build is missing.
+- [x] Keep API and database services separate. Electron is a client and does not bundle or start the NestJS API, PostgreSQL, or migrations.
 
-Deliverable: a development Electron window opens the existing renderer, and both Web and desktop can be built independently.
+Deliverable: the development Electron window opens the existing Web renderer on its own Vite port, while Web remains independently buildable. The app is a development scaffold, not yet a production-ready desktop release.
 
 #### P4.2 — Establish the security boundary
 
-- [ ] Set `contextIsolation: true`, `nodeIntegration: false`, and `sandbox: true` where supported by the selected Electron design.
-- [ ] Expose only the minimal, typed capabilities needed through preload; do not expose raw `ipcRenderer`, Node APIs, filesystem access or unrestricted shell execution to the renderer.
-- [ ] Validate IPC channel names and payloads in the main process; treat renderer messages and remote content as untrusted input.
-- [ ] Deny unexpected navigation and new-window creation; open approved external links with the operating system only after protocol/URL validation.
-- [ ] Define a restrictive Content Security Policy for packaged renderer content. Avoid disabling web security or enabling remote module patterns as shortcuts.
-- [ ] Keep secrets out of renderer bundles, logs and committed configuration. A desktop API endpoint is configuration, not a place to embed admin credentials.
+- [x] Set `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, and `webSecurity: true` in the Electron renderer preferences.
+- [x] Expose only a narrow, typed `getAppInfo()` method through preload; never expose raw `ipcRenderer`, arbitrary Node APIs, filesystem access or unrestricted shell execution.
+- [x] Validate the sender URL for the single IPC handler; the handler accepts no renderer payload arguments.
+- [x] Block unexpected navigation and all new windows; only validated HTTPS URLs may be handed to the operating system.
+- [ ] Define and test a restrictive Content Security Policy for packaged renderer content before calling P4.2 complete.
+- [x] Keep secrets out of renderer bundles and source; API endpoint configuration remains separate from credentials.
 
 Deliverable: a documented threat-boundary review and automated or repeatable checks for the chosen Electron security defaults.
 
@@ -350,12 +352,14 @@ Deliverable: predictable desktop window lifecycle and basic native integration, 
 
 #### P4.5 — Package and verify a release candidate
 
-- [ ] Choose and document the packaging tool only after the target OS and Electron version are confirmed.
+- [x] Select electron-builder v26.17.0, the stable v26 release verified on 2026-10-13; revalidate the stable channel before installation.
+- [ ] Build a macOS ARM64 DMG/ZIP.
 - [ ] Add reproducible package scripts and CI validation for desktop type checks/builds; run OS-specific packaging on supported runners when feasible.
+- [ ] Configure Developer ID signing, Apple notarization/stapling and GitHub Releases publishing for macOS ARM64 on the self-hosted Apple Silicon runner; reference credentials only through GitHub Actions secrets.
 - [ ] Set application name, version, product identity, icons and output locations through versioned project configuration.
 - [ ] Test a clean packaged install/launch, API configuration, core browse/detail/play workflow, external-link handling, shutdown and upgrade/reinstall behavior on each target OS.
 - [ ] Document build artifacts, configuration placement, log location, known media limitations and how to report a startup failure.
-- [ ] Keep signing, auto-update, installer distribution and release hosting out of scope unless explicitly selected as MVP requirements.
+- Keep automatic updates out of scope for the first MVP unless a separate product requirement is approved.
 
 Deliverable: a reproducible desktop release candidate and a short manual acceptance record.
 
@@ -438,9 +442,9 @@ Every phase should meet these gates before merge:
 
 ## 10. Immediate next actions
 
-1. **Phase 3 acceptance is recorded.** The user confirmed the P3 UI browser regression pass on 2026-10-13; details and evidence limits are recorded in `docs/UI.md`. No known blocker remains for the UI issues covered by that pass.
-2. **Start Phase 4 at P4.0 — confirm scope and compatibility.** Agree on target OS/release formats, verify an exact Electron version against the existing Node/pnpm/Vite/React toolchain, record the supported media sample matrix, and define the validated desktop API endpoint configuration before adding `apps/desktop`.
-3. **Keep the architecture boundaries intact.** Web remains independently buildable/deployable; Electron reuses the React UI, shared contracts and remote API; existing PostgreSQL and migration practices remain unchanged.
-4. **Do not broaden scope by default.** HLS adapters, player preference redesign, workers/downloads, a database container, auto-update and platform-specific extras remain deferred unless a confirmed MVP requirement justifies them.
+1. **P4.0 decisions are recorded.** macOS ARM64 is the first package target; Electron is pinned to 44.7.0; the endpoint configuration contract and MP4 test candidate/limitations are documented.
+2. **Continue P4.2 security hardening.** Add and verify the packaged-renderer Content Security Policy; preserve the existing sandboxed preload and strict navigation policy.
+3. **Implement P4.3 API/config integration.** Load validated `configs/desktop.yaml` (or `DESKTOP_API_BASE_URL`) in the desktop runtime and pass only the needed endpoint information to Web through the typed bridge; verify catalog/search/detail/playback against the test API.
+4. **Keep P4.5 release work scoped to macOS ARM64.** Use the self-hosted Apple Silicon runner for Developer ID signing, notarization/stapling, DMG/ZIP artifacts and GitHub Release publishing. Keep secrets in GitHub Actions secrets and do not bundle database/API services.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.

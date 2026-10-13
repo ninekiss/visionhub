@@ -1,3 +1,3 @@
 # Electron-only client settings. This file does not configure Web, API, or database services.
 desktop:
-  apiBaseUrl: http://127.0.0.1:3000/api/v1
+  apiBaseUrl: http://127.0.0.1:3001/api/v1
