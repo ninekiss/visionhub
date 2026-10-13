@@ -46,7 +46,6 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   const [errorMessage, setErrorMessage] = useState('');
   const [retryNonce, setRetryNonce] = useState(0);
   const [desktopTarget, setDesktopTarget] = useState<DesktopTarget | null>(null);
-  const [sourceFullscreen, setSourceFullscreen] = useState(false);
   const webviewRef = useRef<HTMLElement | null>(null);
   const frameTimeoutRef = useRef<number | undefined>(undefined);
   const requestId = useMemo(
@@ -63,19 +62,9 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   );
 
   useEffect(() => {
-    const desktop = window.visionHubDesktop;
-    if (!desktop) return;
-    return desktop.onExternalPlayerFullscreen((event) => {
-      if (event.providerId !== source.providerId || event.requestId !== requestId) return;
-      setSourceFullscreen(event.active);
-    });
-  }, [source.providerId, requestId]);
-
-  useEffect(() => {
     setStatus('loading');
     setErrorMessage('');
     setDesktopTarget(null);
-    setSourceFullscreen(false);
 
     if (!provider) {
       setStatus('error');
@@ -165,15 +154,9 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
         sourceId: details.sourceId,
       });
     };
-    const onEnterHtmlFullscreen = () => setSourceFullscreen(true);
-    const onLeaveHtmlFullscreen = () => setSourceFullscreen(false);
-    element.addEventListener('enter-html-full-screen', onEnterHtmlFullscreen);
-    element.addEventListener('leave-html-full-screen', onLeaveHtmlFullscreen);
     element.addEventListener('dom-ready', onDomReady, { once: true });
     if (import.meta.env.DEV) element.addEventListener('console-message', onConsoleMessage);
     return () => {
-      element.removeEventListener('enter-html-full-screen', onEnterHtmlFullscreen);
-      element.removeEventListener('leave-html-full-screen', onLeaveHtmlFullscreen);
       element.removeEventListener('dom-ready', onDomReady);
       element.removeEventListener('console-message', onConsoleMessage);
     };
@@ -203,7 +186,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
       : '';
 
   return (
-    <div className={`external-source-player-layout${sourceFullscreen && desktop ? " is-source-fullscreen" : ""}`}>
+    <div className="external-source-player-layout">
       <div className="external-source-player" aria-label={'外部源站播放器：' + title}>
       {desktopWebview}
       {embedUrl && !desktop && (
