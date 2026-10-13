@@ -38,7 +38,7 @@ The following status is based on the repository code and lockfile on 2026-10-13.
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
 | Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
 | HLS | No `hls.js` adapter is present | Not started |
-| Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | P4.1–P4.3 foundation merged via PRs #31/#32; end-to-end acceptance remains open; P4.5 release packaging deferred until explicitly reactivated |
+| Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | Windows Electron workflow acceptance reported passed on 2026-10-13; macOS-specific and packaged security acceptance remain open; P4.5 release packaging deferred until explicitly reactivated |
 | Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation and planned Phase 3 migration slices implemented; Web remains first-class |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
 | CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
@@ -335,8 +335,8 @@ Deliverable: a documented threat-boundary review and automated or repeatable che
 
 - [ ] Reuse the existing catalog, search/filter, detail, login/admin route behavior and shared UI wherever applicable; do not duplicate domain logic or API contracts.
 - [x] Load the validated desktop API endpoint via `loadDesktopConfig()` (`configs/desktop.yaml`), with `DESKTOP_API_BASE_URL` and `DESKTOP_CONFIG_PATH` overrides; fail with a clear error rather than silently choosing a fallback.
-- [ ] Verify catalog browsing, search/filter, details, login where configured, and the playback page against a running test API.
-- [ ] Verify Plyr playback for the formats actually supported by the target Electron runtime; include loading, buffering, source errors, seek, episode switching and progress restore in the test pass.
+- [x] Verify catalog browsing, search/filter, details and playback against a live test API in the Windows Electron runtime (user acceptance, 2026-10-13); login/admin remains conditional on configured scope.
+- [x] Verify Plyr controls and the tested playback workflow on Windows Electron, including loading, buffering/error handling, seeking and playback state (user acceptance, 2026-10-13). This does not establish macOS decoder behavior or support for untested formats such as MKV/HEVC/HLS.
 - [ ] Keep browser-only behavior functional and buildable. Put platform-specific operations behind a small adapter instead of branching shared components throughout the UI.
 
 Deliverable: the core browse → detail → play workflow works in a desktop build without a second implementation of the Web UI.
@@ -346,7 +346,8 @@ Deliverable: the core browse → detail → play workflow works in a desktop bui
 - [x] Add a minimal platform-aware application menu with native close/minimize/quit roles and view zoom/reset/fullscreen actions; retain standard operating-system shortcuts.
 - [x] Persist window size/position and maximized state in the OS user-data directory using atomic writes; validate saved bounds and clamp them to a connected display work area.
 - [x] Keep close/minimize behavior OS-native: minimizing does not quit the app, closing the final window follows the existing platform lifecycle, and macOS can reopen a window through Activate. Do not add tray residency, auto-start, global shortcuts or background services without a concrete requirement.
-- [ ] Verify keyboard navigation, focus behavior, zoom and narrow-window layout in an interactive desktop run.
+- [x] Verify the interactive Electron workflow on Windows: menu actions/shortcuts, zoom, window-state restoration and narrow-window layout (user acceptance, 2026-10-13).
+- [ ] Verify macOS-specific native menu behavior, closing/reopening the last window, display restoration and focus behavior on an actual macOS runtime (deferred; macOS acceptance has not been performed).
 - [x] Keep settings limited to the existing desktop API configuration and basic window behavior; do not introduce a second configuration UI without a concrete requirement.
 
 Deliverable: predictable desktop window lifecycle and basic native integration, with no unrelated background features.
@@ -448,8 +449,8 @@ Every phase should meet these gates before merge:
 ## 10. Immediate next actions
 
 1. **P4.0 decisions are recorded.** macOS ARM64 is the first package target; Electron is pinned to 44.7.0; the endpoint configuration contract and MP4 test candidate/limitations are documented.
-2. **Complete P4.3 workflow acceptance.** Validate catalog/search/detail/playback, the API proxy, and supported playback behavior against a live test API in the target Electron runtime.
-3. **Finish interactive P4.4 acceptance.** Check menu shortcuts, zoom/focus behavior, restored window state and narrow-window usability on the desktop target.
+2. **P4.3 Windows workflow acceptance passed (2026-10-13).** Catalog/search/detail/playback, API proxy, renderer resources and Plyr controls were verified in the Windows Electron runtime. Packaged macOS acceptance remains outstanding.
+3. **P4.4 Windows interactive acceptance passed (2026-10-13).** macOS-specific menu, lifecycle, and display-restoration checks are deferred until a Mac is available.
 4. **P4.5 is intentionally deferred.** Do not start macOS ARM64 packaging, signing, notarization or GitHub Release automation until the user explicitly reactivates this phase. On reactivation, revalidate the toolchain and runner before following the recorded release plan.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
