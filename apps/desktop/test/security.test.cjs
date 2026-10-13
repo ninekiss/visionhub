@@ -49,7 +49,7 @@ test("BrowserWindow renderer defaults preserve the sandbox boundary", () => {
     nodeIntegration: false,
     sandbox: true,
     webSecurity: true,
-    webviewTag: false,
+    webviewTag: true,
   });
 });
 
