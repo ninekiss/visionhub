@@ -391,17 +391,41 @@ P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until th
 
 ### Phase 5 — Player adapters and playback preferences
 
-Tasks:
-- Split the current Plyr wrapper into player UI, adapter selection and progress/settings hooks.
-- Add hls.js as the HLS adapter and define fallback behavior for unsupported sources.
-- Implement playback preference persistence and prepare subtitle selection UI.
-- Test the Electron Chromium runtime against a documented sample media matrix.
+Status: P5.1 adapter foundation is implemented in the current PR; HLS and new playback preferences are intentionally separate follow-up slices. Plyr remains the player UI.
+
+#### P5.1 — Separate media source, playback events and cleanup
+
+- [x] Add a media-adapter contract and isolate HTML5 source attachment/release from the Plyr UI component.
+- [x] Infer common source MIME types from URL paths while ignoring query strings; retain the existing MP4 fallback for extensionless/unknown URLs.
+- [x] Extract media-event binding for playback state, resume position, progress throttling and error callbacks into a separately testable module.
+- [x] Add unit tests for adapter selection, safe HLS-not-yet-supported errors, source attachment/release, state transitions, progress reporting and event-listener cleanup.
+- [ ] Verify the refactor manually in Web and Windows Electron after CI passes, confirming the current MP4 playback UI/controls and progress restoration remain unchanged.
+- Keep the adapter contract small. Do not add a runtime dependency or change the database/API contracts in this slice.
+
+#### P5.2 — Add HLS support (follow-up)
+
+- [ ] Add hls.js only after verifying the current stable version and compatibility with the selected Electron/Web targets.
+- [ ] Route HLS sources through the HLS adapter, use native HLS only where capability checks show it is supported, and dispose HLS instances and event handlers on source changes.
+- [ ] Test a redistributable sample HLS stream and errors including unavailable manifests and segment failures.
+
+#### P5.3 — Playback preferences (follow-up)
+
+- [ ] Review the current watch-history persistence before adding new storage; avoid duplicate progress stores.
+- [ ] Add preferences such as playback speed/volume only with clear persistence semantics across Web and desktop.
+- [ ] Prepare subtitle-track selection UI only when actual subtitle tracks can be exercised.
+
+#### P5.4 — Media compatibility acceptance (follow-up)
+
+- [ ] Test actual playback in Web and the target Electron runtime against a documented, redistributable media matrix.
+- [ ] Record source switching, seek, buffering, error handling, progress restore and unsupported-format behavior.
+- [ ] Claim support only for the formats and codecs actually tested; do not infer MKV/HEVC/HDR support from Plyr.
 
 Exit criteria:
-- MP4/HTML5 playback and supported HLS playback both have repeatable tests.
-- Source changes properly dispose old players and adapters.
-- Resume behavior, seeking, buffering, errors and unsupported media states are handled predictably.
-- Supported formats are documented based on testing, not assumptions.
+- [ ] The media adapter and playback-event modules have unit coverage and the Web/desktop production builds pass.
+- [ ] Existing MP4/HTML5 playback, source switching, resume position, buffering and error states remain functional.
+- [ ] HLS support is tested before being claimed; unsupported media fail with a clear message.
+- [ ] Playback preferences are consistent across Web and desktop without duplicate storage.
+- [ ] Supported formats are documented based on testing, not assumptions.
 
 ### Phase 6 — Deployment layout and operational hardening
 
