@@ -2,7 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 class FakeHls {
-  static Events = { ERROR: "hls:error" };
+  static Events = {
+    ERROR: "hls:error",
+    MANIFEST_PARSED: "hls:manifest-parsed",
+    LEVELS_UPDATED: "hls:levels-updated",
+  };
   static ErrorTypes = {
     NETWORK_ERROR: "networkError",
     MEDIA_ERROR: "mediaError",
@@ -15,6 +19,8 @@ class FakeHls {
   constructor() {
     this.calls = [];
     this.listeners = new Map();
+    this.levels = [];
+    this.currentLevel = -1;
     FakeHls.instances.push(this);
   }
 
@@ -97,7 +103,8 @@ test("uses hls.js, attempts a single network recovery, reports a persistent fata
   });
 
   const hls = FakeHls.instances[0];
-  assert.deepEqual(hls.calls.slice(0, 3).map(([name]) => name), ["on", "attachMedia", "loadSource"]);
+  assert.ok(hls.calls.some(([name, value]) => name === "on" && value === FakeHls.Events.ERROR));
+  assert.ok(hls.calls.some(([name, value]) => name === "attachMedia" && value === video));
   assert.ok(hls.calls.some(([name, value]) => name === "loadSource" && value === streamUrl));
 
   hls.emit(FakeHls.Events.ERROR, { fatal: false, type: FakeHls.ErrorTypes.NETWORK_ERROR });
@@ -113,7 +120,7 @@ test("uses hls.js, attempts a single network recovery, reports a persistent fata
 
   detach();
   detach();
-  assert.equal(hls.calls.filter(([name]) => name === "off").length, 1);
+  assert.equal(hls.calls.filter(([name]) => name === "off").length, 3);
   assert.equal(hls.calls.filter(([name]) => name === "destroy").length, 1);
   assert.equal(video.src, "");
   assert.equal(video.calls.filter(([name]) => name === "pause").length, 1);
@@ -158,4 +165,45 @@ test("fails clearly without assigning a source when the runtime has no HLS playb
   );
   assert.equal(video.src, "");
   assert.equal(FakeHls.instances.length, 0);
+});
+
+
+test("exposes distinct HLS quality levels and supports manual and automatic switching", async () => {
+  const { createHlsAdapter } = await import("../../web/src/player/hls-adapter.js");
+  FakeHls.instances = [];
+  FakeHls.supported = true;
+  const video = createFakeVideo();
+  let levels = [];
+  let controller = null;
+  const detach = createHlsAdapter({ HlsConstructor: FakeHls }).attach(video, {
+    url: "https://example.test/master.m3u8",
+    mimeType: "application/vnd.apple.mpegurl",
+    onQualityControlReady: (value) => { controller = value; },
+    onQualityLevelsChange: (value) => { levels = value; },
+  });
+
+  const hls = FakeHls.instances[0];
+  hls.levels = [
+    { height: 720, bitrate: 900000 },
+    { height: 1080, bitrate: 3000000 },
+    { height: 720, bitrate: 1500000 },
+    { height: 480, bitrate: 450000 },
+    { height: 0, bitrate: 120000 },
+  ];
+  hls.emit(FakeHls.Events.MANIFEST_PARSED, {});
+
+  assert.deepEqual(levels, [
+    { id: 1, height: 1080, bitrate: 3000000, label: "1080p" },
+    { id: 2, height: 720, bitrate: 1500000, label: "720p" },
+    { id: 3, height: 480, bitrate: 450000, label: "480p" },
+  ]);
+  assert.ok(controller);
+  controller.setLevel(2);
+  assert.equal(hls.currentLevel, 2);
+  controller.setLevel(-1);
+  assert.equal(hls.currentLevel, -1);
+  controller.setLevel(99);
+  assert.equal(hls.currentLevel, -1);
+
+  detach();
 });

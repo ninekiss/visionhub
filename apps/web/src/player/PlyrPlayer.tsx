@@ -8,6 +8,8 @@ import {
 } from './media-adapter.js';
 import { createHlsAdapter, HlsPlaybackNotSupportedError } from './hls-adapter.js';
 import { bindPlaybackEvents, type PlaybackState } from './playback-events.js';
+import { PLAYBACK_SPEED_OPTIONS, readPlaybackPreferences, writePlaybackPreferences } from './playback-preferences.js';
+import type { MediaQualityController, MediaQualityLevel } from './media-adapter.js';
 
 export type { PlaybackState } from './playback-events.js';
 
@@ -48,6 +50,9 @@ export default function PlyrPlayer({
   const initialTimeRef = useRef(initialTime);
   const [status, setStatus] = useState<PlaybackState>('ready');
   const [error, setError] = useState('');
+  const [qualityLevels, setQualityLevels] = useState<MediaQualityLevel[]>([]);
+  const [qualityController, setQualityController] = useState<MediaQualityController | null>(null);
+  const [selectedQuality, setSelectedQuality] = useState('auto');
 
   useEffect(() => {
     callbackRef.current = onPlaybackStateChange;
@@ -76,10 +81,18 @@ export default function PlyrPlayer({
 
     setStatus('ready');
     setError('');
+    setQualityLevels([]);
+    setQualityController(null);
+    setSelectedQuality('auto');
+    const preferences = readPlaybackPreferences();
 
     let detachMediaSource = () => {};
     let player: Plyr | null = null;
     let sourceErrorMessage = DEFAULT_SOURCE_ERROR;
+    const persistPreferences = () => {
+      if (!player) return;
+      writePlaybackPreferences({ volume: video.volume, playbackRate: video.playbackRate });
+    };
 
     const updateStatus = (next: PlaybackState) => {
       setStatus(next);
@@ -95,6 +108,9 @@ export default function PlyrPlayer({
 
     const cleanup = () => {
       unbindPlaybackEvents();
+      video.removeEventListener('volumechange', persistPreferences);
+      video.removeEventListener('ratechange', persistPreferences);
+      persistPreferences();
       try {
         detachMediaSource();
       } finally {
@@ -121,6 +137,15 @@ export default function PlyrPlayer({
           updateStatus('error');
           setError(sourceErrorMessage);
         },
+        onQualityControlReady: (controller) => setQualityController(controller),
+        onQualityLevelsChange: (levels) => {
+          setQualityLevels(levels);
+          setSelectedQuality((current) =>
+            current !== 'auto' && levels.some((level) => String(level.id) === current)
+              ? current
+              : 'auto',
+          );
+        },
       });
 
       player = new Plyr(video, {
@@ -128,6 +153,14 @@ export default function PlyrPlayer({
         // Keep the control strip available in the desktop app instead of auto-hiding it during playback.
         hideControls: false,
         muted: false,
+        volume: preferences.volume,
+        speed: {
+          selected: preferences.playbackRate,
+          options: [...PLAYBACK_SPEED_OPTIONS],
+        },
+        // VisionHub persists volume/speed under its own versioned key so Web
+        // and Electron use the same semantics without duplicate Plyr storage.
+        storage: { enabled: false },
         clickToPlay: true,
         keyboard: { focused: true, global: false },
         tooltips: { controls: true, seek: true },
@@ -144,6 +177,10 @@ export default function PlyrPlayer({
           'fullscreen',
         ],
       });
+      player.volume = preferences.volume;
+      player.speed = preferences.playbackRate;
+      video.addEventListener('volumechange', persistPreferences);
+      video.addEventListener('ratechange', persistPreferences);
     } catch (cause) {
       updateStatus('error');
       if (cause instanceof HlsPlaybackNotSupportedError) {
@@ -164,7 +201,28 @@ export default function PlyrPlayer({
       <div className="player-mount" ref={playerMountRef} />
       <div className="player-status-line" aria-live="polite">
         <span className={'player-status-dot player-status-dot-' + status} />
-        {STATUS_LABELS[status]}
+        <span>{STATUS_LABELS[status]}</span>
+        {qualityController && qualityLevels.length > 1 && (
+          <label className="player-quality-control">
+            <span>画质</span>
+            <select
+              aria-label="播放画质"
+              value={selectedQuality}
+              onChange={(event) => {
+                const controller = qualityController;
+                if (!controller) return;
+                const value = event.currentTarget.value;
+                controller.setLevel(value === 'auto' ? -1 : Number(value));
+                setSelectedQuality(value);
+              }}
+            >
+              <option value="auto">自动</option>
+              {qualityLevels.map((level) => (
+                <option key={level.id} value={String(level.id)}>{level.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       {error && <div className="player-error" role="alert">{error}</div>}
     </div>
