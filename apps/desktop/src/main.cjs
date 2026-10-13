@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, dialog, ipcMain, Menu, protocol, screen, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, screen, shell } = require("electron");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const {
@@ -12,7 +12,6 @@ const {
   createPlayerIsolationScript,
   providerOriginAllowed,
   resolveProviderUrl,
-  validateExternalPlayerBounds,
 } = require("./external-player.cjs");
 const { createApplicationMenuTemplate } = require("./application-menu.cjs");
 const {
@@ -49,6 +48,7 @@ let mainWindow = null;
 let windowStateSaveTimer = null;
 let externalPlayerSession = null;
 let playbackProviders = [];
+const pendingExternalWebviewSessions = [];
 
 function getWindowStatePath() {
   return path.join(app.getPath("userData"), "window-state.json");
@@ -141,16 +141,9 @@ function closeExternalPlayer(options = {}) {
   clearExternalPlayerTimers(session);
   externalPlayerSession = null;
   try {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.contentView.removeChildView(session.view);
-    }
+    if (session.webContents && !session.webContents.isDestroyed()) session.webContents.stop();
   } catch {
-    // A renderer or window may already have detached the view.
-  }
-  try {
-    if (!session.view.webContents.isDestroyed()) session.view.webContents.destroy();
-  } catch {
-    // Closing is idempotent during window shutdown.
+    // The guest may already have been detached by React.
   }
   if (options.notify) sendExternalPlayerStatus(options.status || "error", session.providerId, session.requestId, options.code);
   return true;
@@ -162,30 +155,136 @@ function failExternalPlayer(session, code) {
 }
 
 function startExternalPlayerReadinessCheck(session) {
-  if (externalPlayerSession !== session || session.readinessInterval) return;
+  if (externalPlayerSession !== session || !session.webContents || session.readinessInterval) return;
   let running = false;
   const check = async () => {
-    if (running || externalPlayerSession !== session) return;
+    if (running || externalPlayerSession !== session || !session.webContents || session.webContents.isDestroyed()) return;
     running = true;
     try {
       const script = createPlayerIsolationScript(
         session.provider.playerSelector,
         session.provider.readinessSelector || session.provider.playerSelector,
       );
-      const ready = await session.view.webContents.executeJavaScript(script, false);
+      const ready = await session.webContents.executeJavaScript(script, false);
       if (ready && externalPlayerSession === session) {
         clearExternalPlayerTimers(session);
-        session.view.setVisible(true);
         sendExternalPlayerStatus("ready", session.providerId, session.requestId);
       }
     } catch {
-      // Continue until the provider's bounded readiness timeout.
+      // Keep checking until the provider's bounded readiness timeout.
     } finally {
       running = false;
     }
   };
   session.readinessInterval = setInterval(() => { void check(); }, 250);
   void check();
+}
+
+function attachExternalPlayerWebContents(session, webContents) {
+  if (externalPlayerSession !== session || session.webContents) {
+    try { webContents.stop(); } catch {}
+    return;
+  }
+  session.webContents = webContents;
+
+  const rejectNavigation = (event, targetOrDetails, _isInPlace, deprecatedIsMainFrame) => {
+    const details = targetOrDetails && typeof targetOrDetails === "object"
+      ? targetOrDetails
+      : { url: targetOrDetails, isMainFrame: deprecatedIsMainFrame };
+    const targetUrl = details.url;
+    const isMainFrame = details.isMainFrame ?? deprecatedIsMainFrame;
+    if (typeof targetUrl === "string" && providerOriginAllowed(targetUrl, session.provider)) return;
+    event.preventDefault();
+    if (isMainFrame !== false) failExternalPlayer(session, "navigation-blocked");
+  };
+
+  webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  webContents.on("will-navigate", rejectNavigation);
+  webContents.on("will-frame-navigate", rejectNavigation);
+  webContents.on("will-redirect", rejectNavigation);
+  webContents.on("did-fail-load", (_event, errorCode, _description, _validatedURL, isMainFrame) => {
+    if (isMainFrame && errorCode !== -3) failExternalPlayer(session, "load-failed");
+  });
+  webContents.on("did-finish-load", () => startExternalPlayerReadinessCheck(session));
+  webContents.on("render-process-gone", () => failExternalPlayer(session, "renderer-crashed"));
+  webContents.on("destroyed", () => {
+    clearExternalPlayerTimers(session);
+    if (externalPlayerSession === session) externalPlayerSession = null;
+  });
+
+  try {
+    webContents.session.setPermissionRequestHandler((_requestingContents, _permission, callback) => callback(false));
+    webContents.session.setPermissionCheckHandler(() => false);
+  } catch {
+    // Session may already be shutting down.
+  }
+}
+
+function attachExternalPlayerWebviewGuards(window) {
+  window.webContents.on("will-attach-webview", (event, webPreferences, params) => {
+    const active = externalPlayerSession;
+    const sourceUrl = params && typeof params.src === "string" ? params.src : "";
+    if (!active || active.webContents || sourceUrl !== active.url ||
+        !providerOriginAllowed(sourceUrl, active.provider)) {
+      event.preventDefault();
+      return;
+    }
+
+    webPreferences.nodeIntegration = false;
+    webPreferences.nodeIntegrationInSubFrames = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+    webPreferences.webSecurity = true;
+    webPreferences.allowRunningInsecureContent = false;
+    webPreferences.plugins = false;
+    webPreferences.webviewTag = false;
+    delete webPreferences.preload;
+    params.preload = "";
+    params.allowpopups = false;
+    params.partition = "persist:visionhub-source-" + active.providerId;
+    pendingExternalWebviewSessions.push(active);
+  });
+
+  window.webContents.on("did-attach-webview", (_event, guestWebContents) => {
+    const session = pendingExternalWebviewSessions.shift();
+    if (!session || session !== externalPlayerSession) {
+      try { guestWebContents.stop(); } catch {}
+      return;
+    }
+    const actualUrl = guestWebContents.getURL();
+    if (actualUrl && actualUrl !== session.url && !providerOriginAllowed(actualUrl, session.provider)) {
+      try { guestWebContents.stop(); } catch {}
+      failExternalPlayer(session, "navigation-blocked");
+      return;
+    }
+    attachExternalPlayerWebContents(session, guestWebContents);
+  });
+}
+
+function openExternalPlayer(providerId, contentId, requestId) {
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error("VisionHub 播放窗口不可用。");
+  if (typeof requestId !== "string" || !/^[a-zA-Z0-9:._-]{8,160}$/.test(requestId)) {
+    throw new Error("外部播放请求 ID 无效。");
+  }
+  const provider = playbackProviders.find((candidate) => candidate.id === providerId);
+  if (!provider) throw new Error("这个源站尚未配置，请检查 configs/playback-sources.yaml。");
+  const url = resolveProviderUrl(provider, contentId);
+
+  closeExternalPlayer();
+  const session = {
+    provider,
+    providerId,
+    contentId,
+    requestId,
+    url,
+    webContents: null,
+    readinessInterval: null,
+    timeoutHandle: null,
+  };
+  externalPlayerSession = session;
+  sendExternalPlayerStatus("loading", providerId, requestId);
+  session.timeoutHandle = setTimeout(() => failExternalPlayer(session, "player-not-ready"), provider.timeoutMs);
+  return url;
 }
 
 async function loadExternalPlaybackProviders() {
@@ -210,76 +309,6 @@ async function loadExternalPlaybackProviders() {
     configDir: configDirectory,
   });
   return config.playback.providers;
-}
-
-function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
-  if (!mainWindow || mainWindow.isDestroyed()) throw new Error("VisionHub 播放窗口不可用。");
-  if (typeof requestId !== "string" || !/^[a-zA-Z0-9:._-]{8,160}$/.test(requestId)) {
-    throw new Error("外部播放请求 ID 无效。");
-  }
-  const provider = playbackProviders.find((candidate) => candidate.id === providerId);
-  if (!provider) throw new Error("这个源站尚未配置，请检查 configs/playback-sources.yaml。");
-  const url = resolveProviderUrl(provider, contentId);
-  const bounds = validateExternalPlayerBounds(boundsValue);
-  closeExternalPlayer();
-
-  const view = new WebContentsView({
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-      webSecurity: true,
-      spellcheck: false,
-    },
-  });
-  view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
-  view.setVisible(false);
-  mainWindow.contentView.addChildView(view);
-
-  const session = {
-    view,
-    provider,
-    providerId,
-    requestId,
-    readinessInterval: null,
-    timeoutHandle: null,
-  };
-  externalPlayerSession = session;
-
-  const rejectNavigation = (event, targetOrDetails, _isInPlace, deprecatedIsMainFrame) => {
-    // Electron introduced a details object for navigation events; accept the older
-    // positional form as well so runtime updates do not widen the navigation boundary.
-    const details = targetOrDetails && typeof targetOrDetails === "object"
-      ? targetOrDetails
-      : { url: targetOrDetails, isMainFrame: deprecatedIsMainFrame };
-    const targetUrl = details.url;
-    const isMainFrame = details.isMainFrame ?? deprecatedIsMainFrame;
-    if (typeof targetUrl === "string" && providerOriginAllowed(targetUrl, provider)) return;
-    event.preventDefault();
-    // Cross-origin frames are blocked too; only a top-level redirect tears down the session.
-    if (isMainFrame !== false) failExternalPlayer(session, "navigation-blocked");
-  };
-  view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  view.webContents.on("will-navigate", rejectNavigation);
-  view.webContents.on("will-frame-navigate", rejectNavigation);
-  view.webContents.on("will-redirect", rejectNavigation);
-  view.webContents.on("did-fail-load", (_event, errorCode, _description, _validatedURL, isMainFrame) => {
-    if (isMainFrame && errorCode !== -3) failExternalPlayer(session, "load-failed");
-  });
-  view.webContents.on("did-finish-load", () => {
-    startExternalPlayerReadinessCheck(session);
-  });
-  view.webContents.on("render-process-gone", () => {
-    failExternalPlayer(session, "renderer-crashed");
-  });
-
-  sendExternalPlayerStatus("loading", providerId, requestId);
-  session.timeoutHandle = setTimeout(() => {
-    failExternalPlayer(session, "player-not-ready");
-  }, provider.timeoutMs);
-  void view.webContents.loadURL(url).catch(() => {
-    failExternalPlayer(session, "load-failed");
-  });
 }
 
 async function loadDesktopApiBaseUrl() {
@@ -354,6 +383,7 @@ function createWindow() {
   };
   window.webContents.on("will-navigate", blockUntrustedNavigation);
   window.webContents.on("will-redirect", blockUntrustedNavigation);
+  attachExternalPlayerWebviewGuards(window);
 
   const loading = developmentUrl
     ? window.loadURL(developmentUrl)
@@ -425,18 +455,7 @@ app.whenReady().then(async () => {
         typeof request.requestId !== "string") {
       throw new Error("外部播放源参数无效。");
     }
-    openExternalPlayer(request.providerId, request.contentId, request.bounds, request.requestId);
-    return true;
-  });
-
-  ipcMain.handle("external-player:resize", (event, request) => {
-    if (!isTrustedRendererEvent(event)) throw new Error("Rejected external-player resize from an untrusted renderer.");
-    const session = externalPlayerSession;
-    if (!session || !request || request.providerId !== session.providerId || request.requestId !== session.requestId) return false;
-    const bounds = validateExternalPlayerBounds(request.bounds);
-    session.view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
-    session.view.setVisible(bounds.visible);
-    return true;
+    return { url: openExternalPlayer(request.providerId, request.contentId, request.requestId) };
   });
 
   ipcMain.handle("external-player:close", (event, request) => {
