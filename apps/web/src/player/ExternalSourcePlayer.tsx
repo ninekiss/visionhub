@@ -43,6 +43,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   const rootRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>('loading');
   const [errorMessage, setErrorMessage] = useState('');
+  const [retryNonce, setRetryNonce] = useState(0);
   const embedUrl = useMemo(
     () => resolveTemplate(provider?.webEmbedUrlTemplate, source.contentId),
     [provider?.webEmbedUrlTemplate, source.contentId],
@@ -137,7 +138,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [provider, source.providerId, source.contentId, embedUrl, getBounds]);
+  }, [provider, source.providerId, source.contentId, embedUrl, getBounds, retryNonce]);
 
   return (
     <div className="external-source-player" ref={rootRef} aria-label={'外部源站播放器：' + title}>
@@ -170,7 +171,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
             {openUrl && (
               <a href={openUrl} target="_blank" rel="noopener noreferrer">在新标签页打开源站</a>
             )}
-            <button type="button" onClick={() => window.location.reload()}>重试</button>
+            <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>重试</button>
           </div>
         </div>
       )}
