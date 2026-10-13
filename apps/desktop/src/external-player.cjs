@@ -29,6 +29,10 @@ function resolveProviderUrl(provider, contentId) {
   return url.href;
 }
 
+function isValidExternalPlayerRequestId(value) {
+  return typeof value === "string" && /^[a-zA-Z0-9:._-]{1,160}$/.test(value);
+}
+
 function validateExternalPlayerBounds(value) {
   if (!isRecord(value)) throw new TypeError("Invalid external-player bounds.");
   for (const key of ["x", "y", "width", "height"]) {
@@ -112,6 +116,7 @@ function providerOriginAllowed(urlValue, provider) {
 
 module.exports = {
   createPlayerIsolationScript,
+  isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
   validateExternalPlayerBounds,
