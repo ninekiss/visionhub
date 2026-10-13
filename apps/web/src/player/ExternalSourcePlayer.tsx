@@ -47,7 +47,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   const frameTimeoutRef = useRef<number | undefined>(undefined);
   const requestId = useMemo(() => {
     const random = window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    return `${source.providerId}:${source.contentId}:${retryNonce}:${random}`;
+    return `${retryNonce}:${random}`;
   }, [source.providerId, source.contentId, retryNonce]);
   const embedUrl = useMemo(
     () => resolveTemplate(provider?.webEmbedUrlTemplate, source.contentId),
