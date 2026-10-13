@@ -231,3 +231,38 @@
 @keyframes external-source-spin {
   to { transform: rotate(360deg); }
 }
+
+.play-source-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+.play-source-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #9ba4b3;
+  font-size: 11px;
+}
+.play-source-toolbar select {
+  max-width: min(56vw, 280px);
+  min-width: 120px;
+  cursor: pointer;
+  border: 1px solid #303744;
+  border-radius: 6px;
+  padding: 7px 30px 7px 10px;
+  color: #e9edf3;
+  background: #131720;
+  font: inherit;
+}
+.play-source-toolbar select:focus-visible {
+  outline: 2px solid #c7f36b;
+  outline-offset: 2px;
+}
+.play-source-toolbar small {
+  color: #687281;
+  font-size: 10px;
+}
