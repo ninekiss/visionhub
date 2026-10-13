@@ -21,7 +21,8 @@ model CatalogItem {
   title         String
   description   String                 @default("")
   posterUrl     String                 @map("poster_url")
-  videoUrl      String                 @map("video_url")
+  videoUrl      String?                @map("video_url")
+  playbackSources Json                 @default("[]") @map("playback_sources") @db.JsonB
   year          Int                    @map("release_year")
   mediaType     CatalogMediaType       @map("media_type")
   sortOrder     Int                    @default(0) @map("sort_order")
@@ -65,7 +66,8 @@ model CatalogEpisode {
   episodeNumber   Int         @map("episode_number")
   title           String
   summary         String      @default("")
-  videoUrl        String      @map("video_url")
+  videoUrl        String?     @map("video_url")
+  playbackSources Json        @default("[]") @map("playback_sources") @db.JsonB
   durationMinutes Int         @map("duration_minutes")
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamp(3)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamp(3)
