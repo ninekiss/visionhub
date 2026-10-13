@@ -16,3 +16,9 @@ apps/api/prisma/*.db
 *.tsbuildinfo
 **/*.tsbuildinfo
 apps/api/src/generated/prisma/
+
+# Electron desktop build artifacts
+apps/desktop/renderer-dist/
+apps/desktop/dist/
+apps/desktop/out/
+apps/desktop/release/
