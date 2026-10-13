@@ -244,7 +244,10 @@ test("rejects provider templates outside allowlisted origins, duplicate IDs, and
   }
 
   const insecureDir = await createConfigDirectory({
-    "playback-sources.yaml": validPlaybackSourcesYaml.replace("https://player.example.test", "http://player.example.test"),
+    "playback-sources.yaml": validPlaybackSourcesYaml.replace(
+      "        - https://player.example.test",
+      "        - http://player.example.test",
+    ),
   });
   try {
     await assert.rejects(
