@@ -38,7 +38,7 @@ The following status is based on the repository code and lockfile on 2026-10-13.
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
 | Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
 | HLS | No `hls.js` adapter is present | Not started |
-| Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | P4.1 merged; P4.2 CSP and custom-protocol hardening in PR #32; API-aware runtime and release pipeline pending |
+| Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | P4.1–P4.3 foundation merged via PRs #31/#32; end-to-end acceptance remains open; P4.5 release packaging deferred until explicitly reactivated |
 | Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation and planned Phase 3 migration slices implemented; Web remains first-class |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
 | CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
@@ -61,7 +61,7 @@ The current implementation is useful and should be retained. It is a browser-bas
 | NestJS packages | 12.1.2 |
 | Prisma ORM / Prisma Client / PostgreSQL adapter | 7.10.0 |
 | Zod | 4.6.6 in `packages/config` |
-| Electron | 44.7.0 pinned in `apps/desktop`; macOS ARM64 development shell scaffold added, release packaging pending |
+| Electron | 44.7.0 pinned in `apps/desktop`; macOS ARM64 development shell scaffold added; P4.5 release packaging intentionally deferred |
 | hls.js | Not installed |
 
 ### 3.2 Target baseline
@@ -292,7 +292,7 @@ Exit criteria:
 
 ### Phase 4 — Electron desktop MVP
 
-Status: P4.0 decisions and P4.1 are merged via [PR #31](https://github.com/ninekiss/visionhub/pull/31). PR #32 now includes P4.2 secure renderer protocol/CSP plus P4.3 API configuration loading and same-origin API proxy. Actual macOS packaged-app verification and release packaging remain outstanding.
+Status: P4.0 decisions and P4.1 are merged via [PR #31](https://github.com/ninekiss/visionhub/pull/31). P4.2 secure renderer protocol/CSP and the P4.3 API configuration/same-origin proxy foundation are merged via [PR #32](https://github.com/ninekiss/visionhub/pull/32); the user confirmed the player controls now work. End-to-end P4.3 acceptance and actual packaged macOS security verification remain open. P4.5 release packaging is deliberately deferred until explicitly reactivated.
 
 #### Product goal
 
@@ -351,9 +351,11 @@ Deliverable: the core browse → detail → play workflow works in a desktop bui
 
 Deliverable: predictable desktop window lifecycle and basic native integration, with no unrelated background features.
 
-#### P4.5 — Package and verify a release candidate
+#### P4.5 — Package and verify a release candidate (DEFERRED — reactivate on request)
 
-- [x] Select electron-builder v26.17.0, the stable v26 release verified on 2026-10-13; revalidate the stable channel before installation.
+Decision recorded 2026-10-13: this phase is intentionally skipped for now. Do not build release artifacts, configure code signing/notarization, or add release-publishing automation until the user explicitly asks to reactivate P4.5. Keep the checklist below as the future plan; when reactivated, re-check current tool compatibility, runner availability, and signing/notarization credentials before starting.
+
+- [x] Record electron-builder v26.17.0 as the planning baseline; revalidate the stable channel and compatibility when P4.5 is reactivated.
 - [ ] Build a macOS ARM64 DMG/ZIP.
 - [ ] Add reproducible package scripts and CI validation for desktop type checks/builds; run OS-specific packaging on supported runners when feasible.
 - [ ] Configure Developer ID signing, Apple notarization/stapling and GitHub Releases publishing for macOS ARM64 on the self-hosted Apple Silicon runner; reference credentials only through GitHub Actions secrets.
@@ -374,6 +376,8 @@ Deliverable: a reproducible desktop release candidate and a short manual accepta
 - [ ] Do not implement auto-update, telemetry, tray mode or global hotkeys by default.
 
 #### Phase 4 exit criteria
+
+P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until the phase is explicitly reactivated and the relevant acceptance checks are completed.
 
 - [x] Phase 3 browser regression sign-off is recorded in `docs/UI.md` before desktop implementation begins (2026-10-13).
 - [ ] Web and desktop have independent, documented development and production build paths.
@@ -446,6 +450,6 @@ Every phase should meet these gates before merge:
 1. **P4.0 decisions are recorded.** macOS ARM64 is the first package target; Electron is pinned to 44.7.0; the endpoint configuration contract and MP4 test candidate/limitations are documented.
 2. **Finish packaged-app verification.** Test actual Electron launch on macOS ARM64, including CSP, fonts, remote posters, playback and blocked script injection.
 3. **Complete P4.3 workflow acceptance.** Validate catalog/search/detail/playback against a live test API through the same-origin protocol proxy; keep Web's browser/Vite API routing unchanged.
-4. **Keep P4.5 release work scoped to macOS ARM64.** Use the self-hosted Apple Silicon runner for Developer ID signing, notarization/stapling, DMG/ZIP artifacts and GitHub Release publishing. Keep secrets in GitHub Actions secrets and do not bundle database/API services.
+4. **P4.5 is intentionally deferred.** Do not start macOS ARM64 packaging, signing, notarization or GitHub Release automation until the user explicitly reactivates this phase. On reactivation, revalidate the toolchain and runner before following the recorded release plan.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
