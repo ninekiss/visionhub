@@ -6,6 +6,7 @@ import {
   resolveMediaAdapter,
   UnsupportedMediaAdapterError,
 } from './media-adapter.js';
+import { createHlsAdapter, HlsPlaybackNotSupportedError } from './hls-adapter.js';
 import { bindPlaybackEvents, type PlaybackState } from './playback-events.js';
 
 export type { PlaybackState } from './playback-events.js';
@@ -29,6 +30,9 @@ const STATUS_LABELS: Record<PlaybackState, string> = {
 };
 
 const HTML5_ADAPTER = createHtml5Adapter();
+const HLS_ADAPTER = createHlsAdapter();
+const DEFAULT_SOURCE_ERROR = '视频源暂时无法播放。请稍后重试，或返回详情页选择其他内容。';
+const HLS_SOURCE_ERROR = 'HLS 流加载失败。请检查播放源、网络连接或稍后重试。';
 
 export default function PlyrPlayer({
   src,
@@ -75,6 +79,7 @@ export default function PlyrPlayer({
 
     let detachMediaSource = () => {};
     let player: Plyr | null = null;
+    let sourceErrorMessage = DEFAULT_SOURCE_ERROR;
 
     const updateStatus = (next: PlaybackState) => {
       setStatus(next);
@@ -85,9 +90,7 @@ export default function PlyrPlayer({
       getInitialTime: () => initialTimeRef.current,
       onStatus: updateStatus,
       onProgress: (progress) => progressCallbackRef.current?.(progress),
-      onError: () => {
-        setError('视频源暂时无法播放。请稍后重试，或返回详情页选择其他内容。');
-      },
+      onError: () => setError(sourceErrorMessage),
     });
 
     const cleanup = () => {
@@ -105,10 +108,19 @@ export default function PlyrPlayer({
     };
 
     try {
-      const selected = resolveMediaAdapter(src, { html5: HTML5_ADAPTER });
+      const selected = resolveMediaAdapter(src, {
+        html5: HTML5_ADAPTER,
+        hls: HLS_ADAPTER,
+      });
+      if (selected.adapterId === 'hls') sourceErrorMessage = HLS_SOURCE_ERROR;
+
       detachMediaSource = selected.adapter.attach(video, {
         url: src,
         mimeType: selected.mimeType,
+        onFatalError: () => {
+          updateStatus('error');
+          setError(sourceErrorMessage);
+        },
       });
 
       player = new Plyr(video, {
@@ -134,8 +146,10 @@ export default function PlyrPlayer({
       });
     } catch (cause) {
       updateStatus('error');
-      if (cause instanceof UnsupportedMediaAdapterError && cause.adapterId === 'hls') {
-        setError('当前版本尚不支持 HLS（.m3u8）播放。');
+      if (cause instanceof HlsPlaybackNotSupportedError) {
+        setError('当前运行环境不支持 HLS 播放（Media Source Extensions）。');
+      } else if (cause instanceof UnsupportedMediaAdapterError && cause.adapterId === 'hls') {
+        setError('当前版本尚未配置 HLS 适配器。');
       } else {
         setError('播放器初始化失败。请重试或返回详情页。');
       }

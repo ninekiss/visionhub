@@ -39,6 +39,7 @@ Windows interactive acceptance passed on 2026-10-13 (menu actions/shortcuts, zoo
 ## Security/release acceptance still outstanding
 
 - Packaged renderer HTML receives a restrictive CSP response header from the `visionhub://app` protocol handler. Unit tests cover script restrictions, resource classes, CSS/media/font MIME types, deep-link refresh, API proxy mapping and path traversal rejection. The renderer uses a same-origin API path; verify fonts/images/media and blocked script injection in an actual packaged Electron run.
+- The CSP allows HTTPS `connect-src` requests so HLS.js can load manifests and media segments hosted on external HTTPS origins. Script sources remain self-only; remote HTTP stream origins are not globally enabled. Actual packaged macOS security acceptance remains outstanding.
 - Verify runtime API configuration and same-origin API proxy against a live API in Electron, including API unavailability and invalid-config behavior.
 - Test catalog/search/detail/playback and player lifecycle against a test API, including source failure and progress restore.
 - **Deferred (P4.5; do not execute until reactivated):** configure reproducible ARM64 packaging, signatures, notarization/stapling verification, GitHub Release upload and a secret-only signing path on the self-hosted Mac runner.

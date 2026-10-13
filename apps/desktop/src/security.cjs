@@ -23,6 +23,8 @@ function createWebPreferences(preloadPath) {
 
 function createPackagedRendererCsp(apiBaseUrl) {
   // Plyr loads its SVG icon sprite with fetch(); packaged CSP must allow its documented sprite origin.
+  // HLS manifests and media segments may use independent HTTPS CDN hosts.
+  // HTTP is still allowed only for the explicitly configured API origin below.
   const connectSources = ["'self'", "https://cdn.plyr.io"];
   if (apiBaseUrl) {
     try {
@@ -38,6 +40,8 @@ function createPackagedRendererCsp(apiBaseUrl) {
       // An invalid endpoint is not added to the policy; runtime config validation is separate.
     }
   }
+
+  connectSources.push("https:");
 
   return [
     "default-src 'self'",

@@ -64,6 +64,7 @@ test("packaged renderer CSP restricts executable content and allows required res
   assert.ok(policy.includes("img-src 'self' data: https:"));
   assert.ok(policy.includes("media-src 'self' blob: https:"));
   assert.ok(policy.includes("connect-src 'self' https://cdn.plyr.io"));
+  assert.match(policy, /connect-src 'self'.*https:/, "HLS manifests and segments should load from HTTPS stream hosts.");
   assert.ok(!policy.includes("unsafe-eval"));
   assert.ok(!policy.includes("script-src *"));
 });
