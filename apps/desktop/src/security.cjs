@@ -17,7 +17,8 @@ function createWebPreferences(preloadPath) {
     nodeIntegration: false,
     sandbox: true,
     webSecurity: true,
-    webviewTag: false,
+    // This desktop build intentionally embeds authorized source sites with a DOM <webview>.
+    webviewTag: true,
   };
 }
 
