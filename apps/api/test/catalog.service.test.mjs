@@ -8,6 +8,7 @@ const sampleEpisode = {
   title: 'Pilot',
   summary: 'First episode',
   videoUrl: 'https://example.com/video.mp4',
+  playbackSources: [],
   durationMinutes: 20,
 };
 
