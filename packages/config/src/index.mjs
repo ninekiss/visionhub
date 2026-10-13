@@ -394,7 +394,7 @@ export async function loadPlaybackSourcesConfig(options = {}) {
   const filePath = env.PLAYBACK_SOURCES_CONFIG_PATH
     ? resolveConfiguredPath(env.PLAYBACK_SOURCES_CONFIG_PATH, context)
     : resolve(configDir, "playback-sources.yaml");
-  const rawConfig = await readYamlFile(filePath, { optional: true }) || { playback: { providers: [] } };
+  const rawConfig = await readYamlFile(filePath, { optional: !env.PLAYBACK_SOURCES_CONFIG_PATH }) || { playback: { providers: [] } };
   return parseConfig(playbackSourcesConfigSchema, rawConfig, "Playback source configuration");
 }
 
