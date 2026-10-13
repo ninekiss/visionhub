@@ -35,7 +35,7 @@ Phase 3 deliberately migrates in slices. The admin navigation, catalog search/fi
 
 ## Responsive and keyboard acceptance
 
-Use this matrix before closing Phase 3. These are required manual browser checks; CI type/build checks do not substitute for visual verification.
+Use this matrix for explicit responsive browser checks and future regression passes. The user-confirmed P3 UI sign-off recorded below confirms the current regression scope passed; browser/version and per-viewport results were not included in that sign-off, so this document does not infer individual outcomes for every matrix row.
 
 | Viewport | Public Web | Admin |
 | --- | --- | --- |
@@ -54,3 +54,18 @@ Keyboard and state checks:
 - Exercise loading, empty, error and disabled states for catalog, editor, episode management and playback.
 
 Record the browser, viewport and result in the pull request before checking off the visual acceptance exit criterion.
+
+## P3 browser regression closeout — 2026-10-13
+
+Status: **Passed — user-confirmed browser verification.**
+
+Confirmed regression scenarios:
+- Detail page: long titles and descriptions remain bounded, and the content column has more usable width.
+- Admin catalog: changing pages no longer makes the loading indicator push the table, pagination, or page below it downward.
+- Playback page in the development environment: Plyr's custom controls render instead of the browser's native video controls.
+
+Automated verification:
+- [Latest main CI run](https://github.com/ninekiss/visionhub/actions/runs/38362801308) — passed on commit `0fb37daba13d2f9ccd720ade1238717c5944c26b`.
+
+Record-keeping note: the user confirmed the P3 UI browser verification passed, but did not provide the browser/version or an individual result for each viewport in the matrix above. This closeout records the confirmed regression scope without claiming a detailed viewport-by-viewport report.
+
