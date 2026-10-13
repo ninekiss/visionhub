@@ -187,7 +187,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
       className: 'external-source-frame external-source-webview',
       src: desktopTarget.url,
       partition: `persist:visionhub-source-${source.providerId}`,
-      allowpopups: false,
+      // Omit `allowpopups`: Electron webviews allow popups only when this attribute is present.
       title: title + ' - ' + (provider?.name ?? '源站'),
       'aria-label': '外部源站播放器：' + title,
     } as never)
