@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
-  applyContentSecurityPolicy,
   createPackagedRendererCsp,
   createWebPreferences,
   getSafeExternalUrl,
@@ -17,7 +16,7 @@ test("development renderer URLs must use the local loopback HTTP server", () => 
   assert.equal(parseDevelopmentServerUrl("file:///tmp/index.html"), null);
 });
 
-test("renderer navigation stays within the development origin or exact packaged file", () => {
+test("renderer navigation stays within development origin or packaged app origin", () => {
   const development = { developmentUrl: "http://127.0.0.1:5174", packagedUrl: "file:///app/index.html" };
   assert.equal(isTrustedRendererUrl("http://127.0.0.1:5174/title/demo", development), true);
   assert.equal(isTrustedRendererUrl("http://localhost:5174/title/demo", development), false);
@@ -27,6 +26,12 @@ test("renderer navigation stays within the development origin or exact packaged 
   assert.equal(isTrustedRendererUrl("file:///app/index.html", packaged), true);
   assert.equal(isTrustedRendererUrl("file:///app/other.html", packaged), false);
   assert.equal(isTrustedRendererUrl("https://example.com", packaged), false);
+
+  const packagedProtocol = { packagedUrl: "visionhub://app/index.html" };
+  assert.equal(isTrustedRendererUrl("visionhub://app/title/demo", packagedProtocol), true);
+  assert.equal(isTrustedRendererUrl("visionhub://other/title/demo", packagedProtocol), false);
+  assert.equal(isTrustedRendererUrl("visionhub://user:pass@app/title/demo", packagedProtocol), false);
+  assert.equal(isTrustedRendererUrl("https://app/title/demo", packagedProtocol), false);
 });
 
 test("external links are restricted to credential-free HTTPS URLs", () => {
@@ -72,16 +77,3 @@ test("packaged renderer CSP can allow only the configured HTTP(S) API origin", (
   assert.ok(!createPackagedRendererCsp("https://user:pass@example.test").includes("example.test"));
 });
 
-test("CSP response header replaces existing CSP without dropping unrelated headers", () => {
-  const headers = applyContentSecurityPolicy({
-    "content-security-policy": ["default-src *"],
-    "Cache-Control": ["no-store"],
-    "X-Content-Type-Options": ["nosniff"],
-  }, "default-src 'self'; object-src 'none'");
-
-  assert.deepEqual(headers, {
-    "Cache-Control": ["no-store"],
-    "X-Content-Type-Options": ["nosniff"],
-    "Content-Security-Policy": ["default-src 'self'; object-src 'none'"],
-  });
-});

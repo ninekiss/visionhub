@@ -61,7 +61,7 @@ pnpm build
 
 ## Electron 桌面端开发壳（P4.1–P4.2）
 
-首个打包目标确定为 macOS Apple Silicon（ARM64）。已建立 Electron 主进程、受限 preload bridge 和复用现有 Web renderer 的开发壳；当前分支正在为打包版主文档加上 CSP 响应头与测试。**这仍不是可发布的安装包**。运行时 API 地址接入属于 P4.3；macOS 签名/公证/自动发布属于 P4.5。
+首个打包目标确定为 macOS Apple Silicon（ARM64）。已建立 Electron 主进程、受限 preload bridge 和复用现有 Web renderer 的开发壳；当前分支为打包版 renderer 引入受限的 `visionhub://app` 协议，并为 HTML 主文档设置 CSP 响应头。**这仍不是可发布的安装包**。运行时 API 地址接入属于 P4.3；macOS 签名/公证/自动发布属于 P4.5。
 
 在一个终端启动开发 API（需要现有 PostgreSQL 可访问）：
 
@@ -82,7 +82,7 @@ pnpm --filter @visionhub/desktop build
 pnpm --filter @visionhub/desktop test
 ```
 
-开发壳复用 `apps/web` 的全部 React 页面和组件。`pnpm --filter @visionhub/desktop build` 会额外生成采用相对资源路径的 `apps/desktop/renderer-dist`，供 Electron 的 `file://` 窗口加载；浏览器 Web 的默认构建仍使用原来的 Vite 配置。桌面 renderer 的运行时 API endpoint 尚未在本阶段注入，因此当前仍是开发壳而非可供实际片库使用的生产客户端。`configs/desktop.yaml` / `DESKTOP_API_BASE_URL` 的运行时集成属于 P4.3；签名、公证、DMG/ZIP 与 GitHub Release 发布属于 P4.5。
+开发壳复用 `apps/web` 的全部 React 页面和组件。`pnpm --filter @visionhub/desktop build` 会额外生成独立的 `apps/desktop/renderer-dist`，由 Electron 主进程注册的 `visionhub://app` 协议提供静态资源与 CSP；不通过 `file://` 加载打包页面，浏览器 Web 的默认构建仍使用原来的 Vite 配置。桌面 renderer 的运行时 API endpoint 尚未在本阶段注入，因此当前仍是开发壳而非可供实际片库使用的生产客户端。`configs/desktop.yaml` / `DESKTOP_API_BASE_URL` 的运行时集成属于 P4.3；签名、公证、DMG/ZIP 与 GitHub Release 发布属于 P4.5。
 
 ## Docker Compose 部署
 

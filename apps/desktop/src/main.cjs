@@ -1,15 +1,24 @@
-const { app, BrowserWindow, dialog, ipcMain, session, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, protocol, shell } = require("electron");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
 const {
-  applyContentSecurityPolicy,
-  createPackagedRendererCsp,
   createWebPreferences,
   getSafeExternalUrl,
   isTrustedRendererUrl,
   parseDevelopmentServerUrl,
 } = require("./security.cjs");
+const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "visionhub",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+    },
+  },
+]);
 
 const configuredDevelopmentUrl = process.env.VITE_DEV_SERVER_URL || null;
 if (configuredDevelopmentUrl && !parseDevelopmentServerUrl(configuredDevelopmentUrl)) {
@@ -20,7 +29,7 @@ const developmentUrl = configuredDevelopmentUrl
   ? new URL(configuredDevelopmentUrl).href
   : null;
 const rendererPath = path.resolve(__dirname, "../renderer-dist/index.html");
-const packagedRendererUrl = pathToFileURL(rendererPath).href;
+const packagedRendererUrl = "visionhub://app/index.html";
 let mainWindow = null;
 
 function isTrustedAppUrl(url) {
@@ -30,19 +39,10 @@ function isTrustedAppUrl(url) {
   });
 }
 
-function installPackagedContentSecurityPolicy() {
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    if (details.resourceType === "mainFrame" && isTrustedAppUrl(details.url)) {
-      callback({
-        responseHeaders: applyContentSecurityPolicy(
-          details.responseHeaders,
-          createPackagedRendererCsp(),
-        ),
-      });
-      return;
-    }
-    callback({ responseHeaders: details.responseHeaders });
-  });
+function installPackagedRendererProtocol() {
+  protocol.handle("visionhub", createPackagedRendererHandler({
+    rendererRoot: path.dirname(rendererPath),
+  }));
 }
 
 function createWindow() {
@@ -83,7 +83,7 @@ function createWindow() {
 
   const loading = developmentUrl
     ? window.loadURL(developmentUrl)
-    : window.loadFile(rendererPath);
+    : window.loadURL(packagedRendererUrl);
   void loading.catch((error) => {
     console.error("Unable to load the VisionHub renderer:", error);
     dialog.showErrorBox(
@@ -101,7 +101,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  if (!developmentUrl) installPackagedContentSecurityPolicy();
+  if (!developmentUrl) installPackagedRendererProtocol();
 
   ipcMain.handle("desktop:get-app-info", (event) => {
     const senderUrl = event.senderFrame && event.senderFrame.url;

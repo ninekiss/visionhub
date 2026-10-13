@@ -53,16 +53,6 @@ function createPackagedRendererCsp(apiBaseUrl) {
   ].join("; ");
 }
 
-function applyContentSecurityPolicy(responseHeaders, policy) {
-  const headers = Object.fromEntries(
-    Object.entries(responseHeaders || {}).filter(
-      ([name]) => name.toLowerCase() !== "content-security-policy",
-    ),
-  );
-  headers["Content-Security-Policy"] = [policy];
-  return headers;
-}
-
 function getSafeExternalUrl(candidate) {
   try {
     const url = new URL(candidate);
@@ -75,19 +65,26 @@ function getSafeExternalUrl(candidate) {
 
 function isTrustedRendererUrl(candidate, options) {
   try {
+    const candidateUrl = new URL(candidate);
     if (options.developmentUrl) {
       const devServer = parseDevelopmentServerUrl(options.developmentUrl);
       if (!devServer) return false;
-      return new URL(candidate).origin === devServer.origin;
+      return candidateUrl.origin === devServer.origin;
     }
-    return new URL(candidate).href === new URL(options.packagedUrl).href;
+
+    const packagedUrl = new URL(options.packagedUrl);
+    if (packagedUrl.protocol === "file:") return candidateUrl.href === packagedUrl.href;
+    return candidateUrl.protocol === packagedUrl.protocol &&
+      candidateUrl.hostname === packagedUrl.hostname &&
+      candidateUrl.port === packagedUrl.port &&
+      !candidateUrl.username &&
+      !candidateUrl.password;
   } catch {
     return false;
   }
 }
 
 module.exports = {
-  applyContentSecurityPolicy,
   createPackagedRendererCsp,
   createWebPreferences,
   getSafeExternalUrl,

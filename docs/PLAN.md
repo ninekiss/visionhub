@@ -38,7 +38,7 @@ The following status is based on the repository code and lockfile on 2026-10-13.
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
 | Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
 | HLS | No `hls.js` adapter is present | Not started |
-| Desktop | `apps/desktop` provides the initial Electron main/preload shell and opens the existing Web renderer in development | P4.1 scaffold in review; API-aware packaged runtime and release pipeline remain pending |
+| Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | P4.1 merged; P4.2 CSP and custom-protocol hardening in PR #32; API-aware runtime and release pipeline pending |
 | Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation and planned Phase 3 migration slices implemented; Web remains first-class |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
 | CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
@@ -314,7 +314,7 @@ Deliverable: a short compatibility decision in the PR description or docs, inclu
 - [x] Create `apps/desktop` with the Electron main process, a sandboxed preload bridge, URL/security helpers and tests; leave `apps/web` as the same renderer.
 - [x] Add workspace commands for Electron development (`pnpm dev:desktop`), shell checks, and security tests. Packaging commands are intentionally deferred to P4.5.
 - [x] Reuse the existing `apps/web` React/Vite renderer instead of duplicating screens or contracts.
-- [x] Load a loopback Vite server in development and build a dedicated relative-base renderer into `apps/desktop/renderer-dist` for Electron file loading; keep the browser Web build configuration unchanged and show an actionable error if the desktop renderer build is missing.
+- [x] Load a loopback Vite server in development and build a dedicated renderer into `apps/desktop/renderer-dist` with app-root asset paths; serve packaged assets through `visionhub://app` so CSP response headers are honored, while keeping the browser Web build unchanged.
 - [x] Keep API and database services separate. Electron is a client and does not bundle or start the NestJS API, PostgreSQL, or migrations.
 
 Deliverable: the development Electron window opens the existing Web renderer on its own Vite port, while Web remains independently buildable. The app is a development scaffold, not yet a production-ready desktop release.
@@ -325,7 +325,7 @@ Deliverable: the development Electron window opens the existing Web renderer on 
 - [x] Expose only a narrow, typed `getAppInfo()` method through preload; never expose raw `ipcRenderer`, arbitrary Node APIs, filesystem access or unrestricted shell execution.
 - [x] Validate the sender URL for the single IPC handler; the handler accepts no renderer payload arguments.
 - [x] Block unexpected navigation and all new windows; only validated HTTPS URLs may be handed to the operating system.
-- [x] Add a restrictive Content Security Policy to the packaged renderer's main-frame response only; cover policy generation, API-origin allowlisting and response-header replacement with unit tests.
+- [x] Serve packaged renderer assets through a secure, standard `visionhub://app` protocol; attach CSP to HTML responses and reject traversal/unknown-host requests. Unit tests cover the policy, API-origin allowlisting, MIME types, deep-link refresh and traversal guards.
 - [ ] Verify the CSP behavior in an actual packaged Electron build on macOS ARM64 before marking P4.2 complete.
 - [x] Keep secrets out of renderer bundles and source; API endpoint configuration remains separate from credentials.
 

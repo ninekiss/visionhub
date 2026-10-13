@@ -1,6 +1,6 @@
 # VisionHub Desktop MVP — P4 decisions
 
-> Status: P4.0 decisions and the P4.1 shell scaffold are merged into `main` via PR #31. P4.2 adds a packaged-renderer CSP response header and unit tests; actual packaged Electron verification is still required. This is not a release-ready desktop build.
+> Status: P4.0 decisions and the P4.1 shell scaffold are merged into `main` via PR #31. P4.2 serves packaged assets with a secure `visionhub://app` protocol and sends CSP on HTML responses; actual packaged Electron verification is still required. This is not a release-ready desktop build.
 
 ## Scope decisions (2026-10-13)
 
@@ -27,11 +27,11 @@ Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR, subtitle or
 - apps/desktop/src/main.cjs owns the BrowserWindow lifecycle and loads the local Vite renderer in development.
 - apps/desktop/src/preload.cjs exposes only a typed getAppInfo() capability. It does not expose raw ipcRenderer, Node or filesystem APIs.
 - apps/desktop/src/security.cjs centralizes secure renderer preferences, loopback development URL validation, exact packaged-file validation and HTTPS-only external links.
-- The desktop build generates a dedicated relative-base renderer at apps/desktop/renderer-dist/index.html, separate from the browser Web build. This avoids treating root-relative Web assets as if they were loadable from a file URL. Production API configuration still needs P4.3 and installer/signing workflows are P4.5. Do not treat the current shell as a production release.
+- The desktop build generates a separate renderer at `apps/desktop/renderer-dist` with app-root asset paths, leaving the browser Web build unchanged. Packaged content is served only through the secure `visionhub://app` protocol; path traversal and unknown hosts are rejected, and HTML responses carry the CSP. The protocol is used because Electron does not apply `webRequest` response-header CSP injection to `file://` documents. Production API configuration still needs P4.3 and installer/signing workflows are P4.5. Do not treat the current shell as a production release.
 
 ## Security/release acceptance still outstanding
 
-- A restrictive CSP response header is installed for the packaged renderer's main-frame response only. Unit tests cover script restrictions, resource classes, API-origin allowlisting and replacement of existing CSP headers. Verify fonts/images/media and blocked script injection in an actual packaged Electron run; API-origin wiring is part of P4.3.
+- Packaged renderer HTML receives a restrictive CSP response header from the `visionhub://app` protocol handler. Unit tests cover script restrictions, resource classes, API-origin allowlisting, asset MIME types, deep-link refresh and path traversal rejection. Verify fonts/images/media and blocked script injection in an actual packaged Electron run; API-origin wiring is part of P4.3.
 - Wire loadDesktopConfig() into the desktop runtime and bridge only the validated endpoint needed by Web.
 - Test catalog/search/detail/playback and player lifecycle against a test API, including source failure and progress restore.
 - Configure reproducible ARM64 packaging, signatures, notarization/stapling verification, GitHub Release upload and a secret-only signing path on the self-hosted Mac runner.
