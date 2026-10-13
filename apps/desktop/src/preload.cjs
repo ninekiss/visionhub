@@ -7,7 +7,7 @@ function subscribeExternalPlayerStatus(listener) {
   return () => ipcRenderer.removeListener("external-player:status", handler);
 }
 
-// Expose narrow, typed app capabilities only. The remote source WebContentsView has no preload.
+// Expose narrow, typed app capabilities only. Remote source webviews have no preload bridge.
 contextBridge.exposeInMainWorld("visionHubDesktop", Object.freeze({
   getAppInfo: () => ipcRenderer.invoke("desktop:get-app-info"),
   openExternalPlayer: (request) => ipcRenderer.invoke("external-player:open", request),
