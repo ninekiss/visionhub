@@ -36,5 +36,10 @@ interface Window {
       requestId: string;
       code?: string;
     }) => void) => () => void;
+    onExternalPlayerFullscreen: (listener: (payload: {
+      active: boolean;
+      providerId: string;
+      requestId: string;
+    }) => void) => () => void;
   };
 }

@@ -128,6 +128,15 @@ function sendExternalPlayerStatus(status, providerId, requestId, code) {
   });
 }
 
+function sendExternalPlayerFullscreen(active, session = externalPlayerSession) {
+  if (!session || !mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("external-player:fullscreen", {
+    active: Boolean(active),
+    providerId: session.providerId,
+    requestId: session.requestId,
+  });
+}
+
 function clearExternalPlayerTimers(session) {
   if (!session) return;
   if (session.readinessInterval) clearInterval(session.readinessInterval);
@@ -140,6 +149,7 @@ function closeExternalPlayer(options = {}) {
   const session = externalPlayerSession;
   if (!session || (options.requestId && options.requestId !== session.requestId)) return false;
   clearExternalPlayerTimers(session);
+  sendExternalPlayerFullscreen(false, session);
   externalPlayerSession = null;
   try {
     if (session.webContents && !session.webContents.isDestroyed()) session.webContents.stop();
@@ -207,6 +217,9 @@ function attachExternalPlayerWebContents(session, webContents) {
     if (isMainFrame && errorCode !== -3) failExternalPlayer(session, "load-failed");
   });
   webContents.on("did-finish-load", () => startExternalPlayerReadinessCheck(session));
+  // The guest's HTML fullscreen events are authoritative for the embedded player.
+  webContents.on("enter-html-full-screen", () => sendExternalPlayerFullscreen(true, session));
+  webContents.on("leave-html-full-screen", () => sendExternalPlayerFullscreen(false, session));
   webContents.on("render-process-gone", () => failExternalPlayer(session, "renderer-crashed"));
   webContents.on("destroyed", () => {
     clearExternalPlayerTimers(session);
@@ -387,6 +400,11 @@ function createWindow() {
   };
   window.webContents.on("will-navigate", blockUntrustedNavigation);
   window.webContents.on("will-redirect", blockUntrustedNavigation);
+
+  // Forward the owner-window events too: on Electron, HTML fullscreen from a guest
+  // can change the native window before the renderer's <webview> event is observed.
+  window.on("enter-html-full-screen", () => sendExternalPlayerFullscreen(true));
+  window.on("leave-html-full-screen", () => sendExternalPlayerFullscreen(false));
   attachExternalPlayerWebviewGuards(window);
 
   const loading = developmentUrl

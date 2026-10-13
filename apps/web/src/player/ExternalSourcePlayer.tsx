@@ -63,6 +63,15 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   );
 
   useEffect(() => {
+    const desktop = window.visionHubDesktop;
+    if (!desktop) return;
+    return desktop.onExternalPlayerFullscreen((event) => {
+      if (event.providerId !== source.providerId || event.requestId !== requestId) return;
+      setSourceFullscreen(event.active);
+    });
+  }, [source.providerId, requestId]);
+
+  useEffect(() => {
     setStatus('loading');
     setErrorMessage('');
     setDesktopTarget(null);
