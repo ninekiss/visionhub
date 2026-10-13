@@ -17,6 +17,8 @@ function createWebPreferences(preloadPath) {
     nodeIntegration: false,
     sandbox: true,
     webSecurity: true,
+    // Permit source players to use the HTML Fullscreen API in the isolated guest view.
+    disableHtmlFullscreenWindowResize: false,
     // This desktop build intentionally embeds authorized source sites with a DOM <webview>.
     webviewTag: true,
   };
