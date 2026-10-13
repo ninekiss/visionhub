@@ -223,19 +223,18 @@ test("rejects provider templates outside allowlisted origins, duplicate IDs, and
     await rm(configDir, { recursive: true, force: true });
   }
 
-  const duplicateDir = await createConfigDirectory({
-    "playback-sources.yaml": validPlaybackSourcesYaml.replace(
-      "    - id: example-source",
-      "    - id: other-source",
-    ) + "",
-  });
+  const duplicateDir = await createConfigDirectory({});
   try {
-    // Duplicate IDs are asserted by parsing a minimal duplicated-provider configuration below.
-    const duplicateYaml = validPlaybackSourcesYaml.replace(
-      "      timeoutMs: 15000",
-      "      timeoutMs: 15000\n    - id: example-source\n      name: Duplicate\n      urlTemplate: https://player.example.test/watch/{contentId}\n      allowedOrigins:\n        - https://player.example.test\n      playerSelector: \".player\"",
-    );
-    await (await import("node:fs/promises")).writeFile(join(duplicateDir, "playback-sources.yaml"), duplicateYaml, "utf8");
+    const duplicateProvider = [
+      "    - id: example-source",
+      "      name: Duplicate",
+      "      urlTemplate: https://player.example.test/watch/{contentId}",
+      "      allowedOrigins:",
+      "        - https://player.example.test",
+      "      playerSelector: \\".player\\"",
+    ].join("\n");
+    const duplicateYaml = validPlaybackSourcesYaml + duplicateProvider + "\n";
+    await writeFile(join(duplicateDir, "playback-sources.yaml"), duplicateYaml, "utf8");
     await assert.rejects(
       loadPlaybackSourcesConfig({ cwd: duplicateDir, configDir: duplicateDir, env: {} }),
       /provider IDs must be unique/,
