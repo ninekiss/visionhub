@@ -1,8 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import Plyr from 'plyr';
 import 'plyr/dist/plyr.css';
+import {
+  createHtml5Adapter,
+  resolveMediaAdapter,
+  UnsupportedMediaAdapterError,
+} from './media-adapter.js';
+import { bindPlaybackEvents, type PlaybackState } from './playback-events.js';
 
-export type PlaybackState = 'ready' | 'playing' | 'paused' | 'buffering' | 'ended' | 'error';
+export type { PlaybackState } from './playback-events.js';
 
 type Props = {
   src: string;
@@ -21,6 +27,8 @@ const STATUS_LABELS: Record<PlaybackState, string> = {
   ended: '播放结束',
   error: '播放遇到问题',
 };
+
+const HTML5_ADAPTER = createHtml5Adapter();
 
 export default function PlyrPlayer({
   src,
@@ -60,115 +68,88 @@ export default function PlyrPlayer({
     video.crossOrigin = 'anonymous';
     if (poster) video.poster = poster;
     video.title = title;
-    const sourceElement = document.createElement('source');
-    sourceElement.src = src;
-    sourceElement.type = 'video/mp4';
-    video.append(sourceElement, document.createTextNode('当前浏览器不支持 HTML5 视频播放。'));
     mount.append(video);
 
     setStatus('ready');
     setError('');
 
-    const player = new Plyr(video, {
-      autoplay: false,
-      // Keep the control strip available in the desktop app instead of auto-hiding it during playback.
-      hideControls: false,
-      muted: false,
-      clickToPlay: true,
-      keyboard: { focused: true, global: false },
-      tooltips: { controls: true, seek: true },
-      controls: [
-        'play-large',
-        'play',
-        'progress',
-        'current-time',
-        'duration',
-        'mute',
-        'volume',
-        'settings',
-        'pip',
-        'fullscreen',
-      ],
-    });
+    let detachMediaSource = () => {};
+    let player: Plyr | null = null;
 
     const updateStatus = (next: PlaybackState) => {
       setStatus(next);
       callbackRef.current?.(next);
     };
-    let lastProgressReportAt = 0;
-    const reportProgress = (force = false) => {
-      const currentTime = video.currentTime;
-      const duration = video.duration;
-      if (!Number.isFinite(currentTime) || !Number.isFinite(duration) || duration <= 0) return;
-      const now = Date.now();
-      if (!force && now - lastProgressReportAt < 5000) return;
-      lastProgressReportAt = now;
-      progressCallbackRef.current?.({ currentTime, duration });
-    };
-    const handleLoadedMetadata = () => {
-      const resumeAt = initialTimeRef.current;
-      if (Number.isFinite(resumeAt) && resumeAt > 5 && resumeAt < video.duration - 15) {
+
+    const unbindPlaybackEvents = bindPlaybackEvents(video, {
+      getInitialTime: () => initialTimeRef.current,
+      onStatus: updateStatus,
+      onProgress: (progress) => progressCallbackRef.current?.(progress),
+      onError: () => {
+        setError('视频源暂时无法播放。请稍后重试，或返回详情页选择其他内容。');
+      },
+    });
+
+    const cleanup = () => {
+      unbindPlaybackEvents();
+      try {
+        detachMediaSource();
+      } finally {
         try {
-          video.currentTime = resumeAt;
-        } catch {
-          // Browsers may reject a seek before the media timeline is ready.
+          player?.destroy();
+        } finally {
+          // Plyr restores a cloned native video node; discard it before the next setup.
+          mount.replaceChildren();
         }
       }
     };
-    let hasStartedPlayback = false;
-    const handlePlaying = () => {
-      hasStartedPlayback = true;
-      updateStatus('playing');
-    };
-    const handleCanPlay = () => {
-      if (video.paused && !video.ended) {
-        updateStatus(hasStartedPlayback ? 'paused' : 'ready');
-      }
-    };
-    const handlePause = () => {
-      if (!video.ended) updateStatus('paused');
-      reportProgress(true);
-    };
-    const handleTimeUpdate = () => reportProgress();
-    const handleWaiting = () => updateStatus('buffering');
-    const handleEnded = () => {
-      updateStatus('ended');
-      reportProgress(true);
-    };
-    const handleError = () => {
+
+    try {
+      const selected = resolveMediaAdapter(src, { html5: HTML5_ADAPTER });
+      detachMediaSource = selected.adapter.attach(video, {
+        url: src,
+        mimeType: selected.mimeType,
+      });
+
+      player = new Plyr(video, {
+        autoplay: false,
+        // Keep the control strip available in the desktop app instead of auto-hiding it during playback.
+        hideControls: false,
+        muted: false,
+        clickToPlay: true,
+        keyboard: { focused: true, global: false },
+        tooltips: { controls: true, seek: true },
+        controls: [
+          'play-large',
+          'play',
+          'progress',
+          'current-time',
+          'duration',
+          'mute',
+          'volume',
+          'settings',
+          'pip',
+          'fullscreen',
+        ],
+      });
+    } catch (cause) {
       updateStatus('error');
-      setError('视频源暂时无法播放。请稍后重试，或返回详情页选择其他内容。');
-    };
+      if (cause instanceof UnsupportedMediaAdapterError && cause.adapterId === 'hls') {
+        setError('当前版本尚不支持 HLS（.m3u8）播放。');
+      } else {
+        setError('播放器初始化失败。请重试或返回详情页。');
+      }
+      return cleanup;
+    }
 
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    video.addEventListener('playing', handlePlaying);
-    video.addEventListener('canplay', handleCanPlay);
-    video.addEventListener('pause', handlePause);
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    video.addEventListener('waiting', handleWaiting);
-    video.addEventListener('ended', handleEnded);
-    video.addEventListener('error', handleError);
-
-    return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      video.removeEventListener('playing', handlePlaying);
-      video.removeEventListener('canplay', handleCanPlay);
-      video.removeEventListener('pause', handlePause);
-      video.removeEventListener('timeupdate', handleTimeUpdate);
-      video.removeEventListener('waiting', handleWaiting);
-      video.removeEventListener('ended', handleEnded);
-      video.removeEventListener('error', handleError);
-      player.destroy();
-      // Plyr restores a cloned native video node; discard it before the next setup.
-      mount.replaceChildren();
-    };
+    return cleanup;
   }, [src, poster, title]);
 
   return (
-    <div className="player-shell" aria-label={`播放器：${title}`}>
+    <div className="player-shell" aria-label={'播放器：' + title}>
       <div className="player-mount" ref={playerMountRef} />
       <div className="player-status-line" aria-live="polite">
-        <span className={`player-status-dot player-status-dot-${status}`} />
+        <span className={'player-status-dot player-status-dot-' + status} />
         {STATUS_LABELS[status]}
       </div>
       {error && <div className="player-error" role="alert">{error}</div>}
