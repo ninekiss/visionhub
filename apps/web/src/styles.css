@@ -121,3 +121,12 @@
 
 @media(max-width:900px){.continue-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.continue-section{padding:18px 18px 4px}.continue-section .section-heading h2{font-size:20px}.continue-caption{display:none}.continue-grid{gap:10px}}
+
+/* Phase 3 browser acceptance fixes */
+.main-nav a[aria-current="page"]{color:#f4f5f6}
+.main-nav a[aria-current="page"]::after{content:"";background:#c7f36b}
+.hero-copy{max-width:min(680px,68%)}
+.hero h1{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;overflow-wrap:anywhere}
+.hero-copy p{max-width:560px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.category-chip{cursor:pointer}
+@media(max-width:600px){.hero-copy{max-width:100%}.hero{height:auto;max-height:none}}
