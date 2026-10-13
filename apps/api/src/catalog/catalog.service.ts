@@ -10,9 +10,11 @@ import type {
   CatalogItem,
   CatalogListQuery,
   PaginatedResponse,
+  PlaybackProvider,
 } from "@visionhub/contracts";
 import { APP_CONFIG, type AppConfig } from "../config/app-config.js";
 import { PrismaService } from "../database/prisma.service.js";
+import { readStoredPlaybackSources } from "./playback-sources.js";
 
 const MAX_PAGE_SIZE = 50;
 const catalogItemInclude = {
@@ -27,7 +29,8 @@ type DatabaseCatalogItem = {
   mediaType: "movie" | "series";
   description: string;
   posterUrl: string;
-  videoUrl: string;
+  videoUrl: string | null;
+  playbackSources: unknown;
   categoryLinks: Array<{ category: { name: string } }>;
   _count: { episodes: number };
 };
@@ -146,7 +149,7 @@ export class CatalogService {
     }
     if (item.mediaType === "movie") return [];
 
-    return this.prisma.catalogEpisode.findMany({
+    const records = await this.prisma.catalogEpisode.findMany({
       where: { seriesId: id },
       orderBy: { episodeNumber: "asc" },
       select: {
@@ -155,9 +158,22 @@ export class CatalogService {
         title: true,
         summary: true,
         videoUrl: true,
+        playbackSources: true,
         durationMinutes: true,
       },
     });
+    return records.map((record) => ({
+      ...record,
+      playbackSources: readStoredPlaybackSources(record.playbackSources),
+    }));
+  }
+
+  getPlaybackProviders(): PlaybackProvider[] {
+    return (this.config.playback?.providers ?? []).map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      ...(provider.webEmbedUrlTemplate ? { webEmbedUrlTemplate: provider.webEmbedUrlTemplate } : {}),
+    }));
   }
 
   async getCategories(): Promise<string[]> {
@@ -180,6 +196,7 @@ export class CatalogService {
       description: record.description,
       poster: record.posterUrl,
       videoUrl: record.videoUrl,
+      playbackSources: readStoredPlaybackSources(record.playbackSources),
     };
   }
 
