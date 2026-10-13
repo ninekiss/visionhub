@@ -9,10 +9,19 @@ type Envelope<T> = { data: T };
 type Category = { id: string; name: string; itemCount: number };
 type Item = CatalogItem & { sortOrder: number; updatedAt?: string };
 type Dashboard = { items: number; movies: number; series: number; episodes: number; categories: number; recentItems: Item[] };
-type ItemForm = { title: string; year: number; mediaType: CatalogMediaType; description: string; posterUrl: string; videoUrl: string; categories: string[]; sortOrder: number };
-type EpisodeForm = { episodeNumber: number; title: string; summary: string; videoUrl: string; durationMinutes: number };
-const EMPTY_ITEM: ItemForm = { title: '', year: new Date().getFullYear(), mediaType: 'movie', description: '', posterUrl: '', videoUrl: '', categories: [], sortOrder: 0 };
-const EMPTY_EPISODE: EpisodeForm = { episodeNumber: 1, title: '', summary: '', videoUrl: '', durationMinutes: 20 };
+type ItemForm = { title: string; year: number; mediaType: CatalogMediaType; description: string; posterUrl: string; videoUrl: string; playbackSourcesText: string; categories: string[]; sortOrder: number };
+type EpisodeForm = { episodeNumber: number; title: string; summary: string; videoUrl: string; playbackSourcesText: string; durationMinutes: number };
+const EMPTY_ITEM: ItemForm = { title: '', year: new Date().getFullYear(), mediaType: 'movie', description: '', posterUrl: '', videoUrl: '', playbackSourcesText: '[]', categories: [], sortOrder: 0 };
+const EMPTY_EPISODE: EpisodeForm = { episodeNumber: 1, title: '', summary: '', videoUrl: '', playbackSourcesText: '[]', durationMinutes: 20 };
+const PLAYBACK_SOURCES_EXAMPLE = '[\\n  { "id": "official", "label": "官方源", "kind": "provider", "providerId": "exampleSource", "contentId": "12345" },\\n  { "id": "backup", "label": "备用直连", "kind": "direct", "url": "https://example.com/video.mp4" }\\n]';
+function parsePlaybackSourcesText(text: string): unknown[] {
+  const value: unknown = JSON.parse(text.trim() || '[]');
+  if (!Array.isArray(value)) throw new Error('播放源配置必须是 JSON 数组。');
+  return value;
+}
+function hasPlaybackSources(text: string): boolean {
+  try { return parsePlaybackSourcesText(text).length > 0; } catch { return false; }
+}
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(API + path, { ...init, credentials: 'same-origin', headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers } });
@@ -162,15 +171,26 @@ function ItemEditor({ id, go, notify }: { id?: string; go: (path: string) => voi
     api<Envelope<Category[]>>('/admin/categories').then((r) => { if (active) setCats(r.data); }).catch(() => { if (active) setCats([]); });
     if (!id) { setForm(EMPTY_ITEM); setLoading(false); return () => { active = false; }; }
     setLoading(true);
-    api<Envelope<Item>>('/admin/catalog/' + encodeURIComponent(id)).then((r) => { if (!active) return; const x = r.data; setForm({ title: x.title, year: x.year, mediaType: x.mediaType, description: x.description, posterUrl: x.poster, videoUrl: x.videoUrl, categories: x.categories, sortOrder: x.sortOrder }); })
+    api<Envelope<Item>>('/admin/catalog/' + encodeURIComponent(id)).then((r) => { if (!active) return; const x = r.data; setForm({ title: x.title, year: x.year, mediaType: x.mediaType, description: x.description, posterUrl: x.poster, videoUrl: x.videoUrl ?? '', playbackSourcesText: JSON.stringify(x.playbackSources ?? [], null, 2), categories: x.categories, sortOrder: x.sortOrder }); })
       .catch((e) => { if (active) setError(e instanceof Error ? e.message : '无法加载作品。'); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [id]);
   const set = <K extends keyof ItemForm>(key: K, value: ItemForm[K]) => setForm((f) => ({ ...f, [key]: value }));
   async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setError('');
-    try { const result = await api<Envelope<Item>>(id ? '/admin/catalog/' + encodeURIComponent(id) : '/admin/catalog', { method: id ? 'PUT' : 'POST', body: JSON.stringify(form) }); notify(id ? '作品资料已保存。' : '作品已创建。'); go('/admin/catalog/' + encodeURIComponent(result.data.id) + '/edit'); }
-    catch (cause) { const message = cause instanceof Error ? cause.message : '保存失败。'; setError(message); notify(message, 'error'); } finally { setSaving(false); }
+    try {
+      const playbackSources = parsePlaybackSourcesText(form.playbackSourcesText);
+      const { playbackSourcesText: _playbackSourcesText, ...metadata } = form;
+      const result = await api<Envelope<Item>>(id ? '/admin/catalog/' + encodeURIComponent(id) : '/admin/catalog', {
+        method: id ? 'PUT' : 'POST',
+        body: JSON.stringify({ ...metadata, videoUrl: form.videoUrl.trim() || null, playbackSources }),
+      });
+      notify(id ? '作品资料已保存。' : '作品已创建。');
+      go('/admin/catalog/' + encodeURIComponent(result.data.id) + '/edit');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : '保存失败。';
+      setError(message); notify(message, 'error');
+    } finally { setSaving(false); }
   }
   if (loading) return <div className="adm-loading"><LoaderCircle className="adm-spin" />加载作品…</div>;
   return <div className="adm-page"><div className="adm-back-row"><Button kind="ghost" size="compact" className="!px-0 !text-[10px] !text-[#a5aebb] hover:!text-[var(--vh-accent)]" onClick={() => go('/admin/catalog')}><ArrowLeft size={15} />返回影视内容</Button><span>{id ? '编辑作品资料' : '创建新作品'}</span></div>
@@ -189,8 +209,9 @@ function ItemEditor({ id, go, notify }: { id?: string; go: (path: string) => voi
       </section>
       <section className="adm-panel adm-form-panel"><div className="adm-panel-head"><div><h2>媒体资源</h2><p>填入可通过 HTTP 或 HTTPS 访问的地址。</p></div></div><div className="adm-form-grid">
         <Field label="海报 URL *" wide><TextInput type="url" value={form.posterUrl} onChange={(e) => set('posterUrl', e.target.value)} placeholder="https://example.com/poster.jpg" required /></Field>
-        <Field label={'默认视频源 URL' + (form.mediaType === 'movie' ? ' *' : '')} wide hint={form.mediaType === 'series' ? '剧集可留空；实际播放地址在分集管理中维护。' : '建议使用浏览器支持的 MP4 或 HLS 视频源。'}><TextInput type="url" value={form.videoUrl} onChange={(e) => set('videoUrl', e.target.value)} placeholder="https://example.com/video.mp4" required={form.mediaType === 'movie'} /></Field>
-        {form.mediaType === 'series' && <div className="adm-wide"><Message tone="info">剧集的实际播放地址请在每一集的分集信息中配置。</Message></div>}
+        <Field label="默认视频源 URL" wide hint="可留空，前提是下面的播放源 JSON 至少配置一个可用来源。"><TextInput type="url" value={form.videoUrl} onChange={(e) => set('videoUrl', e.target.value)} placeholder="https://example.com/video.mp4" /></Field>
+        <Field label="额外播放源 JSON" wide hint="配置源站或备用直连源。源站只填写 providerId 和 contentId；URL 模板、允许域名和播放器选择器由 configs/playback-sources.yaml 控制。不要在 JSON 中写脚本。"><TextAreaControl rows={7} value={form.playbackSourcesText} onChange={(e) => set('playbackSourcesText', e.target.value)} placeholder={PLAYBACK_SOURCES_EXAMPLE} /></Field>
+        {form.mediaType === 'series' && <div className="adm-wide"><Message tone="info">剧集的实际播放地址在分集管理中配置；这里可以配置作品级默认源。</Message></div>}
         {form.videoUrl && <div className="adm-video-action adm-wide"><Button kind="secondary" type="button" onClick={() => setPreviewVideo((v) => !v)}><Play size={14} />{previewVideo ? '关闭预览' : '测试播放视频源'}</Button><small>支持情况取决于浏览器、编码与服务器响应。</small></div>}
         {previewVideo && form.videoUrl && <div className="adm-video-preview-frame adm-wide"><video className="adm-video-preview" controls preload="metadata" src={form.videoUrl}>当前浏览器无法预览。</video></div>}
       </div></section>
@@ -203,22 +224,35 @@ function EpisodesPage({ id, go, notify }: { id: string; go: (path: string) => vo
   const [item, setItem] = useState<Item | null>(null);
   const [episodes, setEpisodes] = useState<CatalogEpisode[]>([]);
   const [draft, setDraft] = useState<EpisodeForm>({ ...EMPTY_EPISODE });
+  const [episodeSourcesText, setEpisodeSourcesText] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
   const [error, setError] = useState('');
   const [pendingDelete, setPendingDelete] = useState<CatalogEpisode | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  useEffect(() => { let active = true; setLoading(true); Promise.all([api<Envelope<Item>>('/admin/catalog/' + encodeURIComponent(id)), api<Envelope<CatalogEpisode[]>>('/admin/catalog/' + encodeURIComponent(id) + '/episodes')]).then(([a, b]) => { if (!active) return; setItem(a.data); setEpisodes(b.data); setDraft((d) => ({ ...d, episodeNumber: b.data.length + 1 })); }).catch((e) => { if (active) setError(e instanceof Error ? e.message : '加载分集失败。'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [id, reload]);
+  useEffect(() => { let active = true; setLoading(true); Promise.all([api<Envelope<Item>>('/admin/catalog/' + encodeURIComponent(id)), api<Envelope<CatalogEpisode[]>>('/admin/catalog/' + encodeURIComponent(id) + '/episodes')]).then(([a, b]) => { if (!active) return; setItem(a.data); setEpisodes(b.data); setEpisodeSourcesText(Object.fromEntries(b.data.map((episode) => [episode.id, JSON.stringify(episode.playbackSources ?? [], null, 2)]))); setDraft((d) => ({ ...d, episodeNumber: b.data.length + 1 })); }).catch((e) => { if (active) setError(e instanceof Error ? e.message : '加载分集失败。'); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [id, reload]);
   const update = <K extends keyof CatalogEpisode>(episodeId: string, field: K, value: CatalogEpisode[K]) => setEpisodes((list) => list.map((x) => x.id === episodeId ? { ...x, [field]: value } : x));
   async function saveEpisode(episode: CatalogEpisode) {
-    try { await api('/admin/catalog/' + encodeURIComponent(id) + '/episodes/' + encodeURIComponent(episode.id), { method: 'PUT', body: JSON.stringify({ episodeNumber: episode.episodeNumber, title: episode.title, summary: episode.summary, videoUrl: episode.videoUrl, durationMinutes: episode.durationMinutes }) }); notify('第 ' + episode.episodeNumber + ' 集已保存。'); setReload((n) => n + 1); }
-    catch (e) { notify(e instanceof Error ? e.message : '保存分集失败。', 'error'); }
+    try {
+      const playbackSources = parsePlaybackSourcesText(episodeSourcesText[episode.id] ?? '[]');
+      await api('/admin/catalog/' + encodeURIComponent(id) + '/episodes/' + encodeURIComponent(episode.id), {
+        method: 'PUT',
+        body: JSON.stringify({ episodeNumber: episode.episodeNumber, title: episode.title, summary: episode.summary, videoUrl: episode.videoUrl || null, playbackSources, durationMinutes: episode.durationMinutes }),
+      });
+      notify('第 ' + episode.episodeNumber + ' 集已保存。'); setReload((n) => n + 1);
+    } catch (e) { notify(e instanceof Error ? e.message : '保存分集失败。', 'error'); }
   }
   async function addEpisode(e: FormEvent) {
     e.preventDefault(); setSaving(true);
-    try { await api('/admin/catalog/' + encodeURIComponent(id) + '/episodes', { method: 'POST', body: JSON.stringify(draft) }); notify('分集已添加。'); setDraft({ ...EMPTY_EPISODE, episodeNumber: episodes.length + 2 }); setReload((n) => n + 1); }
-    catch (cause) { notify(cause instanceof Error ? cause.message : '添加分集失败。', 'error'); } finally { setSaving(false); }
+    try {
+      const playbackSources = parsePlaybackSourcesText(draft.playbackSourcesText);
+      const { playbackSourcesText: _playbackSourcesText, ...metadata } = draft;
+      await api('/admin/catalog/' + encodeURIComponent(id) + '/episodes', {
+        method: 'POST', body: JSON.stringify({ ...metadata, videoUrl: draft.videoUrl.trim() || null, playbackSources }),
+      });
+      notify('分集已添加。'); setDraft({ ...EMPTY_EPISODE, episodeNumber: episodes.length + 2 }); setReload((n) => n + 1);
+    } catch (cause) { notify(cause instanceof Error ? cause.message : '添加分集失败。', 'error'); } finally { setSaving(false); }
   }
   function removeEpisode(episode: CatalogEpisode) {
     setPendingDelete(episode);
@@ -247,12 +281,12 @@ function EpisodesPage({ id, go, notify }: { id: string; go: (path: string) => vo
       {!episodes.length && <div className="adm-empty"><Video size={25} /><strong>还没有分集</strong><p>在下方添加第一集。</p></div>}
       <div className="adm-episode-list">{episodes.map((episode) => <article className="adm-episode-card" key={episode.id}><div className="adm-episode-title"><b>{String(episode.episodeNumber).padStart(2, '0')}</b><span><strong>分集资料</strong><small>{episode.id.slice(0, 8)}</small></span><IconButton danger aria-label="删除分集" title="删除分集" onClick={() => void removeEpisode(episode)}><Trash2 size={15} /></IconButton></div><div className="adm-form-grid">
         <Field label="集数 *"><TextInput type="number" min={1} value={episode.episodeNumber} onChange={(e) => update(episode.id, 'episodeNumber', Number(e.target.value))} /></Field><Field label="时长（分钟）*"><TextInput type="number" min={1} value={episode.durationMinutes} onChange={(e) => update(episode.id, 'durationMinutes', Number(e.target.value))} /></Field>
-        <Field label="分集标题 *" wide><TextInput value={episode.title} onChange={(e) => update(episode.id, 'title', e.target.value)} /></Field><Field label="视频源 URL *" wide><TextInput type="url" value={episode.videoUrl} onChange={(e) => update(episode.id, 'videoUrl', e.target.value)} /></Field><Field label="分集简介" wide><TextAreaControl rows={2} value={episode.summary} onChange={(e) => update(episode.id, 'summary', e.target.value)} /></Field>
+        <Field label="分集标题 *" wide><TextInput value={episode.title} onChange={(e) => update(episode.id, 'title', e.target.value)} /></Field><Field label="视频源 URL" wide><TextInput type="url" value={episode.videoUrl ?? ''} onChange={(e) => update(episode.id, 'videoUrl', e.target.value)} placeholder="可留空，改用下面配置的源站播放源" /></Field><Field label="播放源 JSON" wide hint="每集可单独配置不同的源站 contentId；源站规则由播放源配置文件控制。"><TextAreaControl rows={5} value={episodeSourcesText[episode.id] ?? '[]'} onChange={(e) => setEpisodeSourcesText((drafts) => ({ ...drafts, [episode.id]: e.target.value }))} placeholder={PLAYBACK_SOURCES_EXAMPLE} /></Field><Field label="分集简介" wide><TextAreaControl rows={2} value={episode.summary} onChange={(e) => update(episode.id, 'summary', e.target.value)} /></Field>
       </div><div className="adm-episode-footer"><span><Clock3 size={14} />{episode.durationMinutes} 分钟</span><Button onClick={() => void saveEpisode(episode)}><Save size={14} />保存本集</Button></div></article>)}</div>
     </section>
     <section className="adm-panel adm-add-episode"><div className="adm-panel-head"><div><h2><Plus size={16} />添加新分集</h2><p>集数必须唯一，视频源需为 HTTP 或 HTTPS 地址。</p></div></div><form className="adm-form-grid" onSubmit={addEpisode}>
       <Field label="集数 *"><TextInput type="number" min={1} value={draft.episodeNumber} onChange={(e) => setDraft((d) => ({ ...d, episodeNumber: Number(e.target.value) }))} required /></Field><Field label="时长（分钟）*"><TextInput type="number" min={1} value={draft.durationMinutes} onChange={(e) => setDraft((d) => ({ ...d, durationMinutes: Number(e.target.value) }))} required /></Field>
-      <Field label="分集标题 *" wide><TextInput value={draft.title} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} required /></Field><Field label="视频源 URL *" wide><TextInput type="url" value={draft.videoUrl} onChange={(e) => setDraft((d) => ({ ...d, videoUrl: e.target.value }))} placeholder="https://example.com/episode-01.mp4" required /></Field><Field label="分集简介" wide><TextAreaControl rows={2} value={draft.summary} onChange={(e) => setDraft((d) => ({ ...d, summary: e.target.value }))} /></Field>
+      <Field label="分集标题 *" wide><TextInput value={draft.title} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} required /></Field><Field label="视频源 URL" wide><TextInput type="url" value={draft.videoUrl} onChange={(e) => setDraft((d) => ({ ...d, videoUrl: e.target.value }))} placeholder="可以使用直连 URL，也可以配置源站播放源" /></Field><Field label="播放源 JSON" wide hint="可复制上方的 JSON 示例并修改 providerId 与 contentId。"><TextAreaControl rows={5} value={draft.playbackSourcesText} onChange={(e) => setDraft((d) => ({ ...d, playbackSourcesText: e.target.value }))} placeholder={PLAYBACK_SOURCES_EXAMPLE} /></Field><Field label="分集简介" wide><TextAreaControl rows={2} value={draft.summary} onChange={(e) => setDraft((d) => ({ ...d, summary: e.target.value }))} /></Field>
       <div className="adm-wide adm-form-submit"><Button type="submit" disabled={saving}>{saving ? <LoaderCircle className="adm-spin" size={15} /> : <Plus size={15} />}{saving ? '正在添加…' : '添加分集'}</Button></div>
     </form></section>
     <ConfirmDialog
