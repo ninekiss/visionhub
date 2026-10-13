@@ -13,7 +13,7 @@ type ItemForm = { title: string; year: number; mediaType: CatalogMediaType; desc
 type EpisodeForm = { episodeNumber: number; title: string; summary: string; videoUrl: string; playbackSourcesText: string; durationMinutes: number };
 const EMPTY_ITEM: ItemForm = { title: '', year: new Date().getFullYear(), mediaType: 'movie', description: '', posterUrl: '', videoUrl: '', playbackSourcesText: '[]', categories: [], sortOrder: 0 };
 const EMPTY_EPISODE: EpisodeForm = { episodeNumber: 1, title: '', summary: '', videoUrl: '', playbackSourcesText: '[]', durationMinutes: 20 };
-const PLAYBACK_SOURCES_EXAMPLE = '[
+const PLAYBACK_SOURCES_EXAMPLE = "[\n  { \"id\": \"official\", \"label\": \"官方源\", \"kind\": \"provider\", \"providerId\": \"example-source\", \"contentId\": \"12345\" },\n  { \"id\": \"backup\", \"label\": \"备用直连\", \"kind\": \"direct\", \"url\": \"https://example.com/video.mp4\" }\n]";
   { "id": "official", "label": "官方源", "kind": "provider", "providerId": "example-source", "contentId": "12345" },
   { "id": "backup", "label": "备用直连", "kind": "direct", "url": "https://example.com/video.mp4" }
 ]';
