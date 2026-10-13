@@ -314,7 +314,7 @@ Deliverable: a short compatibility decision in the PR description or docs, inclu
 - [x] Create `apps/desktop` with the Electron main process, a sandboxed preload bridge, URL/security helpers and tests; leave `apps/web` as the same renderer.
 - [x] Add workspace commands for Electron development (`pnpm dev:desktop`), shell checks, and security tests. Packaging commands are intentionally deferred to P4.5.
 - [x] Reuse the existing `apps/web` React/Vite renderer instead of duplicating screens or contracts.
-- [x] Load a loopback Vite server in development and the built `apps/web/dist/index.html` in packaged-asset preview mode, with an actionable error when the Web build is missing.
+- [x] Load a loopback Vite server in development and build a dedicated relative-base renderer into `apps/desktop/renderer-dist` for Electron file loading; keep the browser Web build configuration unchanged and show an actionable error if the desktop renderer build is missing.
 - [x] Keep API and database services separate. Electron is a client and does not bundle or start the NestJS API, PostgreSQL, or migrations.
 
 Deliverable: the development Electron window opens the existing Web renderer on its own Vite port, while Web remains independently buildable. The app is a development scaffold, not yet a production-ready desktop release.

@@ -17,7 +17,7 @@ if (configuredDevelopmentUrl && !parseDevelopmentServerUrl(configuredDevelopment
 const developmentUrl = configuredDevelopmentUrl
   ? new URL(configuredDevelopmentUrl).href
   : null;
-const rendererPath = path.resolve(__dirname, "../../web/dist/index.html");
+const rendererPath = path.resolve(__dirname, "../renderer-dist/index.html");
 const packagedRendererUrl = pathToFileURL(rendererPath).href;
 let mainWindow = null;
 

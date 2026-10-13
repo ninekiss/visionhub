@@ -27,7 +27,7 @@ Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR, subtitle or
 - apps/desktop/src/main.cjs owns the BrowserWindow lifecycle and loads the local Vite renderer in development.
 - apps/desktop/src/preload.cjs exposes only a typed getAppInfo() capability. It does not expose raw ipcRenderer, Node or filesystem APIs.
 - apps/desktop/src/security.cjs centralizes secure renderer preferences, loopback development URL validation, exact packaged-file validation and HTTPS-only external links.
-- The packaged-asset preview path loads apps/web/dist/index.html, but production API configuration still needs P4.3 and installer/signing workflows are P4.5. Do not treat the current shell as a production release.
+- The desktop build generates a dedicated relative-base renderer at apps/desktop/renderer-dist/index.html, separate from the browser Web build. This avoids treating root-relative Web assets as if they were loadable from a file URL. Production API configuration still needs P4.3 and installer/signing workflows are P4.5. Do not treat the current shell as a production release.
 
 ## Security/release acceptance still outstanding
 

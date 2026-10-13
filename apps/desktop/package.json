@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "start": "electron .",
-    "build": "node --check src/main.cjs && node --check src/preload.cjs && node --check src/security.cjs && node --check scripts/dev.mjs",
+    "build": "pnpm --filter @visionhub/web exec vite build --base=./ --outDir ../../apps/desktop/renderer-dist --emptyOutDir && node --check src/main.cjs && node --check src/preload.cjs && node --check src/security.cjs && node --check scripts/dev.mjs",
     "lint": "pnpm build",
     "typecheck": "pnpm build",
     "test": "node --test test/*.test.cjs"

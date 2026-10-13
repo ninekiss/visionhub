@@ -82,7 +82,7 @@ pnpm --filter @visionhub/desktop build
 pnpm --filter @visionhub/desktop test
 ```
 
-开发壳复用 `apps/web`，Vite 代理仍按根目录环境变量配置。打包态目前只负责加载 `apps/web/dist/index.html`，尚未把 `configs/desktop.yaml` 注入 renderer；因此应继续用开发模式验证业务流程，不要把当前构建当成已完成的生产桌面客户端。签名、公证、DMG/ZIP 与 GitHub Release 发布属于 P4.5。
+开发壳复用 `apps/web` 的全部 React 页面和组件。`pnpm --filter @visionhub/desktop build` 会额外生成采用相对资源路径的 `apps/desktop/renderer-dist`，供 Electron 的 `file://` 窗口加载；浏览器 Web 的默认构建仍使用原来的 Vite 配置。桌面 renderer 的运行时 API endpoint 尚未在本阶段注入，因此当前仍是开发壳而非可供实际片库使用的生产客户端。`configs/desktop.yaml` / `DESKTOP_API_BASE_URL` 的运行时集成属于 P4.3；签名、公证、DMG/ZIP 与 GitHub Release 发布属于 P4.5。
 
 ## Docker Compose 部署
 
