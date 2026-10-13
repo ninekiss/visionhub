@@ -49,6 +49,8 @@ function createPackagedRendererCsp(apiBaseUrl) {
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
+    // The app's main frame remains trusted; the Electron main process separately allowlists every webview src.
+    "frame-src https:",
     "form-action 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
