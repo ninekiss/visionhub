@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   createPlayerIsolationScript,
+  isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
   validateExternalPlayerBounds,
@@ -16,6 +17,14 @@ const provider = {
   readinessSelector: ".video-player video",
   timeoutMs: 15000,
 };
+
+test("validates external-player correlation IDs without rejecting short legacy IDs", () => {
+  assert.equal(isValidExternalPlayerRequestId("0:"), true);
+  assert.equal(isValidExternalPlayerRequestId("0:3bf69fc0-2d77-4f19-8d57-ecdfcc0f2a99"), true);
+  assert.equal(isValidExternalPlayerRequestId("invalid request id"), false);
+  assert.equal(isValidExternalPlayerRequestId("x".repeat(161)), false);
+  assert.equal(isValidExternalPlayerRequestId(null), false);
+});
 
 test("resolves content IDs through a configured HTTPS template and encodes the ID", () => {
   assert.equal(resolveProviderUrl(provider, "film / 123"), "https://player.example.test/watch/film%20%2F%20123");
