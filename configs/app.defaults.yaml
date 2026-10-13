@@ -33,5 +33,9 @@ player:
 catalog:
   pageSize: 8
 
+# Provider allowlists and selector rules live in playback-sources.yaml.
+playback:
+  providers: []
+
 admin:
   cookieSecure: false
