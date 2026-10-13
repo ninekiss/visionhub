@@ -7,6 +7,24 @@ const PLAYBACK_STATES = new Set([
   "error",
 ]);
 
+const DEFAULT_PLAYBACK_ERROR = "视频源暂时无法播放。请稍后重试，或返回详情页选择其他内容。";
+
+/** Convert HTMLMediaElement's error code to a useful, source-safe message. */
+export function getPlaybackErrorMessage(mediaError, fallbackMessage = DEFAULT_PLAYBACK_ERROR) {
+  switch (Number(mediaError?.code)) {
+    case 1:
+      return "播放已中止，请重试。";
+    case 2:
+      return "视频加载失败，请检查网络连接或播放源。";
+    case 3:
+      return "视频数据无法解码，可能是编码格式或媒体文件不受支持。";
+    case 4:
+      return "当前运行环境不支持此视频格式或编码，或媒体源无效。";
+    default:
+      return fallbackMessage;
+  }
+}
+
 export function bindPlaybackEvents(video, callbacks = {}) {
   const getInitialTime = typeof callbacks.getInitialTime === "function"
     ? callbacks.getInitialTime
@@ -66,7 +84,7 @@ export function bindPlaybackEvents(video, callbacks = {}) {
 
   const handleError = () => {
     updateStatus("error");
-    callbacks.onError?.();
+    callbacks.onError?.(video.error ?? null);
   };
 
   const listeners = [

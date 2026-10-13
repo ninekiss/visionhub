@@ -7,7 +7,7 @@ import {
   UnsupportedMediaAdapterError,
 } from './media-adapter.js';
 import { createHlsAdapter, HlsPlaybackNotSupportedError } from './hls-adapter.js';
-import { bindPlaybackEvents, type PlaybackState } from './playback-events.js';
+import { bindPlaybackEvents, getPlaybackErrorMessage, type PlaybackState } from './playback-events.js';
 import { PLAYBACK_SPEED_OPTIONS, readPlaybackPreferences, writePlaybackPreferences } from './playback-preferences.js';
 import type { MediaQualityController, MediaQualityLevel } from './media-adapter.js';
 
@@ -103,7 +103,7 @@ export default function PlyrPlayer({
       getInitialTime: () => initialTimeRef.current,
       onStatus: updateStatus,
       onProgress: (progress) => progressCallbackRef.current?.(progress),
-      onError: () => setError(sourceErrorMessage),
+      onError: (mediaError) => setError(getPlaybackErrorMessage(mediaError, sourceErrorMessage)),
     });
 
     const cleanup = () => {
@@ -133,9 +133,11 @@ export default function PlyrPlayer({
       detachMediaSource = selected.adapter.attach(video, {
         url: src,
         mimeType: selected.mimeType,
-        onFatalError: () => {
+        onFatalError: (failure) => {
           updateStatus('error');
-          setError(sourceErrorMessage);
+          setError(failure?.kind === 'load-timeout'
+            ? '视频加载超时，请检查网络连接或播放源是否有效。'
+            : sourceErrorMessage);
         },
         onQualityControlReady: (controller) => setQualityController(controller),
         onQualityLevelsChange: (levels) => {

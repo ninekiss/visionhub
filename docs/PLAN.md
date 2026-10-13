@@ -391,7 +391,7 @@ P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until th
 
 ### Phase 5 — Player adapters and playback preferences
 
-Status: P5.1 and P5.2 are merged and manually accepted in Web and Windows Electron (2026-10-13). P5.3 adds client-local volume/speed persistence and manual quality selection for hls.js-managed multi-rendition HLS; the new behavior is pending user acceptance in Web and Windows Electron. Plyr remains the player UI; macOS-specific acceptance remains deferred.
+Status: P5.1 and P5.2 are merged and manually accepted in Web and Windows Electron (2026-10-13). P5.3 playback preferences and HLS quality switching were user-accepted in Web and Windows Electron and merged via PR #38 on 2026-10-13. P5.4 is in progress: document reproducible media fixtures and compatibility claims, and improve unsupported-media diagnostics. Plyr remains the player UI; macOS-specific acceptance remains deferred.
 
 #### P5.1 — Separate media source, playback events and cleanup
 
@@ -421,19 +421,26 @@ Public test source (Mux-hosted HLS test stream; requires network access and cros
 - [x] Choose the highest-bitrate rendition when a manifest contains duplicate entries at the same height; keep Auto as the default and let hls.js continue adaptive selection unless a manual rendition is chosen.
 - [x] Hide the quality selector for single-rendition HLS, native HLS, and fixed-source MP4/other HTML5 media where this adapter cannot enumerate switchable renditions.
 - [x] Add automated tests for preference merge/sanitization/storage failures and HLS quality discovery/manual/automatic selection.
-- [ ] Verify volume and speed persistence, plus HLS Auto/manual quality changes, in Web and Windows Electron. Test seeking and pause/resume after switching quality; macOS acceptance remains deferred.
+- [x] Verify volume and speed persistence, plus HLS Auto/manual quality changes, in Web and Windows Electron. Test seeking and pause/resume after switching quality (user acceptance, 2026-10-13; PR #38). macOS acceptance remains deferred.
 - [ ] Prepare subtitle-track selection UI only when actual subtitle tracks can be exercised.
 
-#### P5.4 — Media compatibility acceptance (follow-up)
+#### P5.4 — Media compatibility acceptance
 
-- [ ] Test actual playback in Web and the target Electron runtime against a documented, redistributable media matrix.
-- [ ] Record source switching, seek, buffering, error handling, progress restore and unsupported-format behavior.
-- [ ] Claim support only for the formats and codecs actually tested; do not infer MKV/HEVC/HDR support from Plyr.
+Status: in progress. See [`docs/MEDIA_COMPATIBILITY.md`](./MEDIA_COMPATIBILITY.md) for the versioned fixture matrix and acceptance procedure. The existing mock MP4 workflow and HLS workflow (including P5.3 quality switching) passed user acceptance in Web and Windows Electron; exact codec metadata for the legacy MP4 sample was not independently recorded. A separate redistributable MP4 fixture is added for repeatable codec/container checks and still requires manual playback verification in both clients.
+
+- [x] Add a compatibility matrix that distinguishes observed playback from unverified codec/container support.
+- [x] Add a short, redistributable CC BY 3.0 MP4 fixture and record its required attribution.
+- [x] Map HTMLMediaElement abort, network, decode and unsupported-source errors to actionable messages without leaking source URLs; add deterministic unit coverage.
+- [x] Add and test a cancellable 15-second HTML5 startup timeout so unreachable hosts that never dispatch a browser error event do not leave the player indefinitely loading.
+- [ ] Test the redistributable fixture in Web and Windows Electron; record OS/browser/Electron versions and inspect the actual stream codec metadata before asserting a codec-level result.
+- [ ] Verify source switching, seek, buffering, progress restoration, network failure and unsupported-format behavior in both clients.
+- [ ] Claim support only for the exact fixtures and codec/container combinations actually tested; do not infer MKV/HEVC/HDR/subtitle support from Plyr.
 
 Exit criteria:
 - [ ] The media adapter and playback-event modules have unit coverage and the Web/desktop production builds pass.
 - [x] Existing MP4/HTML5 playback, source switching, resume position, buffering and error states remain functional (Windows manual acceptance, 2026-10-13).
-- [ ] HLS playback is tested in Web and Windows Electron before support is claimed; unsupported media fail with a clear message.
+- [x] HLS playback and P5.3 quality switching are user-accepted in Web and Windows Electron (2026-10-13); retain the source/version evidence in `docs/MEDIA_COMPATIBILITY.md`.
+- [ ] The new redistributable MP4 fixture and user-facing unsupported-media/network errors are manually verified in Web and Windows Electron.
 - [ ] Playback preferences restore consistently within each Web/browser and Electron app profile without creating a second watch-progress store.
 - [ ] Multi-rendition HLS quality selection works in Web and Windows Electron, including Auto/manual changes, seek and pause/resume; fixed-source files do not show fake quality choices.
 - [ ] Supported formats are documented based on testing, not assumptions.

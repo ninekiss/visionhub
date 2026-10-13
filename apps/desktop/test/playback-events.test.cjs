@@ -87,3 +87,37 @@ test("progress events ignore invalid durations and preserve the first ready stat
 
   cleanup();
 });
+
+
+test("maps HTML media errors to actionable messages without exposing source URLs", async () => {
+  const { getPlaybackErrorMessage } = await import("../../web/src/player/playback-events.js");
+  const fallback = "HLS 流加载失败。请检查播放源、网络连接或稍后重试。";
+
+  assert.equal(getPlaybackErrorMessage({ code: 1 }), "播放已中止，请重试。");
+  assert.equal(getPlaybackErrorMessage({ code: 2 }), "视频加载失败，请检查网络连接或播放源。");
+  assert.equal(
+    getPlaybackErrorMessage({ code: 3 }),
+    "视频数据无法解码，可能是编码格式或媒体文件不受支持。",
+  );
+  assert.equal(
+    getPlaybackErrorMessage({ code: 4 }),
+    "当前运行环境不支持此视频格式或编码，或媒体源无效。",
+  );
+  assert.equal(getPlaybackErrorMessage(null, fallback), fallback);
+  assert.equal(getPlaybackErrorMessage({ code: 99 }, fallback), fallback);
+});
+
+test("passes the media element's error object to playback error callbacks", async () => {
+  const { bindPlaybackEvents } = await import("../../web/src/player/playback-events.js");
+  const mediaError = { code: 4 };
+  const video = createFakeVideo();
+  video.error = mediaError;
+  let observedError = null;
+  const cleanup = bindPlaybackEvents(video, {
+    onError: (error) => { observedError = error; },
+  });
+
+  video.dispatch("error");
+  assert.equal(observedError, mediaError);
+  cleanup();
+});
