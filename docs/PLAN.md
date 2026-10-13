@@ -233,7 +233,7 @@ Exit criteria:
 
 ### Phase 2 — Shared configuration and contracts
 
-Status: implemented on `phase-2/config-contracts` and submitted as [PR #1](https://github.com/ninekiss/visionhub/pull/1). CI run 53 passed, including both application Docker builds.
+Status: complete and merged into `main` via [PR #1](https://github.com/ninekiss/visionhub/pull/1) on 2026-10-12. CI run 53 passed, including both application Docker builds.
 
 Tasks:
 - [x] Create `packages/config` with deterministic YAML/env precedence, recursive object merge and Zod schemas.
