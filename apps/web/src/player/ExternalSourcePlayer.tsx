@@ -27,6 +27,20 @@ function resolveTemplate(template: string | undefined, contentId: string): strin
   }
 }
 
+function createExternalPlayerRequestId(retryNonce: number): string {
+  let random = '';
+  try {
+    random = window.crypto?.randomUUID?.() ?? '';
+  } catch {
+    // Some older or restricted Electron renderer contexts may not expose randomUUID.
+  }
+  if (!/^[a-zA-Z0-9-]{8,128}$/.test(random)) {
+    // Date + retry counter keep the ID valid even if the random fallback is empty.
+    random = `${Date.now().toString(36)}-${retryNonce.toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+  return `${retryNonce}:${random}`;
+}
+
 export default function ExternalSourcePlayer({ source, provider, title }: Props) {
   const [status, setStatus] = useState<Status>('loading');
   const [errorMessage, setErrorMessage] = useState('');
@@ -34,10 +48,10 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   const [desktopTarget, setDesktopTarget] = useState<DesktopTarget | null>(null);
   const webviewRef = useRef<HTMLElement | null>(null);
   const frameTimeoutRef = useRef<number | undefined>(undefined);
-  const requestId = useMemo(() => {
-    const random = window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    return `${retryNonce}:${random}`;
-  }, [source.providerId, source.contentId, retryNonce]);
+  const requestId = useMemo(
+    () => createExternalPlayerRequestId(retryNonce),
+    [source.providerId, source.contentId, retryNonce],
+  );
   const embedUrl = useMemo(
     () => resolveTemplate(provider?.webEmbedUrlTemplate, source.contentId),
     [provider?.webEmbedUrlTemplate, source.contentId],
