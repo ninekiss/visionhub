@@ -66,6 +66,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     setStatus('loading');
     setErrorMessage('');
     setDesktopTarget(null);
+    setSourceFullscreen(false);
 
     if (!provider) {
       setStatus('error');
