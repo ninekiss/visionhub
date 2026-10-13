@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { loadAppConfig, loadDesktopConfig } from "../src/index.mjs";
+import { loadAppConfig, loadDesktopConfig, loadPlaybackSourcesConfig } from "../src/index.mjs";
 
 async function createConfigDirectory(files) {
   const directory = await mkdtemp(join(tmpdir(), "visionhub-config-"));
@@ -174,5 +174,85 @@ test("rejects desktop API endpoints containing credentials, query strings, fragm
     }
   } finally {
     await rm(configDir, { recursive: true, force: true });
+  }
+});
+
+const validPlaybackSourcesYaml = `playback:
+  providers:
+    - id: example-source
+      name: Example Source
+      urlTemplate: https://player.example.test/watch/{contentId}
+      webEmbedUrlTemplate: https://embed.example.test/player/{contentId}
+      allowedOrigins:
+        - https://player.example.test
+        - https://embed.example.test
+      playerSelector: ".player-container"
+      readinessSelector: ".player-container video"
+      timeoutMs: 15000
+`;
+
+test("loads playback provider configuration and validates URL templates against the HTTPS allowlist", async () => {
+  const configDir = await createConfigDirectory({
+    "playback-sources.yaml": validPlaybackSourcesYaml,
+  });
+  try {
+    const config = await loadPlaybackSourcesConfig({ cwd: configDir, configDir, env: {} });
+    assert.equal(config.playback.providers.length, 1);
+    assert.equal(config.playback.providers[0].id, "example-source");
+    assert.deepEqual(config.playback.providers[0].allowedOrigins, [
+      "https://player.example.test",
+      "https://embed.example.test",
+    ]);
+    assert.equal(config.playback.providers[0].timeoutMs, 15000);
+  } finally {
+    await rm(configDir, { recursive: true, force: true });
+  }
+});
+
+test("rejects provider templates outside allowlisted origins, duplicate IDs, and non-HTTPS origins", async () => {
+  const configDir = await createConfigDirectory({
+    "playback-sources.yaml": validPlaybackSourcesYaml
+      .replace("https://player.example.test/watch/{contentId}", "https://outside.example.test/watch/{contentId}"),
+  });
+  try {
+    await assert.rejects(
+      loadPlaybackSourcesConfig({ cwd: configDir, configDir, env: {} }),
+      /must resolve to an HTTPS URL on one of allowedOrigins/,
+    );
+  } finally {
+    await rm(configDir, { recursive: true, force: true });
+  }
+
+  const duplicateDir = await createConfigDirectory({
+    "playback-sources.yaml": validPlaybackSourcesYaml.replace(
+      "    - id: example-source",
+      "    - id: other-source",
+    ) + "",
+  });
+  try {
+    // Duplicate IDs are asserted by parsing a minimal duplicated-provider configuration below.
+    const duplicateYaml = validPlaybackSourcesYaml.replace(
+      "      timeoutMs: 15000",
+      "      timeoutMs: 15000\n    - id: example-source\n      name: Duplicate\n      urlTemplate: https://player.example.test/watch/{contentId}\n      allowedOrigins:\n        - https://player.example.test\n      playerSelector: \".player\"",
+    );
+    await (await import("node:fs/promises")).writeFile(join(duplicateDir, "playback-sources.yaml"), duplicateYaml, "utf8");
+    await assert.rejects(
+      loadPlaybackSourcesConfig({ cwd: duplicateDir, configDir: duplicateDir, env: {} }),
+      /provider IDs must be unique/,
+    );
+  } finally {
+    await rm(duplicateDir, { recursive: true, force: true });
+  }
+
+  const insecureDir = await createConfigDirectory({
+    "playback-sources.yaml": validPlaybackSourcesYaml.replace("https://player.example.test", "http://player.example.test"),
+  });
+  try {
+    await assert.rejects(
+      loadPlaybackSourcesConfig({ cwd: insecureDir, configDir: insecureDir, env: {} }),
+      /must be an HTTPS origin/,
+    );
+  } finally {
+    await rm(insecureDir, { recursive: true, force: true });
   }
 });
