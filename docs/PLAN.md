@@ -370,7 +370,7 @@ Deliverable: a reproducible desktop release candidate and a short manual accepta
 
 #### Phase 4 exit criteria
 
-- [ ] Phase 3 responsive and regression acceptance is complete and recorded before desktop implementation begins.
+- [x] Phase 3 browser regression sign-off is recorded in `docs/UI.md` before desktop implementation begins (2026-10-13).
 - [ ] Web and desktop have independent, documented development and production build paths.
 - [ ] A packaged application launches on each agreed target OS and reads the configured API endpoint without hard-coded deployment URLs.
 - [ ] Catalog/search, details and supported playback work against a test API; login/admin flows are verified if included in the agreed desktop MVP scope.
