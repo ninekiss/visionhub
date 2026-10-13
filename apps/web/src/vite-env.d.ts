@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string;
+  /** Opens the external source webview DevTools in development when set to "1". */
+  readonly VITE_DEBUG_EXTERNAL_WEBVIEW?: string;
 }
 
 interface ImportMeta {
@@ -26,13 +28,7 @@ interface Window {
       providerId: string;
       contentId: string;
       requestId: string;
-      bounds: { x: number; y: number; width: number; height: number; visible?: boolean };
-    }) => Promise<boolean>;
-    resizeExternalPlayer: (request: {
-      providerId: string;
-      requestId: string;
-      bounds: { x: number; y: number; width: number; height: number; visible?: boolean };
-    }) => Promise<boolean>;
+    }) => Promise<{ url: string }>;
     closeExternalPlayer: (request: { requestId: string }) => Promise<boolean>;
     onExternalPlayerStatus: (listener: (payload: {
       status: "loading" | "ready" | "error";
