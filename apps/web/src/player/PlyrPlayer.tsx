@@ -30,7 +30,7 @@ export default function PlyrPlayer({
   onProgress,
   onPlaybackStateChange,
 }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerMountRef = useRef<HTMLDivElement>(null);
   const callbackRef = useRef(onPlaybackStateChange);
   const progressCallbackRef = useRef(onProgress);
   const initialTimeRef = useRef(initialTime);
@@ -48,8 +48,23 @@ export default function PlyrPlayer({
   initialTimeRef.current = initialTime;
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    const mount = playerMountRef.current;
+    if (!mount) return;
+
+    // Plyr wraps and replaces the media node during destroy(). Create a fresh
+    // video node per effect setup so React StrictMode can safely replay effects.
+    mount.replaceChildren();
+    const video = document.createElement('video');
+    video.playsInline = true;
+    video.controls = true;
+    video.crossOrigin = 'anonymous';
+    if (poster) video.poster = poster;
+    video.title = title;
+    const sourceElement = document.createElement('source');
+    sourceElement.src = src;
+    sourceElement.type = 'video/mp4';
+    video.append(sourceElement, document.createTextNode('当前浏览器不支持 HTML5 视频播放。'));
+    mount.append(video);
 
     setStatus('ready');
     setError('');
@@ -142,22 +157,14 @@ export default function PlyrPlayer({
       video.removeEventListener('ended', handleEnded);
       video.removeEventListener('error', handleError);
       player.destroy();
+      // Plyr restores a cloned native video node; discard it before the next setup.
+      mount.replaceChildren();
     };
   }, [src, poster, title]);
 
   return (
     <div className="player-shell" aria-label={`播放器：${title}`}>
-      <video
-        ref={videoRef}
-        playsInline
-        controls
-        crossOrigin="anonymous"
-        poster={poster}
-        title={title}
-      >
-        <source src={src} type="video/mp4" />
-        当前浏览器不支持 HTML5 视频播放。
-      </video>
+      <div className="player-mount" ref={playerMountRef} />
       <div className="player-status-line" aria-live="polite">
         <span className={`player-status-dot player-status-dot-${status}`} />
         {STATUS_LABELS[status]}
