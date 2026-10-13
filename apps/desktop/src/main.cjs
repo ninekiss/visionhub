@@ -236,6 +236,8 @@ function attachExternalPlayerWebviewGuards(window) {
     webPreferences.contextIsolation = true;
     webPreferences.sandbox = true;
     webPreferences.webSecurity = true;
+    // Do not disable HTML fullscreen for the isolated source view.
+    webPreferences.disableHtmlFullscreenWindowResize = false;
     webPreferences.allowRunningInsecureContent = false;
     webPreferences.plugins = false;
     webPreferences.webviewTag = false;
@@ -359,6 +361,7 @@ function createWindow() {
   const { isMaximized, ...restoredBounds } = restoredState;
   const window = new BrowserWindow({
     title: "VisionHub",
+    fullscreenable: true,
     ...restoredBounds,
     minWidth: Math.min(MIN_WINDOW_WIDTH, restoredState.width),
     minHeight: Math.min(MIN_WINDOW_HEIGHT, restoredState.height),
