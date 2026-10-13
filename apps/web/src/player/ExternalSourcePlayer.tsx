@@ -44,6 +44,11 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   const [status, setStatus] = useState<Status>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [retryNonce, setRetryNonce] = useState(0);
+  const frameTimeoutRef = useRef<number | undefined>(undefined);
+  const requestId = useMemo(() => {
+    const random = window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    return `${source.providerId}:${source.contentId}:${retryNonce}:${random}`;
+  }, [source.providerId, source.contentId, retryNonce]);
   const embedUrl = useMemo(
     () => resolveTemplate(provider?.webEmbedUrlTemplate, source.contentId),
     [provider?.webEmbedUrlTemplate, source.contentId],
@@ -72,7 +77,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     if (desktop) {
       let cancelled = false;
       const unsubscribe = desktop.onExternalPlayerStatus((event) => {
-        if (cancelled || event.providerId !== source.providerId) return;
+        if (cancelled || event.providerId !== source.providerId || event.requestId !== requestId) return;
         if (event.status === 'ready') {
           setStatus('ready');
           setErrorMessage('');
@@ -92,7 +97,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
       });
 
       const resize = () => {
-        void desktop.resizeExternalPlayer({ providerId: source.providerId, bounds: getBounds() }).catch(() => {
+        void desktop.resizeExternalPlayer({ providerId: source.providerId, requestId, bounds: getBounds() }).catch(() => {
           // A source may have been closed while a queued resize was in flight.
         });
       };
@@ -105,6 +110,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
       void desktop.openExternalPlayer({
         providerId: source.providerId,
         contentId: source.contentId,
+        requestId,
         bounds: getBounds(),
       }).catch((cause: unknown) => {
         if (cancelled) return;
@@ -118,7 +124,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
         observer?.disconnect();
         window.removeEventListener('resize', resize);
         window.removeEventListener('scroll', resize, true);
-        void desktop.closeExternalPlayer().catch(() => {});
+        void desktop.closeExternalPlayer({ requestId }).catch(() => {});
       };
     }
 
@@ -129,16 +135,19 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     }
 
     let cancelled = false;
-    const timeout = window.setTimeout(() => {
+    frameTimeoutRef.current = window.setTimeout(() => {
       if (cancelled) return;
       setStatus('error');
       setErrorMessage('源站嵌入内容未及时载入。如果源站禁止嵌入，请改用新标签页打开。');
     }, 15000);
     return () => {
       cancelled = true;
-      window.clearTimeout(timeout);
+      if (frameTimeoutRef.current !== undefined) {
+        window.clearTimeout(frameTimeoutRef.current);
+        frameTimeoutRef.current = undefined;
+      }
     };
-  }, [provider, source.providerId, source.contentId, embedUrl, getBounds, retryNonce]);
+  }, [provider, source.providerId, source.contentId, embedUrl, getBounds, requestId, retryNonce]);
 
   return (
     <div className="external-source-player" ref={rootRef} aria-label={'外部源站播放器：' + title}>
@@ -151,6 +160,10 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
           allow="autoplay; fullscreen; picture-in-picture"
           referrerPolicy="strict-origin-when-cross-origin"
           onLoad={() => {
+            if (frameTimeoutRef.current !== undefined) {
+              window.clearTimeout(frameTimeoutRef.current);
+              frameTimeoutRef.current = undefined;
+            }
             setStatus('ready');
             setErrorMessage('');
           }}
