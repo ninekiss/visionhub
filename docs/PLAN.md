@@ -36,8 +36,8 @@ The following status is based on the repository code and lockfile on 2026-10-13.
 | Package manager | pnpm 12.11.2 with a committed lockfile | Implemented; retain reproducible installs |
 | Configuration | `@visionhub/config` centralizes YAML/env loading, precedence and Zod validation; desktop has an independent config file | Phase 2 implemented; CI and both Docker builds passed |
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
-| Player | Plyr 3.8.5 wrapper, playback status and local playback-progress persistence | Implemented foundation |
-| HLS | No `hls.js` adapter is present | Not started |
+| Player | Plyr 3.8.5 wrapper, playback status/progress, and client-local volume/speed preferences; HLS quality selection for hls.js-managed multi-rendition streams is being added in P5.3 | Implemented foundation; new controls await Web/Windows manual acceptance |
+| HLS | hls.js 1.7.3 adapter with bounded network/media recovery and cleanup; Web and Windows Electron playback manually accepted | HLS playback implemented; quality-switch acceptance is tracked in P5.3 |
 | Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | Windows Electron workflow acceptance reported passed on 2026-10-13; macOS-specific and packaged security acceptance remain open; P4.5 release packaging deferred until explicitly reactivated |
 | Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation and planned Phase 3 migration slices implemented; Web remains first-class |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
@@ -62,7 +62,7 @@ The current implementation is useful and should be retained. It is a browser-bas
 | Prisma ORM / Prisma Client / PostgreSQL adapter | 7.10.0 |
 | Zod | 4.6.6 in `packages/config` |
 | Electron | 44.7.0 pinned in `apps/desktop`; macOS ARM64 development shell scaffold added; P4.5 release packaging intentionally deferred |
-| hls.js | Not installed |
+| hls.js | 1.7.3 pinned; HLS adapter manually accepted in Web and Windows Electron |
 
 ### 3.2 Target baseline
 
@@ -76,7 +76,7 @@ The current implementation is useful and should be retained. It is a browser-bas
 - NestJS: keep the stable 12.x line after compatibility validation.
 - Prisma: retain 7.10.0 until a later major is stable and its migration path is verified.
 - Add Zod for configuration schemas.
-- Add hls.js only with the HLS player-adapter phase.
+- Keep hls.js pinned to the tested 1.7.3 release until an intentional compatibility review; it is used by the Phase 5 HLS adapter.
 
 The versions above are planning baselines, not a promise that each number will remain the latest stable release forever. Before upgrading, check official release information, lock exact dependency versions using the chosen repository policy, regenerate the lockfile intentionally, and run validation, type checks, tests and production builds. Avoid relying on `latest` as the only version policy.
 
@@ -391,7 +391,7 @@ P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until th
 
 ### Phase 5 — Player adapters and playback preferences
 
-Status: P5.1 adapter foundation and P5.2 HLS playback manual acceptance passed in Web and Windows Electron on 2026-10-13. Plyr remains the player UI. macOS-specific acceptance remains deferred.
+Status: P5.1 and P5.2 are merged and manually accepted in Web and Windows Electron (2026-10-13). P5.3 adds client-local volume/speed persistence and manual quality selection for hls.js-managed multi-rendition HLS; the new behavior is pending user acceptance in Web and Windows Electron. Plyr remains the player UI; macOS-specific acceptance remains deferred.
 
 #### P5.1 — Separate media source, playback events and cleanup
 
@@ -413,10 +413,15 @@ Status: P5.1 adapter foundation and P5.2 HLS playback manual acceptance passed i
 
 Public test source (Mux-hosted HLS test stream; requires network access and cross-origin requests to remain permitted): `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8`.
 
-#### P5.3 — Playback preferences (follow-up)
+#### P5.3 — Playback preferences and quality switching
 
-- [ ] Review the current watch-history persistence before adding new storage; avoid duplicate progress stores.
-- [ ] Add preferences such as playback speed/volume only with clear persistence semantics across Web and desktop.
+- [x] Review the current watch-history persistence: playback progress remains in its existing watch-history path; settings are stored separately and do not create a second progress store.
+- [x] Persist volume and playback speed in a versioned, client-local storage entry; restore them on player creation and source changes, with safe defaults when storage is unavailable. Web and Electron use the same behavior; settings are local to each browser/app profile and are not cloud-synced.
+- [x] Add a quality selector with Auto plus distinct known-height renditions for hls.js-managed multi-rendition HLS master playlists.
+- [x] Choose the highest-bitrate rendition when a manifest contains duplicate entries at the same height; keep Auto as the default and let hls.js continue adaptive selection unless a manual rendition is chosen.
+- [x] Hide the quality selector for single-rendition HLS, native HLS, and fixed-source MP4/other HTML5 media where this adapter cannot enumerate switchable renditions.
+- [x] Add automated tests for preference merge/sanitization/storage failures and HLS quality discovery/manual/automatic selection.
+- [ ] Verify volume and speed persistence, plus HLS Auto/manual quality changes, in Web and Windows Electron. Test seeking and pause/resume after switching quality; macOS acceptance remains deferred.
 - [ ] Prepare subtitle-track selection UI only when actual subtitle tracks can be exercised.
 
 #### P5.4 — Media compatibility acceptance (follow-up)
@@ -429,7 +434,8 @@ Exit criteria:
 - [ ] The media adapter and playback-event modules have unit coverage and the Web/desktop production builds pass.
 - [x] Existing MP4/HTML5 playback, source switching, resume position, buffering and error states remain functional (Windows manual acceptance, 2026-10-13).
 - [ ] HLS playback is tested in Web and Windows Electron before support is claimed; unsupported media fail with a clear message.
-- [ ] Playback preferences are consistent across Web and desktop without duplicate storage.
+- [ ] Playback preferences restore consistently within each Web/browser and Electron app profile without creating a second watch-progress store.
+- [ ] Multi-rendition HLS quality selection works in Web and Windows Electron, including Auto/manual changes, seek and pause/resume; fixed-source files do not show fake quality choices.
 - [ ] Supported formats are documented based on testing, not assumptions.
 
 ### Phase 6 — Deployment layout and operational hardening

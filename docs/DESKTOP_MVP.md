@@ -18,10 +18,10 @@ No codec/container support is claimed yet. The following candidate must be teste
 | Candidate | Current source | Validation status | P4 acceptance checks |
 |---|---|---|---|
 | MP4 demo used by existing mock catalog | https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-720p.mp4 | Candidate only; Electron/macOS decode has not been tested in this branch | Load, play, pause, seek, progress restore, buffering/error behavior |
-| HLS playlist | Not currently used in the Web mock catalog | Out of initial P4.1 scope; no adapter currently installed | Evaluate in Phase 5 only if the supported playback matrix requires it |
+| HLS playlist | `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8` | HLS adapter playback and lifecycle manually accepted in Web and Windows Electron on 2026-10-13; P5.3 quality selection awaits acceptance | Verify Auto/manual rendition selection for a multi-rendition master playlist, plus seek, pause/resume and source cleanup |
 | Local owned test fixture | Not yet committed | Open item for P4.3 playback verification; avoid adding large copyrighted samples to Git | Choose a small redistributable sample and record container/codec/audio details before declaring support |
 
-Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR, subtitle or HLS support without explicit tests on the actual Electron/macOS runtime.
+Plyr is the player UI, not a decoder. Do not promise HEVC, MKV, HDR or subtitle support without explicit tests on the actual Electron/macOS runtime. HLS playback has passed Web and Windows Electron acceptance; manual quality selection applies only to multi-rendition HLS streams handled by hls.js, not native HLS or single-file MP4 sources.
 
 ## P4.1 development shell
 
