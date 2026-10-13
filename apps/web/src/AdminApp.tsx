@@ -13,14 +13,11 @@ type ItemForm = { title: string; year: number; mediaType: CatalogMediaType; desc
 type EpisodeForm = { episodeNumber: number; title: string; summary: string; videoUrl: string; playbackSourcesText: string; durationMinutes: number };
 const EMPTY_ITEM: ItemForm = { title: '', year: new Date().getFullYear(), mediaType: 'movie', description: '', posterUrl: '', videoUrl: '', playbackSourcesText: '[]', categories: [], sortOrder: 0 };
 const EMPTY_EPISODE: EpisodeForm = { episodeNumber: 1, title: '', summary: '', videoUrl: '', playbackSourcesText: '[]', durationMinutes: 20 };
-const PLAYBACK_SOURCES_EXAMPLE = '[\\n  { "id": "official", "label": "官方源", "kind": "provider", "providerId": "exampleSource", "contentId": "12345" },\\n  { "id": "backup", "label": "备用直连", "kind": "direct", "url": "https://example.com/video.mp4" }\\n]';
+const PLAYBACK_SOURCES_EXAMPLE = '[\\n  { "id": "official", "label": "官方源", "kind": "provider", "providerId": "example-source", "contentId": "12345" },\\n  { "id": "backup", "label": "备用直连", "kind": "direct", "url": "https://example.com/video.mp4" }\\n]';
 function parsePlaybackSourcesText(text: string): unknown[] {
   const value: unknown = JSON.parse(text.trim() || '[]');
   if (!Array.isArray(value)) throw new Error('播放源配置必须是 JSON 数组。');
   return value;
-}
-function hasPlaybackSources(text: string): boolean {
-  try { return parsePlaybackSourcesText(text).length > 0; } catch { return false; }
 }
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -180,10 +177,19 @@ function ItemEditor({ id, go, notify }: { id?: string; go: (path: string) => voi
     e.preventDefault(); setSaving(true); setError('');
     try {
       const playbackSources = parsePlaybackSourcesText(form.playbackSourcesText);
-      const { playbackSourcesText: _playbackSourcesText, ...metadata } = form;
       const result = await api<Envelope<Item>>(id ? '/admin/catalog/' + encodeURIComponent(id) : '/admin/catalog', {
         method: id ? 'PUT' : 'POST',
-        body: JSON.stringify({ ...metadata, videoUrl: form.videoUrl.trim() || null, playbackSources }),
+        body: JSON.stringify({
+          title: form.title,
+          year: form.year,
+          mediaType: form.mediaType,
+          description: form.description,
+          posterUrl: form.posterUrl,
+          videoUrl: form.videoUrl.trim() || null,
+          playbackSources,
+          categories: form.categories,
+          sortOrder: form.sortOrder,
+        }),
       });
       notify(id ? '作品资料已保存。' : '作品已创建。');
       go('/admin/catalog/' + encodeURIComponent(result.data.id) + '/edit');
@@ -247,9 +253,16 @@ function EpisodesPage({ id, go, notify }: { id: string; go: (path: string) => vo
     e.preventDefault(); setSaving(true);
     try {
       const playbackSources = parsePlaybackSourcesText(draft.playbackSourcesText);
-      const { playbackSourcesText: _playbackSourcesText, ...metadata } = draft;
       await api('/admin/catalog/' + encodeURIComponent(id) + '/episodes', {
-        method: 'POST', body: JSON.stringify({ ...metadata, videoUrl: draft.videoUrl.trim() || null, playbackSources }),
+        method: 'POST',
+        body: JSON.stringify({
+          episodeNumber: draft.episodeNumber,
+          title: draft.title,
+          summary: draft.summary,
+          videoUrl: draft.videoUrl.trim() || null,
+          playbackSources,
+          durationMinutes: draft.durationMinutes,
+        }),
       });
       notify('分集已添加。'); setDraft({ ...EMPTY_EPISODE, episodeNumber: episodes.length + 2 }); setReload((n) => n + 1);
     } catch (cause) { notify(cause instanceof Error ? cause.message : '添加分集失败。', 'error'); } finally { setSaving(false); }
