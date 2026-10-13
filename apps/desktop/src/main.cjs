@@ -246,14 +246,22 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
   };
   externalPlayerSession = session;
 
-  const rejectNavigation = (event, targetUrl, _isInPlace, isMainFrame) => {
-    if (providerOriginAllowed(targetUrl, provider)) return;
+  const rejectNavigation = (event, targetOrDetails, _isInPlace, deprecatedIsMainFrame) => {
+    // Electron introduced a details object for navigation events; accept the older
+    // positional form as well so runtime updates do not widen the navigation boundary.
+    const details = targetOrDetails && typeof targetOrDetails === "object"
+      ? targetOrDetails
+      : { url: targetOrDetails, isMainFrame: deprecatedIsMainFrame };
+    const targetUrl = details.url;
+    const isMainFrame = details.isMainFrame ?? deprecatedIsMainFrame;
+    if (typeof targetUrl === "string" && providerOriginAllowed(targetUrl, provider)) return;
     event.preventDefault();
     // Cross-origin frames are blocked too; only a top-level redirect tears down the session.
     if (isMainFrame !== false) failExternalPlayer(session, "navigation-blocked");
   };
   view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   view.webContents.on("will-navigate", rejectNavigation);
+  view.webContents.on("will-frame-navigate", rejectNavigation);
   view.webContents.on("will-redirect", rejectNavigation);
   view.webContents.on("did-fail-load", (_event, errorCode, _description, _validatedURL, isMainFrame) => {
     if (isMainFrame && errorCode !== -3) failExternalPlayer(session, "load-failed");
