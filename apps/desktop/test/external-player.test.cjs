@@ -6,6 +6,7 @@ const {
   resolveProviderUrl,
   validateExternalPlayerBounds,
 } = require("../src/external-player.cjs");
+const { createWebPreferences } = require("../src/security.cjs");
 
 const provider = {
   id: "demo",
@@ -48,4 +49,14 @@ test("player isolation logic is selector-based and does not evaluate metadata as
   assert.match(script, /document\.querySelector\("\.vp-player video"\)/);
   assert.match(script, /setProperty\("display", "none", "important"\)/);
   assert.doesNotMatch(script, /eval\(|Function\(/);
+});
+
+
+test("enables DOM webview for the trusted renderer while keeping remote-node access disabled", () => {
+  const preferences = createWebPreferences("preload.cjs");
+  assert.equal(preferences.webviewTag, true);
+  assert.equal(preferences.nodeIntegration, false);
+  assert.equal(preferences.contextIsolation, true);
+  assert.equal(preferences.sandbox, true);
+  assert.equal(preferences.webSecurity, true);
 });
