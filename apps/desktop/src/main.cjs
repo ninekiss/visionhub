@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, protocol, screen, shell } = require("electron");
+const { app, BrowserWindow, WebContentsView, dialog, ipcMain, Menu, protocol, screen, shell } = require("electron");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const {
@@ -8,6 +8,12 @@ const {
   parseDevelopmentServerUrl,
 } = require("./security.cjs");
 const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
+const {
+  createPlayerIsolationScript,
+  providerOriginAllowed,
+  resolveProviderUrl,
+  validateExternalPlayerBounds,
+} = require("./external-player.cjs");
 const { createApplicationMenuTemplate } = require("./application-menu.cjs");
 const {
   MIN_WINDOW_HEIGHT,
@@ -41,6 +47,9 @@ const rendererPath = path.resolve(__dirname, "../renderer-dist/index.html");
 const packagedRendererUrl = "visionhub://app/index.html";
 let mainWindow = null;
 let windowStateSaveTimer = null;
+let externalPlayerView = null;
+let externalPlayerSession = null;
+let playbackProviders = [];
 
 function getWindowStatePath() {
   return path.join(app.getPath("userData"), "window-state.json");
@@ -97,6 +106,169 @@ function isTrustedAppUrl(url) {
   return isTrustedRendererUrl(url, {
     developmentUrl,
     packagedUrl: packagedRendererUrl,
+  });
+}
+
+function isTrustedRendererEvent(event) {
+  const senderFrame = event && event.senderFrame;
+  return Boolean(
+    senderFrame &&
+    !senderFrame.parent &&
+    isTrustedAppUrl(senderFrame.url)
+  );
+}
+
+function sendExternalPlayerStatus(status, providerId, code) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("external-player:status", {
+    status,
+    providerId,
+    ...(code ? { code } : {}),
+  });
+}
+
+function clearExternalPlayerTimers(session) {
+  if (!session) return;
+  if (session.readinessInterval) clearInterval(session.readinessInterval);
+  if (session.timeoutHandle) clearTimeout(session.timeoutHandle);
+  session.readinessInterval = null;
+  session.timeoutHandle = null;
+}
+
+function closeExternalPlayer(options = {}) {
+  const session = externalPlayerSession;
+  if (!session) return;
+  clearExternalPlayerTimers(session);
+  externalPlayerSession = null;
+  externalPlayerView = null;
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.contentView.removeChildView(session.view);
+    }
+  } catch {
+    // A renderer or window may already have detached the view.
+  }
+  try {
+    if (!session.view.webContents.isDestroyed()) session.view.webContents.destroy();
+  } catch {
+    // Closing is idempotent during window shutdown.
+  }
+  if (options.notify) sendExternalPlayerStatus(options.status || "error", session.providerId, options.code);
+}
+
+function failExternalPlayer(session, code) {
+  if (!session || externalPlayerSession !== session) return;
+  closeExternalPlayer({ notify: true, status: "error", code });
+}
+
+function startExternalPlayerReadinessCheck(session) {
+  if (externalPlayerSession !== session || session.readinessInterval) return;
+  let running = false;
+  const check = async () => {
+    if (running || externalPlayerSession !== session) return;
+    running = true;
+    try {
+      const script = createPlayerIsolationScript(
+        session.provider.playerSelector,
+        session.provider.readinessSelector || session.provider.playerSelector,
+      );
+      const ready = await session.view.webContents.executeJavaScript(script, false);
+      if (ready && externalPlayerSession === session) {
+        clearExternalPlayerTimers(session);
+        session.view.setVisible(true);
+        sendExternalPlayerStatus("ready", session.providerId);
+      }
+    } catch {
+      // Continue until the provider's bounded readiness timeout.
+    } finally {
+      running = false;
+    }
+  };
+  session.readinessInterval = setInterval(() => { void check(); }, 250);
+  void check();
+}
+
+async function loadExternalPlaybackProviders() {
+  const workspaceRoot = path.resolve(__dirname, "../../..");
+  const { loadEnvironmentFiles, loadPlaybackSourcesConfig } = await import("@visionhub/config");
+  if (app.isPackaged) {
+    if (!process.env.PLAYBACK_SOURCES_CONFIG_PATH) {
+      process.env.PLAYBACK_SOURCES_CONFIG_PATH = path.join(process.resourcesPath, "configs", "playback-sources.yaml");
+    }
+  } else {
+    loadEnvironmentFiles({
+      cwd: workspaceRoot,
+      envPaths: [path.join(workspaceRoot, ".env")],
+    });
+  }
+  const configRoot = app.isPackaged ? process.resourcesPath : workspaceRoot;
+  const configDirectory = process.env.APP_CONFIG_DIR && process.env.APP_CONFIG_DIR.trim()
+    ? path.resolve(configRoot, process.env.APP_CONFIG_DIR)
+    : path.join(configRoot, "configs");
+  const config = await loadPlaybackSourcesConfig({
+    cwd: configRoot,
+    configDir: configDirectory,
+  });
+  return config.playback.providers;
+}
+
+function openExternalPlayer(providerId, contentId, boundsValue) {
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error("VisionHub 播放窗口不可用。");
+  const provider = playbackProviders.find((candidate) => candidate.id === providerId);
+  if (!provider) throw new Error("这个源站尚未配置，请检查 configs/playback-sources.yaml。");
+  const url = resolveProviderUrl(provider, contentId);
+  const bounds = validateExternalPlayerBounds(boundsValue);
+  closeExternalPlayer();
+
+  const view = new WebContentsView({
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
+      spellcheck: false,
+    },
+  });
+  view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+  view.setVisible(false);
+  mainWindow.contentView.addChildView(view);
+
+  const session = {
+    view,
+    provider,
+    providerId,
+    readinessInterval: null,
+    timeoutHandle: null,
+  };
+  externalPlayerView = view;
+  externalPlayerSession = session;
+
+  const rejectNavigation = (event, targetUrl, _isInPlace, isMainFrame) => {
+    if (isMainFrame === false) return;
+    if (!providerOriginAllowed(targetUrl, provider)) {
+      event.preventDefault();
+      failExternalPlayer(session, "navigation-blocked");
+    }
+  };
+  view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  view.webContents.on("will-navigate", rejectNavigation);
+  view.webContents.on("will-redirect", rejectNavigation);
+  view.webContents.on("did-fail-load", (_event, errorCode, _description, _validatedURL, isMainFrame) => {
+    if (isMainFrame && errorCode !== -3) failExternalPlayer(session, "load-failed");
+  });
+  view.webContents.on("did-finish-load", () => {
+    startExternalPlayerReadinessCheck(session);
+  });
+  view.webContents.on("render-process-gone", () => {
+    failExternalPlayer(session, "renderer-crashed");
+  });
+
+  sendExternalPlayerStatus("loading", providerId);
+  session.timeoutHandle = setTimeout(() => {
+    failExternalPlayer(session, "player-not-ready");
+  }, provider.timeoutMs);
+  void view.webContents.loadURL(url).catch(() => {
+    failExternalPlayer(session, "load-failed");
   });
 }
 
@@ -186,7 +358,10 @@ function createWindow() {
   });
 
   window.on("closed", () => {
-    if (mainWindow === window) mainWindow = null;
+    if (mainWindow === window) {
+      closeExternalPlayer();
+      mainWindow = null;
+    }
   });
   mainWindow = window;
   return window;
@@ -194,6 +369,15 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(Menu.buildFromTemplate(createApplicationMenuTemplate(process.platform)));
+
+  try {
+    playbackProviders = await loadExternalPlaybackProviders();
+  } catch (error) {
+    playbackProviders = [];
+    const message = error instanceof Error ? error.message : "检查 configs/playback-sources.yaml。";
+    console.error("VisionHub external playback source config is invalid:", message);
+    dialog.showErrorBox("外部播放源配置无效", message + "\\n\\n应用仍会启动，但外部源站播放已禁用。");
+  }
 
   if (!developmentUrl) {
     let apiBaseUrl;
@@ -214,8 +398,7 @@ app.whenReady().then(async () => {
   }
 
   ipcMain.handle("desktop:get-app-info", (event) => {
-    const senderUrl = event.senderFrame && event.senderFrame.url;
-    if (!senderUrl || !isTrustedAppUrl(senderUrl)) {
+    if (!isTrustedRendererEvent(event)) {
       throw new Error("Rejected IPC request from an untrusted renderer.");
     }
     return {
@@ -224,6 +407,31 @@ app.whenReady().then(async () => {
       arch: process.arch,
       releaseChannel: app.isPackaged ? "packaged" : "development",
     };
+  });
+
+  ipcMain.handle("external-player:open", async (event, request) => {
+    if (!isTrustedRendererEvent(event)) throw new Error("Rejected external-player request from an untrusted renderer.");
+    if (!request || typeof request.providerId !== "string" || typeof request.contentId !== "string") {
+      throw new Error("外部播放源参数无效。");
+    }
+    openExternalPlayer(request.providerId, request.contentId, request.bounds);
+    return true;
+  });
+
+  ipcMain.handle("external-player:resize", (event, request) => {
+    if (!isTrustedRendererEvent(event)) throw new Error("Rejected external-player resize from an untrusted renderer.");
+    const session = externalPlayerSession;
+    if (!session || !request || request.providerId !== session.providerId) return false;
+    const bounds = validateExternalPlayerBounds(request.bounds);
+    session.view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+    session.view.setVisible(bounds.visible);
+    return true;
+  });
+
+  ipcMain.handle("external-player:close", (event) => {
+    if (!isTrustedRendererEvent(event)) throw new Error("Rejected external-player close from an untrusted renderer.");
+    closeExternalPlayer();
+    return true;
   });
 
   createWindow();
@@ -236,5 +444,6 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
+  closeExternalPlayer();
   if (process.platform !== "darwin") app.quit();
 });
