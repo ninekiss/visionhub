@@ -431,10 +431,10 @@ app.whenReady().then(async () => {
     return true;
   });
 
-  ipcMain.handle("external-player:close", (event) => {
+  ipcMain.handle("external-player:close", (event, request) => {
     if (!isTrustedRendererEvent(event)) throw new Error("Rejected external-player close from an untrusted renderer.");
-    closeExternalPlayer({ requestId: request && request.requestId });
-    return true;
+    if (!request || typeof request.requestId !== "string") throw new Error("外部播放关闭请求无效。");
+    return closeExternalPlayer({ requestId: request.requestId });
   });
 
   createWindow();
