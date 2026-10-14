@@ -33,6 +33,10 @@ function isValidExternalPlayerRequestId(value) {
   return typeof value === "string" && /^[a-zA-Z0-9:._-]{1,160}$/.test(value);
 }
 
+function canShowExternalPlayer({ ready, visible, htmlFullscreen }) {
+  return ready === true && (htmlFullscreen === true || visible === true);
+}
+
 function validateExternalPlayerBounds(value) {
   if (!isRecord(value)) throw new TypeError("Invalid external-player bounds.");
   for (const key of ["x", "y", "width", "height"]) {
@@ -44,7 +48,9 @@ function validateExternalPlayerBounds(value) {
   const y = Math.round(value.y);
   const width = Math.round(value.width);
   const height = Math.round(value.height);
-  if (x < 0 || y < 0 || x > 20000 || y > 20000 ||
+  // Negative origins are valid for a child view partially scrolled beyond
+  // the renderer viewport. Electron clips the child view to its parent.
+  if (x < -20000 || y < -20000 || x > 20000 || y > 20000 ||
       width < 1 || height < 1 || width > 20000 || height > 20000) {
     throw new TypeError("External-player bounds are outside the accepted range.");
   }
@@ -60,13 +66,37 @@ function createPlayerIsolationScript(playerSelector, readinessSelector) {
   const ready = JSON.stringify(readinessSelector || playerSelector);
   return `(() => {
     let target;
+    let readinessTarget;
     try {
-      if (!document.querySelector(${ready})) return false;
+      readinessTarget = document.querySelector(${ready});
+      if (!readinessTarget) return false;
       target = document.querySelector(${player});
     } catch {
       return false;
     }
     if (!target || target === document.documentElement || target === document.body) return false;
+
+    const isVisibleWithBounds = (element) => {
+      if (!(element instanceof Element) || !element.isConnected) return false;
+      const style = window.getComputedStyle(element);
+      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) <= 0) return false;
+      const rect = element.getBoundingClientRect();
+      return rect.width > 1 && rect.height > 1;
+    };
+    // Do not start the display grace period for a selector that merely exists
+    // in the DOM but is hidden, collapsed, or has not been laid out yet.
+    if (!isVisibleWithBounds(target) || !isVisibleWithBounds(readinessTarget)) return false;
+
+    // A matched <video> element is not necessarily displaying a frame yet.
+    const video = readinessTarget instanceof HTMLVideoElement
+      ? readinessTarget
+      : readinessTarget.querySelector?.("video");
+    if (video && (
+      !isVisibleWithBounds(video) ||
+      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+      video.videoWidth <= 0 ||
+      video.videoHeight <= 0
+    )) return false;
 
     let branch = target;
     while (branch && branch.parentElement) {
@@ -115,6 +145,7 @@ function providerOriginAllowed(urlValue, provider) {
 }
 
 module.exports = {
+  canShowExternalPlayer,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,

@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  canShowExternalPlayer,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
@@ -48,7 +49,10 @@ test("bounds reject malformed and absurd coordinates and preserve explicit visib
   assert.deepEqual(validateExternalPlayerBounds({ x: 0, y: 0, width: 1, height: 1, visible: false }), {
     x: 0, y: 0, width: 1, height: 1, visible: false,
   });
-  assert.throws(() => validateExternalPlayerBounds({ x: -1, y: 0, width: 1, height: 1 }), /accepted range/);
+  assert.deepEqual(validateExternalPlayerBounds({ x: -120, y: -40, width: 500, height: 280 }), {
+    x: -120, y: -40, width: 500, height: 280, visible: true,
+  });
+  assert.throws(() => validateExternalPlayerBounds({ x: -20001, y: 0, width: 1, height: 1 }), /accepted range/);
   assert.throws(() => validateExternalPlayerBounds({ x: 0, y: 0, width: NaN, height: 1 }), /finite numbers/);
 });
 
@@ -57,4 +61,28 @@ test("player isolation logic is selector-based and does not evaluate metadata as
   assert.match(script, /document\.querySelector\("\.vp-player video"\)/);
   assert.match(script, /setProperty\("display", "none", "important"\)/);
   assert.doesNotMatch(script, /eval\(|Function\(/);
+});
+
+test("native player remains hidden through loading, resize, and fullscreen until ready", () => {
+  assert.equal(canShowExternalPlayer({ ready: false, visible: true, htmlFullscreen: false }), false);
+  assert.equal(canShowExternalPlayer({ ready: false, visible: true, htmlFullscreen: true }), false);
+  assert.equal(canShowExternalPlayer({ ready: true, visible: false, htmlFullscreen: false }), false);
+  assert.equal(canShowExternalPlayer({ ready: true, visible: false, htmlFullscreen: true }), true);
+  assert.equal(canShowExternalPlayer({ ready: true, visible: true, htmlFullscreen: false }), true);
+});
+
+test("player isolation waits until a native video has current frame data", () => {
+  const script = createPlayerIsolationScript(".vp-player", ".vp-player video");
+  assert.ok(script.includes("video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA"));
+  assert.ok(script.includes("video.videoWidth <= 0"));
+  assert.ok(script.includes("video.videoHeight <= 0"));
+  assert.ok(script.includes("getBoundingClientRect()"));
+  assert.ok(script.includes("window.getComputedStyle(element)"));
+  assert.ok(script.includes("style.display === \"none\""));
+});
+
+test("desktop player setup does not call unsupported WebContents background APIs", () => {
+  const { readFileSync } = require("node:fs");
+  const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
+  assert.doesNotMatch(mainSource, /view\.webContents\.setBackgroundColor\s*\(/);
 });
