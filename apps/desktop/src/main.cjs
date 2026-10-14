@@ -9,6 +9,7 @@ const {
 } = require("./security.cjs");
 const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
 const {
+  createPlayerFullscreenScript,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
@@ -218,6 +219,21 @@ async function loadExternalPlaybackProviders() {
   return config.playback.providers;
 }
 
+function fillExternalPlayerFullscreen(session) {
+  if (!session || externalPlayerSession !== session || !mainWindow || mainWindow.isDestroyed()) return;
+  if (session.view.webContents.isDestroyed()) return;
+
+  const [width, height] = mainWindow.getContentSize();
+  session.view.setBounds({ x: 0, y: 0, width, height });
+  session.view.setVisible(true);
+  void session.view.webContents.executeJavaScript(
+    createPlayerFullscreenScript(session.provider.playerSelector, true),
+    false,
+  ).catch(() => {
+    // The source may leave fullscreen while the native view is resizing.
+  });
+}
+
 function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error("VisionHub 播放窗口不可用。");
   if (!isValidExternalPlayerRequestId(requestId)) {
@@ -241,8 +257,9 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     },
   });
   view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
-  view.setVisible(false);
   mainWindow.contentView.addChildView(view);
+  // Hide only after attaching, so the native view cannot cover the renderer's loading indicator.
+  view.setVisible(false);
 
   const session = {
     view,
@@ -286,13 +303,18 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     if (!mainWindow.isFullScreen()) {
       session.changedWindowFullscreen = true;
       mainWindow.setFullScreen(true);
+    } else {
+      fillExternalPlayerFullscreen(session);
     }
-    const [width, height] = mainWindow.getContentSize();
-    view.setBounds({ x: 0, y: 0, width, height });
-    view.setVisible(true);
   });
   view.webContents.on("leave-html-full-screen", () => {
     session.htmlFullscreen = false;
+    void view.webContents.executeJavaScript(
+      createPlayerFullscreenScript(session.provider.playerSelector, false),
+      false,
+    ).catch(() => {
+      // The guest may already be navigating or closing.
+    });
     const bounds = session.bounds;
     view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
     view.setVisible(bounds.visible);
@@ -392,9 +414,7 @@ function createWindow() {
   window.on("enter-full-screen", () => {
     const session = externalPlayerSession;
     if (!session?.htmlFullscreen || session.view.webContents.isDestroyed()) return;
-    const [width, height] = window.getContentSize();
-    session.view.setBounds({ x: 0, y: 0, width, height });
-    session.view.setVisible(true);
+    fillExternalPlayerFullscreen(session);
   });
 
   const loading = developmentUrl
