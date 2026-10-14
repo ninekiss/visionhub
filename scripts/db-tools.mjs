@@ -363,7 +363,24 @@ async function physicalBackup(type) {
     ];
     if (type === "incremental") args.push(`--incremental=${path.join(PHYSICAL_ROOT, parent.id, "pgdata", "backup_manifest")}`);
     run("pg_basebackup", args);
-    run("pg_verifybackup", [dataDirectory]);
+    if (type === "full") {
+      run("pg_verifybackup", [dataDirectory]);
+    } else {
+      // Incremental directories are not standalone backups. Reconstruct the full
+      // chain before verifying the result against its combined backup manifest.
+      const verificationDirectory = path.join(directory, "combined-verification");
+      const parentChain = chainFor(parent.id, entries);
+      const inputs = [
+        ...parentChain.map((entry) => path.join(PHYSICAL_ROOT, entry.id, "pgdata")),
+        dataDirectory,
+      ];
+      try {
+        run("pg_combinebackup", ["--output", verificationDirectory, ...inputs]);
+        run("pg_verifybackup", [verificationDirectory]);
+      } finally {
+        await rm(verificationDirectory, { recursive: true, force: true });
+      }
+    }
     const metadata = {
       id,
       type,
