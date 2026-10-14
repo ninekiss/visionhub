@@ -108,7 +108,14 @@ docker compose --env-file .env -f infra/compose.yaml -f infra/compose.existing-d
 
 ### 方式 B：按需启动 Compose PostgreSQL 容器
 
-默认不会创建或启动数据库容器。需要临时或独立运行 PostgreSQL 时，配置 `POSTGRES_PASSWORD`，并使 `DATABASE_URL_DOCKER` 的用户名、密码、数据库名与 `POSTGRES_*` 配置匹配，然后执行：
+默认不会创建或启动数据库容器。需要临时或独立运行 PostgreSQL 时，配置 `POSTGRES_PASSWORD`，并使 `DATABASE_URL_DOCKER` 的用户名、密码、数据库名与 `POSTGRES_*` 配置匹配。首次使用先启动数据库服务：
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up -d postgres
+pnpm db:setup
+```
+
+确认迁移与种子数据完成后，再启动应用：
 
 ```powershell
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up --build -d
