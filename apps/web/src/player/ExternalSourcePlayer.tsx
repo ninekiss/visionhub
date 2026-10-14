@@ -171,43 +171,43 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
 
   return (
     <div className="external-source-player-layout">
-    <div className="external-source-player" ref={rootRef} aria-label={'外部源站播放器：' + title}>
-      {embedUrl && !window.visionHubDesktop && (
-        <iframe
-          className="external-source-frame"
-          src={embedUrl}
-          title={title + ' - ' + (provider?.name ?? '源站')}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-          allow="autoplay; fullscreen; picture-in-picture"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-          onLoad={() => {
-            if (frameTimeoutRef.current !== undefined) {
-              window.clearTimeout(frameTimeoutRef.current);
-              frameTimeoutRef.current = undefined;
-            }
-            setStatus('ready');
-            setErrorMessage('');
-          }}
-        />
-      )}
-      {status === 'loading' && (
-        <div className="external-source-state" role="status" aria-live="polite">
-          <span className="external-source-spinner" />
-          <strong>正在连接源站</strong>
-          <small>{provider?.name ?? source.providerId} · 正在准备播放器…</small>
-        </div>
-      )}
-      {status === 'error' && (
-        <div className="external-source-state" role="alert">
-          <strong>暂时无法播放这个源站</strong>
-          <small>{errorMessage || '请稍后重试，或选择其他播放源。'}</small>
-          <div className="external-source-actions">
-            <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>重试</button>
+      <div className="external-source-player" ref={rootRef} aria-label={'外部源站播放器：' + title}>
+        {embedUrl && !window.visionHubDesktop && (
+          <iframe
+            className="external-source-frame"
+            src={embedUrl}
+            title={title + ' - ' + (provider?.name ?? '源站')}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            onLoad={() => {
+              if (frameTimeoutRef.current !== undefined) {
+                window.clearTimeout(frameTimeoutRef.current);
+                frameTimeoutRef.current = undefined;
+              }
+              setStatus('ready');
+              setErrorMessage('');
+            }}
+          />
+        )}
+        {status === 'loading' && (
+          <div className="external-source-state" role="status" aria-live="polite">
+            <span className="external-source-spinner" />
+            <strong>正在连接源站</strong>
+            <small>{provider?.name ?? source.providerId} · 正在准备播放器…</small>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+        {status === 'error' && (
+          <div className="external-source-state" role="alert">
+            <strong>暂时无法播放这个源站</strong>
+            <small>{errorMessage || '请稍后重试，或选择其他播放源。'}</small>
+            <div className="external-source-actions">
+              <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>重试</button>
+            </div>
+          </div>
+        )}
+      </div>
       <div className="external-source-footer">
         <span className="external-source-footer-note">{browserEmbedFallbackNote}</span>
         {openUrl && (
