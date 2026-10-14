@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { mkdir, readFile, readdir, stat, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -153,7 +153,7 @@ async function runDailyJob(force = false) {
     console.log("Local backup already succeeded today (" + parts.date + "); skipping duplicate creation.");
   }
 
-  if (REMOTE && state.remoteUploadDate !== state.localBackupDate) {
+  if (REMOTE && (force || state.remoteUploadDate !== state.localBackupDate)) {
     await uploadOffsiteBackups();
     state.remoteUploadDate = state.localBackupDate;
     await saveState(state);
