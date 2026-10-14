@@ -5,7 +5,19 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting the optional database}@postgres:5432/${POSTGRES_DB:-visionhub}?schema=visionhub
     depends_on:
+      backup:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting the optional database}@postgres:5432/${POSTGRES_DB:-visionhub}?schema=visionhub
+      PGDATA: /var/lib/postgresql/18/docker
+      DB_TOOLS_PHYSICAL_ENABLED: "true"
+      BACKUP_DATABASE_MODE: managed
+    depends_on:
       postgres:
+        condition: service_healthy
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+  postgres:
         condition: service_healthy
 
   db-tools:
