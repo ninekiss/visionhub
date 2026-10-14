@@ -10,6 +10,7 @@ const {
 const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
 const {
   createPlayerIsolationScript,
+  isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
   validateExternalPlayerBounds,
@@ -140,6 +141,9 @@ function closeExternalPlayer(options = {}) {
   if (!session || (options.requestId && options.requestId !== session.requestId)) return false;
   clearExternalPlayerTimers(session);
   externalPlayerSession = null;
+  if (session.changedWindowFullscreen && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()) {
+    try { mainWindow.setFullScreen(false); } catch {}
+  }
   try {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.contentView.removeChildView(session.view);
@@ -214,7 +218,7 @@ async function loadExternalPlaybackProviders() {
 
 function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error("VisionHub 播放窗口不可用。");
-  if (typeof requestId !== "string" || !/^[a-zA-Z0-9:._-]{8,160}$/.test(requestId)) {
+  if (!isValidExternalPlayerRequestId(requestId)) {
     throw new Error("外部播放请求 ID 无效。");
   }
   const provider = playbackProviders.find((candidate) => candidate.id === providerId);
@@ -229,6 +233,8 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
       contextIsolation: true,
       sandbox: true,
       webSecurity: true,
+      // Keep the guest's HTML Fullscreen API available; the main process handles native window fullscreen.
+      disableHtmlFullscreenWindowResize: false,
       spellcheck: false,
     },
   });
@@ -268,6 +274,20 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
   });
   view.webContents.on("did-finish-load", () => {
     startExternalPlayerReadinessCheck(session);
+  });
+  view.webContents.on("enter-html-full-screen", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!mainWindow.isFullScreen()) {
+      session.changedWindowFullscreen = true;
+      mainWindow.setFullScreen(true);
+    }
+  });
+  view.webContents.on("leave-html-full-screen", () => {
+    if (!session.changedWindowFullscreen) return;
+    session.changedWindowFullscreen = false;
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()) {
+      mainWindow.setFullScreen(false);
+    }
   });
   view.webContents.on("render-process-gone", () => {
     failExternalPlayer(session, "renderer-crashed");

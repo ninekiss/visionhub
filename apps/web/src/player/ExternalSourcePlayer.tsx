@@ -23,6 +23,19 @@ function resolveTemplate(template: string | undefined, contentId: string): strin
   }
 }
 
+function createExternalPlayerRequestId(retryNonce: number): string {
+  let random = '';
+  try {
+    random = window.crypto?.randomUUID?.() ?? '';
+  } catch {
+    // Some older or restricted Electron renderer contexts may not expose randomUUID.
+  }
+  if (!/^[a-zA-Z0-9-]{8,128}$/.test(random)) {
+    random = `${Date.now().toString(36)}-${retryNonce.toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+  return `${retryNonce}:${random}`;
+}
+
 function getVisibleBounds(element: HTMLDivElement) {
   const rect = element.getBoundingClientRect();
   const left = Math.max(0, rect.left);
@@ -45,10 +58,10 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   const [errorMessage, setErrorMessage] = useState('');
   const [retryNonce, setRetryNonce] = useState(0);
   const frameTimeoutRef = useRef<number | undefined>(undefined);
-  const requestId = useMemo(() => {
-    const random = window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    return `${retryNonce}:${random}`;
-  }, [source.providerId, source.contentId, retryNonce]);
+  const requestId = useMemo(
+    () => createExternalPlayerRequestId(retryNonce),
+    [source.providerId, source.contentId, retryNonce],
+  );
   const embedUrl = useMemo(
     () => resolveTemplate(provider?.webEmbedUrlTemplate, source.contentId),
     [provider?.webEmbedUrlTemplate, source.contentId],
@@ -57,6 +70,13 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     () => resolveTemplate(provider?.webOpenUrlTemplate, source.contentId),
     [provider?.webOpenUrlTemplate, source.contentId],
   );
+  const desktop = window.visionHubDesktop;
+  const desktopUnavailable = !desktop && !embedUrl && Boolean(openUrl);
+  const browserEmbedFallbackNote = !desktop && embedUrl && status === 'ready'
+    ? '如果视频区域为空，源站可能禁止跨站嵌入。'
+    : desktopUnavailable
+      ? '此源站未提供可供网页内嵌的播放器地址。'
+      : '';
 
   const getBounds = useCallback(() => {
     const root = rootRef.current;
@@ -150,6 +170,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   }, [provider, source.providerId, source.contentId, embedUrl, getBounds, requestId, retryNonce]);
 
   return (
+    <div className="external-source-player-layout">
     <div className="external-source-player" ref={rootRef} aria-label={'外部源站播放器：' + title}>
       {embedUrl && !window.visionHubDesktop && (
         <iframe
@@ -158,6 +179,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
           title={title + ' - ' + (provider?.name ?? '源站')}
           sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
           allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
           onLoad={() => {
             if (frameTimeoutRef.current !== undefined) {
@@ -181,18 +203,19 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
           <strong>暂时无法播放这个源站</strong>
           <small>{errorMessage || '请稍后重试，或选择其他播放源。'}</small>
           <div className="external-source-actions">
-            {openUrl && (
-              <a href={openUrl} target="_blank" rel="noopener noreferrer">在新标签页打开源站</a>
-            )}
             <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>重试</button>
           </div>
         </div>
       )}
-      {status === 'ready' && openUrl && (
-        <a className="external-source-open-link" href={openUrl} target="_blank" rel="noopener noreferrer">
-          源站无法显示？在新标签页打开
-        </a>
-      )}
+    </div>
+      <div className="external-source-footer">
+        <span className="external-source-footer-note">{browserEmbedFallbackNote}</span>
+        {openUrl && (
+          <a className="external-source-open-link" href={openUrl} target="_blank" rel="noopener noreferrer">
+            源站无法显示？在新标签页打开
+          </a>
+        )}
+      </div>
     </div>
   );
 }

@@ -17,6 +17,7 @@ function createWebPreferences(preloadPath) {
     nodeIntegration: false,
     sandbox: true,
     webSecurity: true,
+    disableHtmlFullscreenWindowResize: false,
     webviewTag: false,
   };
 }
