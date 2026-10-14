@@ -10,6 +10,40 @@ Copy `.env.example` to the repository-root `.env`. The one-shot `db-tools` servi
 
 Use a URL-safe `POSTGRES_PASSWORD` (letters, digits, hyphens and underscores are safe choices), because the Compose overlay interpolates it into a PostgreSQL URI. Keep `.env` secret and out of Git.
 
+## Start, stop and inspect application containers
+
+Run these commands from the repository root after copying `.env.example` to `.env` and setting the database connection. The default deployment uses an external PostgreSQL instance reachable from the API container:
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml up --build -d
+docker compose --env-file .env -f infra/compose.yaml ps
+docker compose --env-file .env -f infra/compose.yaml logs -f --tail=200 web api
+```
+
+Choose the Compose files to match the database mode used when starting the stack, and use that same file list for later operations:
+
+- Existing Docker database network: add `-f infra/compose.existing-db-network.yaml`.
+- Compose-managed PostgreSQL: add `-f infra/compose.database.yaml`. On first use, start `postgres` and run `db-tools init` as shown below before starting the full stack.
+- Local API port for debugging: optionally add `-f infra/compose.api-published.yaml`.
+
+For example, with the default external-database mode:
+
+```powershell
+# Restart only the application services
+docker compose --env-file .env -f infra/compose.yaml restart api web
+
+# Stop the services without deleting containers or data
+docker compose --env-file .env -f infra/compose.yaml stop
+
+# Start previously stopped services
+docker compose --env-file .env -f infra/compose.yaml start
+
+# Remove the containers and Compose network; persistent volumes are kept
+docker compose --env-file .env -f infra/compose.yaml down
+```
+
+Use `logs -f --tail=200 api` or `logs -f --tail=200 web` to inspect one service. Do not use `down -v` unless you deliberately intend to delete Compose-managed database volumes and their data. The old root-level Compose command is now expressed as `docker compose --env-file .env -f infra/compose.yaml up --build -d` because the Compose file moved under `infra/`.
+
 ## Initialization and seed
 
 Initialize a new database from inside the tools container. In managed mode, Compose starts the PostgreSQL dependency automatically:
