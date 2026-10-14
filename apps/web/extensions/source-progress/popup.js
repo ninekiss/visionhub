@@ -153,6 +153,7 @@ document.getElementById("enable-domains").addEventListener("click", async () => 
     await chrome.scripting.registerContentScripts(chosen.map((origin) => ({
       id: scriptIdFor(origin),
       matches: [patternFor(origin)],
+      css: ["player-only.css"],
       js: ["content.js"],
       allFrames: true,
       runAt: "document_idle",
