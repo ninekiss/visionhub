@@ -16,7 +16,7 @@ type Props = {
 
 const SOURCE_PROGRESS_CHANNEL = 'visionhub-source-progress-v1';
 const EXTENSION_CONNECTION_TIMEOUT_MS = 1800;
-const PLAYER_READY_TIMEOUT_MS = 15000;
+const DEFAULT_PLAYER_READY_TIMEOUT_MS = 60000;
 
 function resolveTemplate(template: string | undefined, contentId: string): string | null {
   if (!template || !template.includes('{contentId}')) return null;
@@ -108,6 +108,7 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
   }, [source.providerId, source.contentId, retryNonce]);
   const initialTimeRef = useRef(initialTime);
   const progressCallbackRef = useRef(onProgress);
+  const playerReadyTimeoutMs = provider?.timeoutMs ?? DEFAULT_PLAYER_READY_TIMEOUT_MS;
   const desktop = window.visionHubDesktop;
   const desktopUnavailable = !desktop && !embedUrl && Boolean(openUrl);
   const browserEmbedFallbackNote = !desktop && embedUrl && status === 'ready'
@@ -366,7 +367,7 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
                 setReadinessFallback(true);
                 setStatus('ready');
                 setErrorMessage('');
-              }, PLAYER_READY_TIMEOUT_MS);
+              }, playerReadyTimeoutMs);
               postProgressBridgeInit();
             }}
           />
