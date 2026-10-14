@@ -454,6 +454,8 @@
         if (session) {
           const video = primaryVideo();
           if (video) {
+            const playerRoot = playerRootFor(video);
+            if (playerRoot) isolatePageToPlayer(playerRoot, true);
             reportPlayerReady(video);
             tryRestore(video);
           } else if (isolatedPlayerRoot?.isConnected) {
