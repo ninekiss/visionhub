@@ -1,6 +1,0 @@
-# Configure only source sites that you are authorized to embed or automate.
-# URL templates must use {contentId} and resolve to an origin listed in allowedOrigins.
-# A webEmbedUrlTemplate is required for browser embedding; it must be the provider's official/authorized embed URL.
-# Keep the array empty until a real provider and its selectors have been verified.
-playback:
-  providers: []

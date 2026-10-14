@@ -1,0 +1,26 @@
+# Configure only source sites that you are authorized to embed or automate.
+# URL templates must use {contentId} and resolve to an origin listed in allowedOrigins.
+# A webEmbedUrlTemplate is required for browser embedding; it must be the provider's official/authorized embed URL.
+# Keep the array empty until a real provider and its selectors have been verified.
+playback:
+  providers:
+    - id: demo-source
+      name: 示例播放源
+
+      # Electron 打开源站的页面地址
+      urlTemplate: "https://player.example.com/watch/{contentId}"
+
+      # 可选：源站官方允许使用的嵌入地址
+      # 没有官方嵌入地址就删除这一行
+      webEmbedUrlTemplate: "https://player.example.com/embed/{contentId}"
+
+      # 精确的 HTTPS Origin，不填写具体路径
+      allowedOrigins:
+        - https://player.example.com
+
+      # 以下两个选择器必须根据真实网页验证后填写
+      playerSelector: ".player-container"
+      readinessSelector: ".player-container video"
+
+      # 等待播放器就绪的最长时间
+      timeoutMs: 15000
