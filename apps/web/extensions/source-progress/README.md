@@ -1,0 +1,37 @@
+# VisionHub Source Progress
+
+VisionHub Source Progress 是给 **Chrome / Edge Web 浏览器**使用的 Manifest V3 扩展。它在真实源站 iframe 中检测原生 HTML5 video 元素的播放位置和总时长，将进度通过受校验的 postMessage 通道交回 VisionHub Web，并接受 VisionHub Web 发送的恢复位置。
+
+它不运行在 Electron 桌面端，不读取浏览器 Cookie，不绕过 DRM、登录要求或源站反嵌入限制，也不修改源站网络请求。
+
+## 安装（开发版）
+
+1. 打开 Chrome 的 chrome://extensions，或 Edge 的 edge://extensions。
+2. 开启“开发者模式”。
+3. 选择“加载已解压的扩展程序”。
+4. 选中仓库中的 apps/web/extensions/source-progress 目录。
+5. 打开 VisionHub Web 的某个播放页面，点击扩展图标。
+6. 点击“信任此 Web 站点”。
+7. 在检测出的 iframe 域名中选择需要处理的源站，并点击“启用所选域名”。
+8. 刷新 VisionHub Web 播放页面后播放视频。扩展可以继续检测源站内部的嵌套 iframe；如发现新域名，再打开扩展并授权该域名。
+
+该扩展使用按需申请的 HTTPS 主机权限。只有用户明确选中的源站域名会被注册为 content script 运行范围。安装扩展不代表所有网站都被自动授权。
+
+## 当前支持与边界
+
+- 从可见的原生 HTML5 视频元素选出主播放器，读取当前播放位置和总时长。
+- 拖动进度条、暂停、结束时主动同步，播放期间约每 2 秒同步一次。
+- 如果 VisionHub 已有该片目/剧集的本地观看进度，扩展会在源站视频元数据可用后尝试跳转到对应位置。
+- 进度复用 VisionHub Web 的现有本地观看历史，因此首页“继续观看”也可以使用保存的源站进度。
+- 它不会自动播放，仅恢复时间点，不会强制点击播放。
+- 自定义 canvas 播放器、未授权的 iframe 域名、无 HTML5 video 的播放器可能无法读取进度。
+- 在浏览器沙箱、扩展访问权限或源站嵌入策略阻止扩展运行时，视频播放仍可继续，但不会自动同步进度。
+- 若源站内层 iframe 使用了另一个域名，需要对该域名单独授权。每个框架都必须匹配已启用的 origin。
+- 进度存在当前 Web 站点的本地存储中，不会自动同步到别的浏览器、设备或用户账户。
+
+## 通信与权限模型
+
+- VisionHub Web 为每个播放实例生成随机 token，并且只接受来自当前 iframe 的消息。
+- 内容脚本只接受来自用户已信任的 Web 源站初始化命令；嵌套 frame 的命令沿已授权的 frame 层级转发。
+- 恢复位置和播放进度都通过 postMessage 桥传递；扩展不需要读取 VisionHub 的页面 DOM 或本地存储。
+- 只请求用户选中的 HTTPS 源站主机权限。请仅授权自己信任的源站。
