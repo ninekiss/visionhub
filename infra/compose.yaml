@@ -53,6 +53,22 @@ services:
     networks:
       - app
 
+  db-tools:
+    profiles: ["tools"]
+    build:
+      context: ..
+      dockerfile: deploy/db-tools.Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-${DATABASE_URL:?Set DATABASE_URL or DATABASE_URL_DOCKER}}
+      VISIONHUB_BACKUP_DIR: /backups
+      LOGICAL_RETENTION_DAYS: ${LOGICAL_RETENTION_DAYS:-30}
+      PHYSICAL_KEEP_FULL: ${PHYSICAL_KEEP_FULL:-4}
+      DB_TOOLS_PHYSICAL_ENABLED: "false"
+    volumes:
+      - ../backups:/backups
+    networks:
+      - app
+
 networks:
   app:
     driver: bridge
