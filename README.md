@@ -112,6 +112,7 @@ docker compose --env-file .env -f infra/compose.yaml -f infra/compose.existing-d
 默认不会创建或启动数据库容器。需要临时或独立运行 PostgreSQL 时，配置 `POSTGRES_PASSWORD`。加入数据库 overlay 后，API 会自动使用 Compose 服务地址 `postgres:5432` 和对应的 `POSTGRES_*` 账号、数据库配置，不会沿用为其他部署模式设置的 `DATABASE_URL_DOCKER`。宿主机执行迁移时，`DATABASE_URL` 应指向映射端口 `127.0.0.1:5433`。首次使用先启动数据库服务：
 
 ```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up --build -d postgres
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools init
 ```
 
