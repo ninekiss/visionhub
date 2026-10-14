@@ -51,7 +51,7 @@ The API is not published to the host by default; browsers reach it through the W
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.api-published.yaml up --build -d
 ```
 
-The optional mapping binds only to `127.0.0.1`. Compose overlays can be combined when the chosen deployment needs more than one option.
+The optional mapping binds only to `127.0.0.1` and can be combined with either database mode. The local PostgreSQL overlay and existing-database-network overlay are alternative database choices; do not enable them together.
 
 ## Database migration procedure
 
