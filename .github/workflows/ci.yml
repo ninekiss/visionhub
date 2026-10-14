@@ -110,7 +110,27 @@ jobs:
           set -euo pipefail
           compose=(docker compose -f infra/compose.yaml -f infra/compose.database.yaml)
           cleanup() { "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true; }
-          trap cleanup EXIT
+          on_exit() {
+            status=$?
+            if (( status != 0 )); then
+              echo "::group::PostgreSQL integration-test diagnostics"
+              echo "Compose service status:"
+              "${compose[@]}" ps --all || true
+              echo
+              echo "PostgreSQL container state and health-check history:"
+              for container_id in $(" ${compose[@]}" ps -aq postgres); do
+                docker inspect --format 'Container={{.Name}} State={{.State.Status}} ExitCode={{.State.ExitCode}} Error={{.State.Error}} Health={{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}' "$container_id" || true
+                docker inspect --format '{{if .State.Health}}{{range .State.Health.Log}}{{printf "\\n--- healthcheck at %s (exit %d) ---\\n%s" .Start .ExitCode .Output}}{{end}}{{end}}' "$container_id" || true
+              done
+              echo
+              echo "PostgreSQL logs (last 300 lines):"
+              "${compose[@]}" logs --no-color --timestamps --tail=300 postgres || true
+              echo "::endgroup::"
+            fi
+            cleanup
+            exit "$status"
+          }
+          trap on_exit EXIT
           rm -rf backups
           mkdir -p backups
           "${compose[@]}" up -d postgres
