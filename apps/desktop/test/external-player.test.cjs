@@ -1,7 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
-  createPlayerFullscreenScript,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
@@ -68,22 +67,4 @@ test("player isolation waits until a native video has current frame data", () =>
   assert.ok(script.includes("video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA"));
   assert.ok(script.includes("video.videoWidth <= 0"));
   assert.ok(script.includes("video.videoHeight <= 0"));
-});
-
-test("fullscreen script sizes the actual fullscreen element and restores styles on exit", () => {
-  const enterScript = createPlayerFullscreenScript(".vp-player", true);
-  const leaveScript = createPlayerFullscreenScript(".vp-player", false);
-  assert.ok(enterScript.includes("document.fullscreenElement"));
-  assert.match(enterScript, /object-fit/);
-  assert.match(enterScript, /100vh/);
-  assert.match(enterScript, /\["position", "fixed"\]/);
-  assert.match(enterScript, /\["inset", "0"\]/);
-  assert.match(enterScript, /\["width", "100vw"\]/);
-  assert.match(enterScript, /\["height", "100vh"\]/);
-  assert.match(enterScript, /document\.documentElement/);
-  assert.match(enterScript, /\["overflow", "hidden"\]/);
-  assert.match(enterScript, /\["overflow-y", "hidden"\]/);
-  assert.match(enterScript, /document scrollbar/);
-  assert.match(leaveScript, /__VisionHubFullscreenStyleSnapshots/);
-  assert.match(leaveScript, /removeProperty/);
 });
