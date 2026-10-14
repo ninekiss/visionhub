@@ -63,6 +63,13 @@ jobs:
           node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-database.json', 'utf8')); if (!c.services.postgres.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('PostgreSQL 18 data volume must target /var/lib/postgresql'); if (!String(c.services.postgres.build?.dockerfile ?? '').includes('postgres.Dockerfile')) throw new Error('Managed PostgreSQL must use the replication-enabled image'); const url = c.services.api.environment.DATABASE_URL; if (!url.includes('@postgres:5432/visionhub?schema=visionhub') || url.includes('d2m_postgres')) throw new Error('Compose database overlay must override any previous DATABASE_URL_DOCKER'); const tools = c.services['db-tools']; if (!tools.environment.DATABASE_URL.includes('@postgres:5432/visionhub?schema=visionhub') || tools.environment.DB_TOOLS_PHYSICAL_ENABLED !== 'true') throw new Error('Managed db-tools must target Compose PostgreSQL and enable physical backup operations'); if (tools.environment.PGDATA !== '/var/lib/postgresql/18/docker' || !tools.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('db-tools must share the managed PostgreSQL data volume'); const pgCommand = c.services.postgres.command ?? []; if (!pgCommand.includes('summarize_wal=on')) throw new Error('Managed PostgreSQL must enable WAL summarization for incremental backups'); if (!pgCommand.includes('wal_summary_keep_time=30d')) throw new Error('Managed PostgreSQL must retain WAL summaries for 30 days');"
           docker compose --profile tools -f infra/compose.yaml -f infra/compose.existing-db-network.yaml config --quiet
           docker compose -f infra/compose.yaml -f infra/compose.api-published.yaml config --quiet
+          docker compose --profile backup -f infra/compose.yaml config --quiet
+          docker compose --profile backup -f infra/compose.yaml -f infra/compose.database.yaml config --quiet
+          docker compose --profile backup -f infra/compose.yaml -f infra/compose.existing-db-network.yaml config --quiet
+          docker compose --profile backup -f infra/compose.yaml -f infra/compose.database.yaml config --format json > /tmp/visionhub-compose-backup-managed.json
+          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-backup-managed.json', 'utf8')); const b = c.services.backup; if (!(b.profiles ?? []).includes('backup')) throw new Error('Backup scheduler must be opt-in'); if (b.entrypoint?.[1] !== 'scripts/backup-scheduler.mjs') throw new Error('Backup service must run the scheduler'); if (b.environment.BACKUP_DATABASE_MODE !== 'managed' || b.environment.DB_TOOLS_PHYSICAL_ENABLED !== 'true') throw new Error('Managed overlay must enable physical backup mode'); if (!b.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('Managed backup scheduler must share the PostgreSQL data volume for physical backup checks');"
+          docker compose -f infra/compose.yaml -f infra/compose.existing-db-network.yaml config --format json > /tmp/visionhub-compose-backup-network.json
+          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-backup-network.json', 'utf8')); if (c.services.backup.environment.BACKUP_DATABASE_MODE !== 'network') throw new Error('Existing-network overlay must select logical-only network backup mode'); if (!(c.services.backup.networks ?? []).includes('existing_db')) throw new Error('Backup scheduler must join the existing DB network');"
 
       - name: Build API Docker image
         uses: docker/build-push-action@v6
@@ -153,7 +160,9 @@ jobs:
           "${compose[@]}" run --rm db-tools physical-list
           "${compose[@]}" run --rm db-tools physical-restore-test "$full_id"
           "${compose[@]}" run --rm db-tools physical-restore-test "$incr_id"
+          "${compose[@]}" --profile backup run --rm -e BACKUP_DATABASE_MODE=direct backup --once
           echo "Database backup/restore integration tests passed: logical, standalone full, and full+incremental chain."
+          echo "Containerized backup scheduler one-shot test passed."
       - name: Build Web Docker image
         uses: docker/build-push-action@v6
         with:
