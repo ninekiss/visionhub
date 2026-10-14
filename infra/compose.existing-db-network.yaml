@@ -7,6 +7,12 @@ services:
     networks:
       - app
       - existing_db
+  backup:
+    environment:
+      BACKUP_DATABASE_MODE: network
+    networks:
+      - app
+      - existing_db
 
 networks:
   existing_db:
