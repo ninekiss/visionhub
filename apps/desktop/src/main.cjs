@@ -283,7 +283,6 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     },
   });
   view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
-  view.webContents.setBackgroundColor("#080a0f");
   // Keep the native child hidden before it is attached: otherwise its initial
   // white compositor surface can flash above the renderer's loading indicator.
   view.setVisible(false);
