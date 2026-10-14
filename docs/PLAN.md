@@ -461,7 +461,7 @@ Status: user acceptance completed in Web and Windows Electron (2026-10-14). See 
 - [x] Verify the unreachable-host timeout prompt and confirm normal MP4/HLS playback still works in Web and Windows Electron (user acceptance, 2026-10-13; PR #39).
 - [x] Verify the redistributable fixture and P5.4 playback/error/source-switching behavior in Web and Windows Electron (user acceptance confirmed 2026-10-14). Exact OS/browser version and codec metadata are not inferred where they were not recorded; retain the no-unverified-codec-claims rule.
 - [x] Verify source switching, seek, buffering, progress restoration, network failure and unsupported-format behavior in both clients (P5.4 user acceptance confirmed 2026-10-14).
-- [ ] Claim support only for the exact fixtures and codec/container combinations actually tested; do not infer MKV/HEVC/HDR/subtitle support from Plyr.
+- [x] Claim support only for the exact fixtures and codec/container combinations actually tested; do not infer MKV/HEVC/HDR/subtitle support from Plyr.
 
 Exit criteria:
 - [x] The media adapter and playback-event modules have unit coverage and the Web/desktop production builds pass (CI run [38400679707](https://github.com/ninekiss/visionhub/actions/runs/38400679707)).
