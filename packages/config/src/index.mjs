@@ -156,6 +156,9 @@ export const desktopConfigSchema = z.object({
         return false;
       }
     }, { message: "must be an HTTP(S) API base URL without credentials, query, or hash" }),
+    extensionsDir: z.string().trim().min(1).refine(isAbsolute, {
+      message: "must be an absolute directory path",
+    }).optional(),
   }).strict(),
 }).strict();
 
@@ -415,6 +418,10 @@ export async function loadDesktopConfig(options = {}) {
   if (env.DESKTOP_API_BASE_URL && env.DESKTOP_API_BASE_URL.trim()) {
     if (!rawConfig.desktop) rawConfig.desktop = {};
     rawConfig.desktop.apiBaseUrl = env.DESKTOP_API_BASE_URL.trim();
+  }
+  if (env.DESKTOP_EXTENSIONS_DIR && env.DESKTOP_EXTENSIONS_DIR.trim()) {
+    if (!rawConfig.desktop) rawConfig.desktop = {};
+    rawConfig.desktop.extensionsDir = env.DESKTOP_EXTENSIONS_DIR.trim();
   }
   return parseConfig(desktopConfigSchema, rawConfig, "VisionHub desktop configuration");
 }
