@@ -3,6 +3,10 @@ services:
     networks:
       - app
       - existing_db
+  db-tools:
+    networks:
+      - app
+      - existing_db
 
 networks:
   existing_db:
