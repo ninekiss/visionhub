@@ -69,6 +69,8 @@ services:
       - type: bind
         source: "${BACKUP_HOST_DIR:-../backups}"
         target: /backups
+        bind:
+          create_host_path: true
     networks:
       - app
 
@@ -104,6 +106,8 @@ services:
       - type: bind
         source: "${BACKUP_HOST_DIR:-../backups}"
         target: /backups
+        bind:
+          create_host_path: true
     restart: unless-stopped
     networks:
       - app
