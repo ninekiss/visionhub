@@ -57,7 +57,8 @@ async function discoverUnpackedExtensions(directory) {
   }
 
   await visit(root, 0);
-  return matches.sort((left, right) => left.localeCompare(right));
+  // Prefer numerically newer version directories when scanning a browser profile.
+  return matches.sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
 }
 
 function resolveProviderUrl(provider, contentId) {
