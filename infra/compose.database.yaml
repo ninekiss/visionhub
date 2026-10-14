@@ -20,7 +20,12 @@ services:
       - postgres_data:/var/lib/postgresql
 
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:18-alpine}
+    image: visionhub-postgres:18
+    build:
+      context: ..
+      dockerfile: deploy/postgres.Dockerfile
+      args:
+        POSTGRES_IMAGE: ${POSTGRES_IMAGE:-postgres:18-alpine}
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-visionhub}
       POSTGRES_USER: ${POSTGRES_USER:-app}
