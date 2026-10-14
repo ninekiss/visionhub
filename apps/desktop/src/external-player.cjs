@@ -148,18 +148,33 @@ function createPlayerFullscreenScript(playerSelector, active) {
     const video = target.matches?.("video") ? target : target.querySelector?.("video");
     const elements = video && video !== target ? [target, video] : [target];
     const names = ["position", "inset", "width", "height", "max-width", "max-height", "margin", "z-index", "object-fit", "display"];
+    const documentElements = [document.documentElement, document.body].filter(Boolean);
+    const documentNames = ["overflow", "overflow-x", "overflow-y", "width", "height", "margin", "padding"];
     if (!window.__VisionHubFullscreenStyleSnapshots) window.__VisionHubFullscreenStyleSnapshots = [];
     const snapshots = window.__VisionHubFullscreenStyleSnapshots;
-    for (const element of elements) {
+    for (const element of [...new Set([...elements, ...documentElements])]) {
       if (snapshots.some((entry) => entry.element === element)) continue;
-      snapshots.push({
-        element,
-        properties: names.map((name) => ({
-          name,
-          value: element.style.getPropertyValue(name),
-          priority: element.style.getPropertyPriority(name)
-        }))
-      });
+      const properties = (documentElements.includes(element) ? documentNames : names).map((name) => ({
+        name,
+        value: element.style.getPropertyValue(name),
+        priority: element.style.getPropertyPriority(name)
+      }));
+      snapshots.push({ element, properties });
+    }
+
+    // Remove the guest page's document scrollbar before sizing the fullscreen
+    // player. Otherwise its scrollbar gutter can remain visible at the right
+    // edge and the video appears not to fill the native fullscreen viewport.
+    for (const element of documentElements) {
+      for (const [name, value] of [
+        ["overflow", "hidden"],
+        ["overflow-x", "hidden"],
+        ["overflow-y", "hidden"],
+        ["width", "100%"],
+        ["height", "100%"],
+        ["margin", "0"],
+        ["padding", "0"]
+      ]) element.style.setProperty(name, value, "important");
     }
 
     for (const [name, value] of [
