@@ -21,7 +21,7 @@ Core constraints:
 
 ## 2. Current state snapshot
 
-The following status is based on the repository code and lockfile on 2026-10-13.
+The following status is based on the repository code and lockfile on 2026-10-14.
 
 | Area | Current state | Status against target |
 |---|---|---|
