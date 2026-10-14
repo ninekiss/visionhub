@@ -133,7 +133,8 @@ jobs:
           trap on_exit EXIT
           rm -rf backups
           mkdir -p backups
-          "${compose[@]}" up -d postgres
+          # Wait for first-time PostgreSQL initialization and its healthcheck before running psql.
+          "${compose[@]}" up -d --wait --wait-timeout 90 postgres
           summarize_wal="$("${compose[@]}" exec -T postgres psql -U build -d visionhub -v ON_ERROR_STOP=1 -Atc 'SHOW summarize_wal')"
           test "$summarize_wal" = "on"
           "${compose[@]}" run --rm db-tools init
