@@ -90,10 +90,13 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
   }, [embedUrl]);
   const bridgeToken = useMemo(() => {
     try {
-      return window.crypto?.randomUUID?.() ?? '';
+      const token = window.crypto?.randomUUID?.();
+      if (token) return token;
     } catch {
-      return '';
+      // Fall through to a per-instance nonce in restricted browser contexts.
     }
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + '-' +
+      Math.random().toString(36).slice(2);
   }, [source.providerId, source.contentId, retryNonce]);
   const initialTimeRef = useRef(initialTime);
   const progressCallbackRef = useRef(onProgress);
