@@ -6,12 +6,13 @@ USER root
 # PostgreSQL 18 CLI tools provide pg_dump/pg_restore plus physical
 # incremental backup/restore utilities (pg_basebackup, pg_combinebackup).
 COPY --from=node-runtime /usr/local/ /usr/local/
-RUN apk add --no-cache su-exec \
+RUN apk add --no-cache su-exec rclone tzdata \
     && corepack enable pnpm \
     && node --version \
     && pnpm --version \
     && pg_basebackup --version \
     && pg_combinebackup --version \
+    && rclone version \
     && mkdir -p /app /backups
 
 WORKDIR /app
@@ -31,7 +32,8 @@ COPY configs configs
 COPY scripts scripts
 
 RUN pnpm --filter @visionhub/api db:generate \
-    && node --check scripts/db-tools.mjs
+    && node --check scripts/db-tools.mjs \
+    && node --check scripts/backup-scheduler.mjs
 
 ENV VISIONHUB_BACKUP_DIR=/backups
 ENTRYPOINT ["node", "scripts/db-tools.mjs"]
