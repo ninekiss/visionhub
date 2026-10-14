@@ -112,17 +112,34 @@ docker compose --env-file .env -f infra/compose.yaml -f infra/compose.existing-d
 默认不会创建或启动数据库容器。需要临时或独立运行 PostgreSQL 时，配置 `POSTGRES_PASSWORD`。加入数据库 overlay 后，API 会自动使用 Compose 服务地址 `postgres:5432` 和对应的 `POSTGRES_*` 账号、数据库配置，不会沿用为其他部署模式设置的 `DATABASE_URL_DOCKER`。宿主机执行迁移时，`DATABASE_URL` 应指向映射端口 `127.0.0.1:5433`。首次使用先启动数据库服务：
 
 ```powershell
-docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up -d postgres
-pnpm db:setup
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools init
 ```
 
-确认迁移与种子数据完成后，再启动应用：
+`db-tools init` 会在容器内创建 schema、执行迁移并写入 seed 数据。该工具服务使用 `tools` profile，普通 `compose up` 不会常驻启动它；`run --rm` 完成后即退出。确认初始化成功后再启动应用：
 
 ```powershell
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up --build -d
 ```
 
-数据库数据保存在名为 `postgres_data` 的 Docker volume 中。宿主机端口默认绑定到 `127.0.0.1:5433`，不对局域网或公网发布；API 容器通过 Compose 网络内的 `postgres:5432` 访问。需要在宿主机上运行 `pnpm db:setup` 时，将 `DATABASE_URL` 指向 `127.0.0.1:5433`。停用服务时使用同一组 `-f` 参数执行 `down`；不要删除该 volume，除非明确要销毁其中的数据。
+数据库数据保存在名为 `postgres_data` 的 Docker volume 中。宿主机端口默认绑定到 `127.0.0.1:5433`，不对局域网或公网发布；API 与 db-tools 容器通过 Compose 网络内的 `postgres:5432` 访问。停止服务时使用同一组 `-f` 参数执行 `down`；不要删除该 volume，除非明确要销毁其中的数据。
+
+### 数据库维护、备份与还原
+
+数据库初始化、迁移和 seed 都可通过一次性工具容器运行，不必在宿主机安装 Prisma：
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools migrate
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools seed
+```
+
+逻辑备份只包含 `visionhub` schema，每份备份都可独立还原，支持现有网络/直连数据库：
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools logical-backup
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools logical-list
+```
+
+自建 PostgreSQL 18 容器还支持整个数据库集群的物理全量/增量备份。首次使用先执行 `physical-backup-full`，之后可定期执行 `physical-backup-incr`；增量恢复必须依赖其完整父链。先通过 `physical-restore-test latest` 在隔离的临时 PostgreSQL 实例中验证，再考虑正式还原。完整命令、安全要求、保留策略和 Windows 任务计划见 [部署与备份说明](docs/DEPLOYMENT.md)。
 
 ### 按需将 API 端口映射到宿主机
 
