@@ -156,6 +156,68 @@ For direct or existing-network deployments, pass `-DatabaseMode direct` or `-Dat
 
 Treat dumps and physical backups as sensitive data. Limit filesystem access, do not commit backup files, and regularly test restore rather than relying only on a successful backup exit code.
 
+## Cloud deployment: automated backup container
+
+The `backup` service is opt-in through the Compose profile `backup`; ordinary `docker compose up` does not start the scheduler. It runs inside the existing database-tools image and stays alive to run the daily backup job. The scheduler catches up if the container starts after the configured time and retries failed runs using `BACKUP_RETRY_MINUTES`.
+
+### Schedule and retention
+
+- Daily at `BACKUP_SCHEDULE_TIME` (default `02:30`) in `BACKUP_TIMEZONE` (default `UTC`).
+- Every run creates an independent `visionhub` schema logical dump.
+- In `managed` mode, the first run takes a physical full backup; Sunday takes a new full backup; other days take an incremental backup. The incremental chain is verified by the existing db-tools implementation.
+- Logical retention defaults to 30 days; physical retention keeps the latest four full roots and their dependent increments.
+- A local backup run is recorded only after the db-tools commands succeed. When `BACKUP_REMOTE` is configured, an upload failure is retried without repeatedly creating new local backups that day.
+- `--once` bypasses the clock schedule and runs a backup immediately, which is useful for first-time validation.
+
+For a cloud VM, mount a persistent host directory to `/backups`. Set `BACKUP_HOST_DIR` to an absolute path on persistent storage, for example `/srv/visionhub/backups`, and ensure the Docker daemon can write to it. Keeping `backups/` on the same VM alone is not off-site protection.
+
+### Start the scheduled container
+
+Run from the repository root after configuring `.env`.
+
+For a direct PostgreSQL host/IP URL:
+
+```powershell
+docker compose --env-file .env --profile backup -f infra/compose.yaml up --build -d backup
+```
+
+For the Compose-managed PostgreSQL 18 service (schema plus full/incremental cluster backups):
+
+```powershell
+docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml up --build -d backup
+```
+
+For an existing external Docker network, use `-f infra/compose.existing-db-network.yaml` instead of the managed database overlay. The overlay determines the backup mode; `managed` is the only mode that enables physical cluster backup operations.
+
+Run a one-shot backup before relying on the scheduler:
+
+```powershell
+docker compose --env-file .env --profile backup -f infra/compose.yaml run --rm backup --once
+```
+
+For managed PostgreSQL, append `-f infra/compose.database.yaml` to the same command. Review the run result, then inspect the long-running service:
+
+```powershell
+docker compose --env-file .env --profile backup -f infra/compose.yaml ps
+docker compose --env-file .env --profile backup -f infra/compose.yaml logs -f --tail=100 backup
+```
+
+Use the same Compose file list and profile to stop the scheduler, for example `docker compose --env-file .env --profile backup -f infra/compose.yaml stop backup`. Do not use `down -v` as a backup-management shortcut.
+
+### Optional off-site S3-compatible storage
+
+The container uses `rclone` to copy successful local backups to an optional S3-compatible destination. Configure these values in the deployment environment (not in Git):
+
+- `BACKUP_REMOTE=cloud:bucket-name/visionhub`
+- `RCLONE_CONFIG_CLOUD_TYPE=s3`
+- `RCLONE_CONFIG_CLOUD_PROVIDER=AWS` for Amazon S3, or `Other` for a compatible service.
+- `RCLONE_CONFIG_CLOUD_REGION` and `RCLONE_CONFIG_CLOUD_ENDPOINT` according to the provider.
+- `RCLONE_CONFIG_CLOUD_ACCESS_KEY_ID` and `RCLONE_CONFIG_CLOUD_SECRET_ACCESS_KEY`, or set `RCLONE_CONFIG_CLOUD_ENV_AUTH=true` when the cloud environment provides supported instance credentials.
+
+The scheduler uses `rclone copy`, not `sync`: local retention or local disk loss will not automatically delete remote objects. Remote copies therefore grow until an object-storage lifecycle/retention policy removes older data. Configure remote retention deliberately; physical incremental directories depend on their parent chain, so don't delete parent backups while retaining dependent increments. Keep the bucket private, use least-privilege credentials, enable provider-side encryption, and never commit credentials to the repository.
+
+The remote upload is optional. If `BACKUP_REMOTE` is empty, local scheduled backups still run, but the scheduler logs that off-site upload is disabled. A container marked running is not proof that a backup succeeded; monitor its logs and test restoration periodically.
+
 ## Runtime behavior
 
 - API and Web restart unless explicitly stopped; the API health check queries the database-backed catalog endpoint.
