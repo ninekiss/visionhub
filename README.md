@@ -30,6 +30,7 @@
 - 可选的 `configs/app.yaml` 和 `configs/secrets.yaml` 用作本地覆盖与秘密配置，已加入 Git/Docker 忽略规则。
 - `.env`：数据库连接、管理员凭据和宿主机端口等环境变量，基于 `.env.example` 创建。敏感值不要提交到 Git。
 - 合并优先级、变量映射和失败条件见 [配置说明](docs/CONFIGURATION.md)。
+- Compose 部署方式、数据库连接、备份和回滚见 [部署说明](docs/DEPLOYMENT.md)。
 
 本地 API 的开发启动器会明确强制 `NODE_ENV=development`、开发配置文件和 `API_DEV_PORT`。配置按固定顺序合并，并在 API 创建 Nest 应用前由 Zod 校验；必需项缺失、YAML 无效或变量格式错误时会显示字段级错误，不会静默退回默认配置。Docker Compose 则明确设置 `NODE_ENV=production`、`PORT=3000` 并挂载生产配置。
 
