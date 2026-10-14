@@ -415,6 +415,7 @@ async function physicalRestoreTest(id, keep) {
   const { output, selected, chain } = await reconstructPhysicalBackup(id, keep);
   const logPath = path.join(output, "restore-test.log");
   let started = false;
+  let passed = false;
   try {
     run("chown", ["-R", "postgres:postgres", output]);
     const serverOptions = "-h 127.0.0.1 -p 55432 -c archive_mode=off";
@@ -425,6 +426,7 @@ async function physicalRestoreTest(id, keep) {
     if (hasCatalog !== "t") throw new Error("Physical restore started, but visionhub.catalog_items was not found.");
     const count = run("psql", ["--dbname", testUrl, "--no-psqlrc", "--set=ON_ERROR_STOP=1", "--tuples-only", "--no-align", "--command", "SELECT count(*) FROM visionhub.catalog_items"], { capture: true }).trim();
     console.log(`Physical restore verified by starting an isolated PostgreSQL server. Backup: ${selected.id}; chain length: ${chain.length}; catalog_items rows: ${count}.`);
+    passed = true;
     if (keep) console.log(`Restored test data retained at ${output}`);
   } finally {
     if (started) {
@@ -434,8 +436,8 @@ async function physicalRestoreTest(id, keep) {
         try { run("su-exec", ["postgres", "pg_ctl", "-D", output, "-m", "immediate", "-w", "stop"]); } catch {}
       }
     }
-    if (!keep) await rm(output, { recursive: true, force: true });
-    else console.log(`Retained physical restore-test data directory: ${output}`);
+    if (!keep && passed) await rm(output, { recursive: true, force: true });
+    else console.log(`Retained physical restore-test data directory for inspection: ${output}`);
   }
 }
 
@@ -444,7 +446,7 @@ async function physicalRestore(id, apply, yes) {
   if (!apply || !yes) throw new Error("Replacing the managed PGDATA volume is destructive. Stop the api/web/postgres services, then rerun physical-restore [backup-id|latest] --apply --yes.");
   const connection = requiredDatabaseUrl();
   const ready = spawnSync("pg_isready", ["--dbname", connection, "--timeout=2"], { stdio: "ignore", env: process.env });
-  if (ready.status === 0) throw new Error("The database still accepts connections. Stop PostgreSQL and run this command with docker compose run --no-deps db-tools.");
+  if (ready.status === 0 || ready.status === 1) throw new Error("The database is still listening. Stop PostgreSQL and run this command with docker compose run --no-deps db-tools.");
   if (!(await access(path.join(PGDATA, "PG_VERSION")).then(() => true).catch(() => false))) {
     throw new Error(`Expected an initialized managed data directory at ${PGDATA}; refusing to overwrite an unknown target.`);
   }
