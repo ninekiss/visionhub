@@ -6,7 +6,8 @@ USER root
 # PostgreSQL 18 CLI tools provide pg_dump/pg_restore plus physical
 # incremental backup/restore utilities (pg_basebackup, pg_combinebackup).
 COPY --from=node-runtime /usr/local/ /usr/local/
-RUN corepack enable pnpm \
+RUN apk add --no-cache su-exec \
+    && corepack enable pnpm \
     && node --version \
     && pnpm --version \
     && pg_basebackup --version \
