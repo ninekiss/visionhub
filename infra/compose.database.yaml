@@ -26,6 +26,9 @@ services:
       dockerfile: deploy/postgres.Dockerfile
       args:
         POSTGRES_IMAGE: ${POSTGRES_IMAGE:-postgres:18-alpine}
+    # PostgreSQL incremental base backups require WAL summarization. Keep
+    # summaries longer than the default to cover the weekly full-backup cycle.
+    command: ["postgres", "-c", "summarize_wal=on", "-c", "wal_summary_keep_time=30d"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-visionhub}
       POSTGRES_USER: ${POSTGRES_USER:-app}
