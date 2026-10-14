@@ -34,7 +34,7 @@ export interface AppConfig {
 }
 
 export interface DesktopConfig {
-  desktop: { apiBaseUrl: string };
+  desktop: { apiBaseUrl: string; extensionsDir?: string };
 }
 
 export interface ConfigLoaderOptions {
