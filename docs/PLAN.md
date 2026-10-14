@@ -480,15 +480,17 @@ Implementation:
 - [x] Move the base application Compose file to `infra/compose.yaml` and update build/mount paths.
 - [x] Keep the base Compose file limited to Web and API. Do not require an external network when the configured database host/IP is directly reachable from the API container.
 - [x] Support a direct database URL in every application environment through the shared `DATABASE_URL` contract. Compose uses optional `DATABASE_URL_DOCKER` when the container needs a different reachable address.
-- [x] Add `infra/compose.existing-db-network.yaml` to attach only the API to an already-existing database network when host aliases require it.
-- [x] Add `infra/compose.database.yaml` as an explicit opt-in PostgreSQL service overlay, with a persistent named volume, a host port bound to loopback, and API startup waiting for database readiness.
+- [x] Add `infra/compose.existing-db-network.yaml` to attach the API and one-shot database tools to an already-existing database network when host aliases require it.
+- [x] Add `infra/compose.database.yaml` as an explicit opt-in PostgreSQL service overlay, with a persistent named volume, a host port bound to loopback, and API/tools startup waiting for database readiness.
 - [x] Keep the API port internal by default. An optional `infra/compose.api-published.yaml` overlay exposes it only on host loopback when direct host access is needed.
 - [x] Add API/Web health checks, restart policy and NestJS shutdown hooks; retain Prisma disconnection on shutdown.
-- [x] Document the direct-address, existing-network and optional-container choices in the README and configuration docs.
-- [x] Document explicit migration, schema-only backup, and rollback steps in [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md). No migrations run automatically on startup or during Compose deployment.
-- [x] Validate each Compose overlay in CI.
+- [x] Add an on-demand `db-tools` profile for init, migration and seed operations, plus checksummed, schema-scoped logical backups and disposable-database restore tests.
+- [x] Add PostgreSQL 18 full and incremental physical backup chains for the managed database, chain-aware restore/test, integrity verification and retention of complete full-backup roots.
+- [x] Add a Windows Task Scheduler runner with daily logical backups, weekly physical full backups and daily physical increments for managed PostgreSQL.
+- [x] Document deployment modes, explicit migration, backup strategy and restore safeguards in [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md). No migrations run automatically on API startup.
+- [x] Validate Compose deployment modes and build the db-tools image in CI.
 - [ ] Exercise one direct-address deployment and one external-network deployment against a representative PostgreSQL instance before calling deployment acceptance complete.
-- [ ] Perform and record a test backup/restore against a disposable database using the target PostgreSQL major version.
+- [ ] Run and record logical and full/incremental physical backup/restore tests against a disposable PostgreSQL 18 database. The implementation and test commands are present, but runtime acceptance remains pending.
 
 Exit criteria:
 - The default Compose file starts Web/API only; the database service is started only when its overlay is selected.
