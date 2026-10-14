@@ -771,6 +771,14 @@ function WatchView({
                 source={selectedSource}
                 provider={playbackProviders.find((provider) => provider.id === selectedSource.providerId)}
                 title={title}
+                initialTime={savedProgress?.currentTime ?? 0}
+                onProgress={(progress) => onProgress(
+                  item,
+                  selectedEpisode?.id,
+                  selectedEpisode?.title,
+                  progress.currentTime,
+                  progress.duration,
+                )}
               />
             ) : (
               <div className="player-empty" role="status" aria-live="polite"><Film size={26} /><strong>暂时没有可播放的视频源</strong><span>请在管理后台配置视频 URL 或播放源 JSON。</span></div>
