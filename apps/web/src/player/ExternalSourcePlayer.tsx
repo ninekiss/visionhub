@@ -194,8 +194,8 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
         {status === 'loading' && (
           <div className="external-source-state" role="status" aria-live="polite">
             <span className="external-source-spinner" />
-            <strong>正在连接源站</strong>
-            <small>{provider?.name ?? source.providerId} · 正在准备播放器…</small>
+            <strong>正在加载源站视频</strong>
+            <small>{provider?.name ?? source.providerId} · 正在等待可播放画面…</small>
           </div>
         )}
         {status === 'error' && (
