@@ -120,7 +120,7 @@ jobs:
               echo "PostgreSQL container state and health-check history:"
               for container_id in $("${compose[@]}" ps -aq postgres); do
                 docker inspect --format 'Container={{.Name}} State={{.State.Status}} ExitCode={{.State.ExitCode}} Error={{.State.Error}} Health={{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}' "$container_id" || true
-                docker inspect --format '{{if .State.Health}}{{range .State.Health.Log}}{{printf "\\n--- healthcheck at %s (exit %d) ---\\n%s" .Start .ExitCode .Output}}{{end}}{{end}}' "$container_id" || true
+                docker inspect --format '{{json .State.Health}}' "$container_id" || true
               done
               echo
               echo "PostgreSQL logs (last 300 lines):"
