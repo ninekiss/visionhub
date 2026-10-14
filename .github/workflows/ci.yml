@@ -79,7 +79,8 @@ jobs:
         with:
           context: .
           file: deploy/db-tools.Dockerfile
-          tags: visionhub-db-tools:ci
+          tags: visionhub-db-tools:18
+          load: true
           push: false
           cache-from: type=gha,scope=visionhub-db-tools
           cache-to: type=gha,scope=visionhub-db-tools,mode=max
@@ -90,10 +91,46 @@ jobs:
           file: deploy/postgres.Dockerfile
           build-args: |
             POSTGRES_IMAGE=postgres:18-alpine
-          tags: visionhub-postgres:ci
+          tags: visionhub-postgres:18
+          load: true
           push: false
           cache-from: type=gha,scope=visionhub-postgres
           cache-to: type=gha,scope=visionhub-postgres,mode=max
+      - name: Integration test database initialize, backup and restore
+        env:
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5433/visionhub?schema=visionhub
+          DATABASE_URL_DOCKER: postgresql://build:build@d2m_postgres:5432/existing_db?schema=visionhub
+          POSTGRES_DB: visionhub
+          POSTGRES_USER: build
+          POSTGRES_PASSWORD: build
+          POSTGRES_PORT: "5433"
+          LOGICAL_RETENTION_DAYS: "30"
+          PHYSICAL_KEEP_FULL: "4"
+        run: |
+          set -euo pipefail
+          compose=(docker compose -f infra/compose.yaml -f infra/compose.database.yaml)
+          cleanup() { "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          rm -rf backups
+          mkdir -p backups
+          "${compose[@]}" up -d postgres
+          "${compose[@]}" run --rm db-tools init
+          "${compose[@]}" run --rm db-tools logical-backup
+          logical_dump="$(find backups/logical -maxdepth 1 -type f -name '*.dump' | sort | tail -n 1)"
+          test -n "$logical_dump"
+          "${compose[@]}" run --rm db-tools logical-restore-test "/backups/logical/$(basename "$logical_dump")"
+          "${compose[@]}" run --rm db-tools physical-init
+          "${compose[@]}" run --rm db-tools physical-backup-full
+          "${compose[@]}" exec -T postgres psql -U build -d visionhub -v ON_ERROR_STOP=1 -c "CREATE TABLE public.backup_incremental_probe(id integer PRIMARY KEY); INSERT INTO public.backup_incremental_probe VALUES (1);"
+          "${compose[@]}" run --rm db-tools physical-backup-incr
+          full_id="$(find backups/physical -mindepth 1 -maxdepth 1 -type d -name 'full-*' | sort | tail -n 1 | xargs basename)"
+          incr_id="$(find backups/physical -mindepth 1 -maxdepth 1 -type d -name 'incr-*' | sort | tail -n 1 | xargs basename)"
+          test -n "$full_id"
+          test -n "$incr_id"
+          "${compose[@]}" run --rm db-tools physical-list
+          "${compose[@]}" run --rm db-tools physical-restore-test "$full_id"
+          "${compose[@]}" run --rm db-tools physical-restore-test "$incr_id"
+          echo "Database backup/restore integration tests passed: logical, standalone full, and full+incremental chain."
       - name: Build Web Docker image
         uses: docker/build-push-action@v6
         with:
