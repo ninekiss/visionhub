@@ -61,7 +61,7 @@ playback:
       # Local CSS selectors only; metadata must never contain executable scripts.
       playerSelector: ".player-container"
       readinessSelector: ".player-container video"
-      timeoutMs: 15000
+      timeoutMs: 60000
 ```
 
 Each catalog movie or episode may store a `playbackSources` JSON array alongside the optional legacy `videoUrl`. A source is either:
@@ -73,9 +73,11 @@ Each catalog movie or episode may store a `playbackSources` JSON array alongside
 ]
 ```
 
-The provider ID must match a configured provider. URL templates may contain only `{contentId}`; the generated URL must be HTTPS and match an exact allowed origin. Selectors, URL templates and the allowlist remain local configuration and are not exposed to the Web client.
+The provider ID must match a configured provider. URL templates may contain only `{contentId}`; the generated URL must be HTTPS and match an exact allowed origin. Selectors, URL templates and the allowlist remain local configuration and are not exposed to the Web client; the public provider response includes only the display name, browser-open/embed templates, and `timeoutMs`.
 
-The desktop client uses an isolated Electron `WebContentsView` without Node integration or a preload bridge. The normal Web client uses only a provider's explicitly configured official embed URL. The Web iframe's `load` event cannot prove that an internal cross-origin player is actually ready; provider-specific readiness introspection is available only to the isolated desktop view. When no approved embed is configured, Web offers a safe external-open link instead of injecting code into a cross-origin page.
+The desktop client uses an isolated Electron `WebContentsView` without Node integration or a preload bridge. The normal Web client uses only a provider's explicitly configured official embed URL. The browser extension can inspect native HTML5 video readiness only on source origins the user has explicitly authorized; once ready, it visually isolates the detected player container and hides other source-page UI while keeping the DOM in place so the player scripts and controls continue working. Custom canvas players or source pages whose structure cannot be identified may not support this mode. This is not a bypass for DRM, login restrictions or anti-embedding headers. When no approved embed is configured, Web offers an external-open link instead of injecting code into a cross-origin page.
+
+The provider `timeoutMs` configures the playback-readiness wait in both Desktop and Web. It defaults to `60000` (60 seconds) and may be set from `1000` to `300000` milliseconds. Web falls back to normal embedding quickly when the extension is not connected; the configured timeout applies after the extension connects but the native player has not reported ready.
 
 Set `PLAYBACK_SOURCES_CONFIG_PATH` to select a non-default file. When that variable is explicitly set, the selected file must exist. Provider selectors and allowed origins are security-sensitive configuration: only configure source sites you are authorized to embed or automate, and do not attempt to bypass DRM, account restrictions, paywalls or anti-embedding protections.
 
