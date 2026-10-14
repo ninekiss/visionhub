@@ -1,5 +1,63 @@
+const { readdir, stat } = require("node:fs/promises");
+const path = require("node:path");
+
 function isRecord(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+/**
+ * Find unpacked Chrome extensions in a configured folder.
+ * The root may be a single extension, a folder of extensions, or a browser
+ * profile Extensions directory (<extension-id>/<version>/manifest.json).
+ */
+async function discoverUnpackedExtensions(directory) {
+  if (typeof directory !== "string" || !directory.trim()) return [];
+
+  const root = path.resolve(directory);
+  let rootStats;
+  try {
+    rootStats = await stat(root);
+  } catch {
+    throw new Error("The configured browser extension directory does not exist or is not accessible.");
+  }
+  if (!rootStats.isDirectory()) {
+    throw new TypeError("The configured browser extension path must be a directory.");
+  }
+
+  const matches = [];
+  async function visit(currentDirectory, depth) {
+    let entries;
+    try {
+      entries = await readdir(currentDirectory, { withFileTypes: true });
+    } catch {
+      if (currentDirectory === root) {
+        throw new Error("The configured browser extension directory cannot be read.");
+      }
+      return;
+    }
+
+    if (entries.some((entry) => entry.isFile() && entry.name === "manifest.json")) {
+      matches.push(currentDirectory);
+      if (matches.length > 100) {
+        throw new Error("The configured browser extension directory contains more than 100 extensions.");
+      }
+      return;
+    }
+
+    // Chrome profile folders normally nest an extension ID and version below
+    // Extensions/. Bound traversal so an arbitrary path cannot trigger a full
+    // disk scan. Symlink entries are deliberately not followed.
+    if (depth >= 3) return;
+    const children = entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .sort((left, right) => left.name.localeCompare(right.name));
+    for (const child of children) {
+      await visit(path.join(currentDirectory, child.name), depth + 1);
+    }
+  }
+
+  await visit(root, 0);
+  return matches.sort((left, right) => left.localeCompare(right));
 }
 
 function resolveProviderUrl(provider, contentId) {
@@ -146,6 +204,7 @@ function providerOriginAllowed(urlValue, provider) {
 
 module.exports = {
   canShowExternalPlayer,
+  discoverUnpackedExtensions,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
