@@ -446,7 +446,7 @@ async function physicalRestore(id, apply, yes) {
   if (!apply || !yes) throw new Error("Replacing the managed PGDATA volume is destructive. Stop the api/web/postgres services, then rerun physical-restore [backup-id|latest] --apply --yes.");
   const connection = requiredDatabaseUrl();
   const ready = spawnSync("pg_isready", ["--dbname", connection, "--timeout=2"], { stdio: "ignore", env: process.env });
-  if (ready.status === 0 || ready.status === 1) throw new Error("The database is still listening. Stop PostgreSQL and run this command with docker compose run --no-deps db-tools.");
+  if (ready.status !== 2) throw new Error(`Could not prove PostgreSQL is stopped (pg_isready exit code: ${ready.status ?? "unknown"}). Refusing to replace PGDATA; stop the postgres service and use docker compose run --no-deps db-tools.`);
   if (!(await access(path.join(PGDATA, "PG_VERSION")).then(() => true).catch(() => false))) {
     throw new Error(`Expected an initialized managed data directory at ${PGDATA}; refusing to overwrite an unknown target.`);
   }
