@@ -60,13 +60,25 @@ function createPlayerIsolationScript(playerSelector, readinessSelector) {
   const ready = JSON.stringify(readinessSelector || playerSelector);
   return `(() => {
     let target;
+    let readinessTarget;
     try {
-      if (!document.querySelector(${ready})) return false;
+      readinessTarget = document.querySelector(${ready});
+      if (!readinessTarget) return false;
       target = document.querySelector(${player});
     } catch {
       return false;
     }
     if (!target || target === document.documentElement || target === document.body) return false;
+
+    // A matched <video> element is not necessarily displaying a frame yet.
+    const video = readinessTarget instanceof HTMLVideoElement
+      ? readinessTarget
+      : readinessTarget.querySelector?.("video");
+    if (video && (
+      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
+      video.videoWidth <= 0 ||
+      video.videoHeight <= 0
+    )) return false;
 
     let branch = target;
     while (branch && branch.parentElement) {
@@ -102,6 +114,77 @@ function createPlayerIsolationScript(playerSelector, readinessSelector) {
   })()`;
 }
 
+/**
+ * Size the actual fullscreen element/video only while the guest page is in HTML fullscreen.
+ * This is guest-content sizing, not a fullscreen overlay in the host React page.
+ */
+function createPlayerFullscreenScript(playerSelector, active) {
+  if (!active) {
+    return `(() => {
+      const snapshots = window.__VisionHubFullscreenStyleSnapshots || [];
+      for (const entry of snapshots) {
+        if (!entry.element || !entry.element.style) continue;
+        for (const property of entry.properties) {
+          if (property.value) entry.element.style.setProperty(property.name, property.value, property.priority);
+          else entry.element.style.removeProperty(property.name);
+        }
+      }
+      delete window.__VisionHubFullscreenStyleSnapshots;
+      return true;
+    })()`;
+  }
+
+  const selector = JSON.stringify(playerSelector);
+  return `(() => {
+    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+    let target = fullscreenElement;
+    if (!target) {
+      try { target = document.querySelector(${selector}); } catch { return false; }
+    }
+    if (!target || !target.style) return false;
+
+    const video = target.matches?.("video") ? target : target.querySelector?.("video");
+    const elements = video && video !== target ? [target, video] : [target];
+    const names = ["position", "inset", "width", "height", "max-width", "max-height", "margin", "z-index", "object-fit", "display"];
+    if (!window.__VisionHubFullscreenStyleSnapshots) window.__VisionHubFullscreenStyleSnapshots = [];
+    const snapshots = window.__VisionHubFullscreenStyleSnapshots;
+    for (const element of elements) {
+      if (snapshots.some((entry) => entry.element === element)) continue;
+      snapshots.push({
+        element,
+        properties: names.map((name) => ({
+          name,
+          value: element.style.getPropertyValue(name),
+          priority: element.style.getPropertyPriority(name)
+        }))
+      });
+    }
+
+    for (const [name, value] of [
+      ["position", "fixed"],
+      ["inset", "0"],
+      ["width", "100vw"],
+      ["height", "100vh"],
+      ["max-width", "none"],
+      ["max-height", "none"],
+      ["margin", "0"],
+      ["z-index", "2147483647"]
+    ]) target.style.setProperty(name, value, "important");
+
+    if (video) {
+      for (const [name, value] of [
+        ["display", "block"],
+        ["width", "100%"],
+        ["height", "100%"],
+        ["max-width", "100%"],
+        ["max-height", "100%"],
+        ["object-fit", "contain"]
+      ]) video.style.setProperty(name, value, "important");
+    }
+    return true;
+  })()`;
+}
+
 function providerOriginAllowed(urlValue, provider) {
   try {
     const url = new URL(urlValue);
@@ -115,6 +198,7 @@ function providerOriginAllowed(urlValue, provider) {
 }
 
 module.exports = {
+  createPlayerFullscreenScript,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
