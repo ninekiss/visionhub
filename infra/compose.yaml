@@ -55,6 +55,7 @@ services:
 
   db-tools:
     profiles: ["tools"]
+    image: visionhub-db-tools:18
     build:
       context: ..
       dockerfile: deploy/db-tools.Dockerfile
