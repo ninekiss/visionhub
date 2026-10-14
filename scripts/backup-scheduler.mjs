@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
-import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { spawn, spawnSync } from "node:child_process";
+import { pipeline } from "node:stream/promises";
+import { access, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,11 +9,13 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TOOLS = path.join(ROOT, "scripts", "db-tools.mjs");
 const BACKUP_ROOT = path.resolve(process.env.VISIONHUB_BACKUP_DIR || "/backups");
 const STATE_PATH = path.join(BACKUP_ROOT, ".scheduler-state.json");
+const ENCRYPTED_PENDING_ROOT = path.join(BACKUP_ROOT, ".encrypted-pending");
 const MODE = process.env.BACKUP_DATABASE_MODE || "direct";
 const SCHEDULE_TIME = process.env.BACKUP_SCHEDULE_TIME || "02:30";
 const TIME_ZONE = process.env.BACKUP_TIMEZONE || "UTC";
 const RETRY_MINUTES = Number.parseInt(process.env.BACKUP_RETRY_MINUTES || "15", 10);
 const REMOTE = (process.env.BACKUP_REMOTE || "").replace(/\/+$/, "");
+const AGE_RECIPIENTS = (process.env.BACKUP_AGE_RECIPIENTS || "").split(/[\\s,]+/).map((value) => value.trim()).filter(Boolean);
 const ONCE = process.argv.includes("--once");
 
 if (!["managed", "direct", "network"].includes(MODE)) {
@@ -51,10 +54,19 @@ async function readState() {
     return {
       localBackupDate: typeof state.localBackupDate === "string" ? state.localBackupDate : "",
       remoteUploadDate: typeof state.remoteUploadDate === "string" ? state.remoteUploadDate : "",
+      encryptionVersion: state.encryptionVersion === 1 ? 1 : 0,
+      uploadedLogicalIds: Array.isArray(state.uploadedLogicalIds) ? state.uploadedLogicalIds.filter((value) => typeof value === "string") : [],
+      uploadedPhysicalIds: Array.isArray(state.uploadedPhysicalIds) ? state.uploadedPhysicalIds.filter((value) => typeof value === "string") : [],
     };
   } catch (error) {
     if (error && error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
-    return { localBackupDate: "", remoteUploadDate: "" };
+    return {
+      localBackupDate: "",
+      remoteUploadDate: "",
+      encryptionVersion: 0,
+      uploadedLogicalIds: [],
+      uploadedPhysicalIds: [],
+    };
   }
 }
 
@@ -117,34 +129,163 @@ async function createLocalBackups(parts) {
   console.log("Local backup completed for " + parts.date + ".");
 }
 
-function uploadDirectory(source, destination) {
-  const args = [
-    "copy",
-    source,
-    destination,
-    "--create-empty-src-dirs",
-    "--checkers", "8",
-    "--transfers", "4",
-    "--log-level", "INFO",
-  ];
-  // Restore tests can create transient reconstructed directories in the same
-  // volume. Never publish those temporary copies as cloud backup snapshots.
-  if (path.basename(source) === "physical") {
-    args.push("--exclude", "restore-*/**", "--exclude", "**/combined-verification/**");
-  }
-  run("rclone", args);
+function waitForChild(child, label) {
+  return new Promise((resolve, reject) => {
+    child.once("error", (error) => reject(new Error(label + " failed to start: " + error.message)));
+    child.once("close", (code, signal) => {
+      if (code === 0) resolve();
+      else reject(new Error(label + " exited with code " + (code === null ? "null" : code) + (signal ? " (signal " + signal + ")" : "")));
+    });
+  });
 }
 
-async function uploadOffsiteBackups() {
-  if (!REMOTE) return;
-  // Copy rather than sync: a local retention cleanup or local disk loss must
-  // never silently delete the only off-host copy. Apply remote lifecycle rules
-  // at the object-storage provider after choosing a chain-safe retention period.
-  uploadDirectory(path.join(BACKUP_ROOT, "logical"), REMOTE + "/logical");
-  if (MODE === "managed") {
-    uploadDirectory(path.join(BACKUP_ROOT, "physical"), REMOTE + "/physical");
+async function encryptArchive(sourceDirectory, members, targetPath) {
+  await mkdir(path.dirname(targetPath), { recursive: true });
+  await rm(targetPath, { force: true });
+  const tar = spawn("tar", ["-cf", "-", "-C", sourceDirectory, ...members], {
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  const ageArgs = [
+    "--encrypt",
+    ...AGE_RECIPIENTS.flatMap((recipient) => ["--recipient", recipient]),
+    "--output", targetPath,
+    "-",
+  ];
+  // Only public recipients are supplied to age. The private identity never
+  // enters the cloud VM or the upload container.
+  const age = spawn("age", ageArgs, { stdio: ["pipe", "ignore", "inherit"] });
+  const tarDone = waitForChild(tar, "tar");
+  const ageDone = waitForChild(age, "age encryption");
+  const streamDone = pipeline(tar.stdout, age.stdin);
+  try {
+    await Promise.all([tarDone, ageDone, streamDone]);
+  } catch (error) {
+    tar.kill();
+    age.kill();
+    await Promise.allSettled([tarDone, ageDone, streamDone]);
+    await rm(targetPath, { force: true });
+    throw error;
   }
-  console.log("Off-site backup upload completed to " + REMOTE + ".");
+}
+
+async function pathExists(value) {
+  try {
+    await access(value);
+    return true;
+  } catch (error) {
+    if (error && error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function logicalBackupNames() {
+  await mkdir(path.join(BACKUP_ROOT, "logical"), { recursive: true });
+  return (await readdir(path.join(BACKUP_ROOT, "logical")))
+    .filter((name) => /^visionhub-schema-.*\\.dump$/.test(name))
+    .sort();
+}
+
+async function physicalBackupNames() {
+  if (MODE !== "managed") return [];
+  const root = path.join(BACKUP_ROOT, "physical");
+  let names;
+  try {
+    names = await readdir(root, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === "ENOENT") return [];
+    throw error;
+  }
+  const result = [];
+  for (const entry of names) {
+    if (!entry.isDirectory() || !/^(full|incr)-/.test(entry.name)) continue;
+    try {
+      const metadata = JSON.parse(await readFile(path.join(root, entry.name, "metadata.json"), "utf8"));
+      if (metadata.id === entry.name && (metadata.type === "full" || metadata.type === "incremental")) {
+        result.push(entry.name);
+      }
+    } catch {
+      // Incomplete folders from interrupted backups are not upload candidates.
+    }
+  }
+  return result.sort();
+}
+
+async function prepareEncryptedArtifacts(state) {
+  if (!AGE_RECIPIENTS.length) {
+    throw new Error("BACKUP_REMOTE is set, but BACKUP_AGE_RECIPIENTS is empty. Refusing to upload unencrypted backups.");
+  }
+  const invalid = AGE_RECIPIENTS.filter((recipient) => !recipient.startsWith("age1"));
+  if (invalid.length) {
+    throw new Error("BACKUP_AGE_RECIPIENTS must contain age public recipients (age1...). Keep private identity files off the cloud server.");
+  }
+
+  const logicalPending = path.join(ENCRYPTED_PENDING_ROOT, "logical");
+  const physicalPending = path.join(ENCRYPTED_PENDING_ROOT, "physical");
+  await mkdir(logicalPending, { recursive: true });
+  await mkdir(physicalPending, { recursive: true });
+
+  const uploadedLogical = new Set(state.uploadedLogicalIds);
+  for (const dumpName of await logicalBackupNames()) {
+    if (uploadedLogical.has(dumpName)) continue;
+    const archiveName = dumpName + ".tar.age";
+    const archivePath = path.join(logicalPending, archiveName);
+    if (await pathExists(archivePath)) continue;
+    const members = [dumpName];
+    if (await pathExists(path.join(BACKUP_ROOT, "logical", dumpName + ".json"))) {
+      members.push(dumpName + ".json");
+    }
+    console.log("Encrypting logical backup archive: " + archiveName);
+    await encryptArchive(path.join(BACKUP_ROOT, "logical"), members, archivePath);
+  }
+
+  const uploadedPhysical = new Set(state.uploadedPhysicalIds);
+  for (const backupId of await physicalBackupNames()) {
+    if (uploadedPhysical.has(backupId)) continue;
+    const archiveName = backupId + ".tar.age";
+    const archivePath = path.join(physicalPending, archiveName);
+    if (await pathExists(archivePath)) continue;
+    console.log("Encrypting physical backup archive: " + archiveName);
+    await encryptArchive(path.join(BACKUP_ROOT, "physical"), [backupId], archivePath);
+  }
+}
+
+async function uploadPendingCategory(category, state, stateKey) {
+  const pendingDirectory = path.join(ENCRYPTED_PENDING_ROOT, category);
+  await mkdir(pendingDirectory, { recursive: true });
+  const uploaded = new Set(state[stateKey]);
+  const entries = (await readdir(pendingDirectory)).filter((name) => name.endsWith(".tar.age")).sort();
+  for (const archiveName of entries) {
+    const backupId = archiveName.slice(0, -".tar.age".length);
+    const archivePath = path.join(pendingDirectory, archiveName);
+    if (uploaded.has(backupId)) {
+      await rm(archivePath, { force: true });
+      continue;
+    }
+    const destination = REMOTE + "/encrypted/" + category + "/" + archiveName;
+    // copyto does not delete unrelated remote objects. Upload only authenticated
+    // age-encrypted archives; never pass the plaintext backup directories to rclone.
+    run("rclone", ["copyto", archivePath, destination, "--log-level", "INFO"]);
+    uploaded.add(backupId);
+    state[stateKey] = [...uploaded];
+    await saveState(state);
+    await rm(archivePath, { force: true });
+    console.log("Encrypted off-site backup uploaded: " + category + "/" + archiveName);
+  }
+}
+
+async function uploadOffsiteBackups(state) {
+  if (!REMOTE) return;
+  // Encryption happens before rclone can see the backup payload. Failed uploads
+  // leave only encrypted pending artifacts for retry; private identities never
+  // enter the container. The new "encrypted" prefix also avoids overwriting
+  // or mixing with old plaintext objects from earlier deployments.
+  await prepareEncryptedArtifacts(state);
+  await uploadPendingCategory("logical", state, "uploadedLogicalIds");
+  await uploadPendingCategory("physical", state, "uploadedPhysicalIds");
+  state.remoteUploadDate = state.localBackupDate;
+  state.encryptionVersion = 1;
+  await saveState(state);
+  console.log("Encrypted off-site backup upload completed to " + REMOTE + "/encrypted.");
 }
 
 async function runDailyJob(force = false) {
@@ -159,8 +300,8 @@ async function runDailyJob(force = false) {
     console.log("Local backup already succeeded today (" + parts.date + "); skipping duplicate creation.");
   }
 
-  if (REMOTE && (force || state.remoteUploadDate !== state.localBackupDate)) {
-    await uploadOffsiteBackups();
+  if (REMOTE && (force || state.remoteUploadDate !== state.localBackupDate || state.encryptionVersion !== 1)) {
+    await uploadOffsiteBackups(state);
     state.remoteUploadDate = state.localBackupDate;
     await saveState(state);
   } else if (!REMOTE) {
@@ -175,7 +316,7 @@ async function tick() {
   if (parts.time < SCHEDULE_TIME) return;
   const state = await readState();
   const localPending = state.localBackupDate !== parts.date;
-  const remotePending = Boolean(REMOTE) && state.remoteUploadDate !== state.localBackupDate;
+  const remotePending = Boolean(REMOTE) && (state.remoteUploadDate !== state.localBackupDate || state.encryptionVersion !== 1);
   if (!localPending && !remotePending) return;
   await runDailyJob(false);
 }
