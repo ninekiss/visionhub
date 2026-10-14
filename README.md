@@ -166,6 +166,25 @@ docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.y
 
 自建 PostgreSQL 18 容器还支持整个数据库集群的物理全量/增量备份。首次使用先执行 `physical-backup-full`，之后可定期执行 `physical-backup-incr`；增量恢复必须依赖其完整父链。先通过 `physical-restore-test latest` 在隔离的临时 PostgreSQL 实例中验证，再考虑正式还原。完整命令、安全要求、保留策略和 Windows 任务计划见 [部署与备份说明](docs/DEPLOYMENT.md)。
 
+### 云端自动备份容器（可选）
+
+可用 Compose 的 `backup` profile 运行常驻调度容器，默认每天 02:30 UTC 备份，失败后按 15 分钟间隔重试。普通应用启动不会启动该容器。
+
+```powershell
+# 外部 PostgreSQL：逻辑备份
+docker compose --env-file .env --profile backup -f infra/compose.yaml up --build -d backup
+
+# Compose 管理的 PostgreSQL 18：逻辑备份 + 物理全量/增量备份
+docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml up --build -d backup
+
+# 立即执行一次验证，并查看后续调度日志
+docker compose --env-file .env --profile backup -f infra/compose.yaml run --rm backup --once
+docker compose --env-file .env --profile backup -f infra/compose.yaml logs -f --tail=100 backup
+```
+
+云端建议把 `BACKUP_HOST_DIR` 指向持久磁盘，并配置 `BACKUP_REMOTE=cloud:bucket/visionhub` 与 S3 兼容存储凭据，将备份复制到异地对象存储。完整配置和安全注意事项见 [云端自动备份说明](docs/DEPLOYMENT.md#cloud-deployment-automated-backup-container)。
+
+
 ### 按需将 API 端口映射到宿主机
 
 默认不发布 API 端口。如果调试工具需要直接访问 API，可以额外加入：
