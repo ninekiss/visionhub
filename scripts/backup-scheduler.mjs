@@ -118,7 +118,7 @@ async function createLocalBackups(parts) {
 }
 
 function uploadDirectory(source, destination) {
-  run("rclone", [
+  const args = [
     "copy",
     source,
     destination,
@@ -126,7 +126,13 @@ function uploadDirectory(source, destination) {
     "--checkers", "8",
     "--transfers", "4",
     "--log-level", "INFO",
-  ]);
+  ];
+  // Restore tests can create transient reconstructed directories in the same
+  // volume. Never publish those temporary copies as cloud backup snapshots.
+  if (path.basename(source) === "physical") {
+    args.push("--exclude", "restore-*/**", "--exclude", "**/combined-verification/**");
+  }
+  run("rclone", args);
 }
 
 async function uploadOffsiteBackups() {
