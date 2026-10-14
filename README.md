@@ -124,6 +124,30 @@ docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.y
 
 数据库数据保存在名为 `postgres_data` 的 Docker volume 中。宿主机端口默认绑定到 `127.0.0.1:5433`，不对局域网或公网发布；API 与 db-tools 容器通过 Compose 网络内的 `postgres:5432` 访问。停止服务时使用同一组 `-f` 参数执行 `down`；不要删除该 volume，除非明确要销毁其中的数据。
 
+### 日常容器管理命令
+
+启动命令中的 Compose 文件路径已从仓库根目录调整到 `infra/compose.yaml`。平时管理默认（外部数据库直连）部署时，可直接使用：
+
+```powershell
+# 查看容器状态
+docker compose --env-file .env -f infra/compose.yaml ps
+
+# 查看 Web/API 日志
+docker compose --env-file .env -f infra/compose.yaml logs -f --tail=200 web api
+
+# 仅重启应用服务
+docker compose --env-file .env -f infra/compose.yaml restart api web
+
+# 停止 / 重新启动服务
+docker compose --env-file .env -f infra/compose.yaml stop
+docker compose --env-file .env -f infra/compose.yaml start
+
+# 删除容器和 Compose 网络（不会删除命名数据卷）
+docker compose --env-file .env -f infra/compose.yaml down
+```
+
+如果启动时使用了数据库 overlay，后续命令也必须带上同一个文件：managed 模式额外加 `-f infra/compose.database.yaml`；已有数据库网络模式额外加 `-f infra/compose.existing-db-network.yaml`。除非明确要删除数据库数据，否则不要添加 `down -v`。
+
 ### 数据库维护、备份与还原
 
 数据库初始化、迁移和 seed 都可通过一次性工具容器运行，不必在宿主机安装 Prisma：
