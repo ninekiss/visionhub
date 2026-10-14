@@ -60,7 +60,7 @@ jobs:
           node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-default.json', 'utf8')); if (c.services.postgres) throw new Error('PostgreSQL must remain opt-in'); if ((c.services.api.ports ?? []).length) throw new Error('API host port must remain unpublished by default'); if (!(c.services['db-tools'].profiles ?? []).includes('tools')) throw new Error('db-tools must remain an on-demand profile');"
           docker compose -f infra/compose.yaml -f infra/compose.database.yaml config --quiet
           docker compose -f infra/compose.yaml -f infra/compose.database.yaml config --format json > /tmp/visionhub-compose-database.json
-          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-database.json', 'utf8')); if (!c.services.postgres.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('PostgreSQL 18 data volume must target /var/lib/postgresql'); const url = c.services.api.environment.DATABASE_URL; if (!url.includes('@postgres:5432/visionhub?schema=visionhub') || url.includes('d2m_postgres')) throw new Error('Compose database overlay must override any previous DATABASE_URL_DOCKER'); const tools = c.services['db-tools']; if (!tools.environment.DATABASE_URL.includes('@postgres:5432/visionhub?schema=visionhub') || tools.environment.DB_TOOLS_PHYSICAL_ENABLED !== 'true') throw new Error('Managed db-tools must target Compose PostgreSQL and enable physical backup operations'); if (tools.environment.PGDATA !== '/var/lib/postgresql/18/docker' || !tools.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('db-tools must share the managed PostgreSQL data volume');"
+          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-database.json', 'utf8')); if (!c.services.postgres.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('PostgreSQL 18 data volume must target /var/lib/postgresql'); if (!String(c.services.postgres.build?.dockerfile ?? '').includes('postgres.Dockerfile')) throw new Error('Managed PostgreSQL must use the replication-enabled image'); const url = c.services.api.environment.DATABASE_URL; if (!url.includes('@postgres:5432/visionhub?schema=visionhub') || url.includes('d2m_postgres')) throw new Error('Compose database overlay must override any previous DATABASE_URL_DOCKER'); const tools = c.services['db-tools']; if (!tools.environment.DATABASE_URL.includes('@postgres:5432/visionhub?schema=visionhub') || tools.environment.DB_TOOLS_PHYSICAL_ENABLED !== 'true') throw new Error('Managed db-tools must target Compose PostgreSQL and enable physical backup operations'); if (tools.environment.PGDATA !== '/var/lib/postgresql/18/docker' || !tools.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('db-tools must share the managed PostgreSQL data volume');"
           docker compose -f infra/compose.yaml -f infra/compose.existing-db-network.yaml config --quiet
           docker compose -f infra/compose.yaml -f infra/compose.api-published.yaml config --quiet
 
@@ -83,6 +83,17 @@ jobs:
           push: false
           cache-from: type=gha,scope=visionhub-db-tools
           cache-to: type=gha,scope=visionhub-db-tools,mode=max
+      - name: Build managed PostgreSQL image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/postgres.Dockerfile
+          build-args: |
+            POSTGRES_IMAGE=postgres:18-alpine
+          tags: visionhub-postgres:ci
+          push: false
+          cache-from: type=gha,scope=visionhub-postgres
+          cache-to: type=gha,scope=visionhub-postgres,mode=max
       - name: Build Web Docker image
         uses: docker/build-push-action@v6
         with:
