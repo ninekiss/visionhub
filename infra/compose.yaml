@@ -66,7 +66,44 @@ services:
       PHYSICAL_KEEP_FULL: ${PHYSICAL_KEEP_FULL:-4}
       DB_TOOLS_PHYSICAL_ENABLED: "false"
     volumes:
-      - ../backups:/backups
+      - type: bind
+        source: "${BACKUP_HOST_DIR:-../backups}"
+        target: /backups
+    networks:
+      - app
+
+  # Opt-in long-running scheduler; ordinary "compose up" does not start it.
+  backup:
+    profiles: ["backup"]
+    image: visionhub-db-tools:18
+    build:
+      context: ..
+      dockerfile: deploy/db-tools.Dockerfile
+    entrypoint: ["node", "scripts/backup-scheduler.mjs"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-${DATABASE_URL:?Set DATABASE_URL or DATABASE_URL_DOCKER}}
+      VISIONHUB_BACKUP_DIR: /backups
+      LOGICAL_RETENTION_DAYS: ${LOGICAL_RETENTION_DAYS:-30}
+      PHYSICAL_KEEP_FULL: ${PHYSICAL_KEEP_FULL:-4}
+      DB_TOOLS_PHYSICAL_ENABLED: "false"
+      BACKUP_DATABASE_MODE: ${BACKUP_DATABASE_MODE:-direct}
+      BACKUP_SCHEDULE_TIME: ${BACKUP_SCHEDULE_TIME:-02:30}
+      BACKUP_TIMEZONE: ${BACKUP_TIMEZONE:-UTC}
+      BACKUP_RETRY_MINUTES: ${BACKUP_RETRY_MINUTES:-15}
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
+      RCLONE_CONFIG_CLOUD_TYPE: ${RCLONE_CONFIG_CLOUD_TYPE:-s3}
+      RCLONE_CONFIG_CLOUD_PROVIDER: ${RCLONE_CONFIG_CLOUD_PROVIDER:-Other}
+      RCLONE_CONFIG_CLOUD_ACCESS_KEY_ID: ${RCLONE_CONFIG_CLOUD_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_CLOUD_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_CLOUD_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_CLOUD_SESSION_TOKEN: ${RCLONE_CONFIG_CLOUD_SESSION_TOKEN:-}
+      RCLONE_CONFIG_CLOUD_ENDPOINT: ${RCLONE_CONFIG_CLOUD_ENDPOINT:-}
+      RCLONE_CONFIG_CLOUD_REGION: ${RCLONE_CONFIG_CLOUD_REGION:-auto}
+      RCLONE_CONFIG_CLOUD_ENV_AUTH: ${RCLONE_CONFIG_CLOUD_ENV_AUTH:-false}
+    volumes:
+      - type: bind
+        source: "${BACKUP_HOST_DIR:-../backups}"
+        target: /backups
+    restart: unless-stopped
     networks:
       - app
 
