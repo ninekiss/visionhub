@@ -118,7 +118,7 @@
           return null;
         }
       })
-      .filter((origin) => origin && origin !== "null" && enabledSourceOrigins.includes(origin)))];
+      .filter((origin) => origin && origin !== "null" && origin.startsWith("https://")) )];
     if (!origins.length) return;
     try {
       chrome.runtime.sendMessage({
