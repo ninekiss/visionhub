@@ -76,6 +76,10 @@ test("fullscreen script sizes the actual fullscreen element and restores styles 
   assert.ok(enterScript.includes("document.fullscreenElement"));
   assert.match(enterScript, /object-fit/);
   assert.match(enterScript, /100vh/);
+  assert.match(enterScript, /document\.documentElement/);
+  assert.match(enterScript, /\["overflow", "hidden"\]/);
+  assert.match(enterScript, /\["overflow-y", "hidden"\]/);
+  assert.match(enterScript, /document scrollbar/);
   assert.match(leaveScript, /__VisionHubFullscreenStyleSnapshots/);
   assert.match(leaveScript, /removeProperty/);
 });
