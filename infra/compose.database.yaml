@@ -1,5 +1,9 @@
 services:
   api:
+    # This overlay selects the Compose-managed database regardless of a stale
+    # DATABASE_URL_DOCKER value configured for another deployment mode.
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting the optional database}@postgres:5432/${POSTGRES_DB:-visionhub}?schema=visionhub
     depends_on:
       postgres:
         condition: service_healthy
