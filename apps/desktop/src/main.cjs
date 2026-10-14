@@ -429,7 +429,16 @@ function createWindow() {
   window.on("enter-full-screen", () => {
     const session = externalPlayerSession;
     if (!session?.htmlFullscreen || session.view.webContents.isDestroyed()) return;
-    fillExternalPlayerFullscreen(session);
+    // The first fullscreen event can arrive before the native window has its final
+    // monitor-sized content bounds. Re-apply bounds after the transition settles.
+    setImmediate(() => fillExternalPlayerFullscreen(session));
+  });
+  window.on("resize", () => {
+    const session = externalPlayerSession;
+    if (!session?.htmlFullscreen || session.view.webContents.isDestroyed()) return;
+    // Keep the child WebContentsView synchronized with the actual fullscreen
+    // content area if the OS reports another size during the fullscreen transition.
+    setImmediate(() => fillExternalPlayerFullscreen(session));
   });
 
   const loading = developmentUrl
