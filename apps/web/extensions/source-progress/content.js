@@ -165,7 +165,7 @@
         if (areaRatio <= 1.5) score += 12;
         else if (areaRatio <= 3) score += 8;
         else if (areaRatio <= 6) score += 2;
-        else if (areaRatio > 20) score -= 25;
+        else if (areaRatio > 20) score += isPlayerNamed ? -5 : -25;
         if (score > bestScore) {
           bestScore = score;
           best = current;
