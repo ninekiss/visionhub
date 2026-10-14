@@ -57,7 +57,6 @@
 
   // Track only attributes added by this extension so source DOM can be restored
   // when the selected player container is replaced.
-  const PLAYER_ONLY_STYLE_ID = "visionhub-source-progress-player-only-style";
   const PLAYER_ONLY_ACTIVE = "data-vh-sp-active";
   const PLAYER_ONLY_HIDDEN = "data-vh-sp-hidden";
   const PLAYER_ONLY_PATH = "data-vh-sp-path";
@@ -66,61 +65,6 @@
   const playerOnlyPathNodes = new Set();
   let isolatedPlayerRoot = null;
   let addedRootMarker = false;
-
-  function ensurePlayerOnlyStyles() {
-    if (document.getElementById(PLAYER_ONLY_STYLE_ID)) return;
-    const style = document.createElement("style");
-    style.id = PLAYER_ONLY_STYLE_ID;
-    style.textContent = `
-      html[${PLAYER_ONLY_ACTIVE}="true"],
-      html[${PLAYER_ONLY_ACTIVE}="true"] body {
-        width: 100% !important;
-        height: 100% !important;
-        min-width: 0 !important;
-        min-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-        background: #000 !important;
-      }
-      [${PLAYER_ONLY_HIDDEN}="true"] {
-        display: none !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-      }
-      [${PLAYER_ONLY_PATH}="true"]:not([${PLAYER_ONLY_ROOT}="true"]) {
-        transform: none !important;
-        filter: none !important;
-        backdrop-filter: none !important;
-        perspective: none !important;
-        contain: none !important;
-        content-visibility: visible !important;
-      }
-      [${PLAYER_ONLY_ROOT}="true"] {
-        position: fixed !important;
-        inset: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        min-width: 0 !important;
-        min-height: 0 !important;
-        max-width: none !important;
-        max-height: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        transform: none !important;
-        filter: none !important;
-        perspective: none !important;
-        contain: none !important;
-        overflow: hidden !important;
-        z-index: 2147483647 !important;
-      }
-      [${PLAYER_ONLY_ROOT}="true"] video {
-        max-width: 100% !important;
-        max-height: 100% !important;
-      }
-    `;
-    (document.head || document.documentElement).appendChild(style);
-  }
 
   function clearPlayerOnlyMode() {
     for (const element of playerOnlyHiddenNodes) element.removeAttribute(PLAYER_ONLY_HIDDEN);
@@ -184,7 +128,6 @@
         document.documentElement.getAttribute(PLAYER_ONLY_ACTIVE) === "true") return;
 
     clearPlayerOnlyMode();
-    ensurePlayerOnlyStyles();
 
     const chain = [];
     let current = element;
