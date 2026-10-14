@@ -52,7 +52,7 @@ const playbackProviderSchema = z.object({
   allowedOrigins: z.array(httpsOriginSchema).min(1).max(20),
   playerSelector: z.string().trim().min(1).max(300),
   readinessSelector: z.string().trim().min(1).max(300).optional(),
-  timeoutMs: z.coerce.number().int().min(1000).max(60000).default(15000),
+  timeoutMs: z.coerce.number().int().min(1000).max(60000).default(60000),
 }).strict().superRefine((provider, context) => {
   const validateTemplate = (template, field) => {
     if (!template.includes("{contentId}")) {
