@@ -103,7 +103,10 @@ visionhub/
 │   ├── secrets.yaml          # Optional secret file; never committed
 │   └── desktop.yaml          # Desktop API endpoint; independent of API settings
 ├── infra/
-│   └── compose.yaml          # Application services only; external database network
+│   ├── compose.yaml          # Default Web/API services, no database or published API port
+│   ├── compose.database.yaml # Opt-in local PostgreSQL service
+│   ├── compose.existing-db-network.yaml # Opt-in existing PostgreSQL network
+│   └── compose.api-published.yaml # Opt-in host API port for local access
 ├── .gitignore
 ├── pnpm-workspace.yaml
 └── README.md
@@ -148,24 +151,29 @@ The existing environment-specific YAML files and `.env.example` are a starting p
 
 ## 6. Deployment and existing database boundary
 
-Target deployment remains intentionally small:
+Deployment defaults to using the existing PostgreSQL instance. Database connectivity is configurable for every application environment, with three supported deployment choices:
 
-- Compose runs application services only: API and, where needed, the web frontend/reverse proxy.
-- No PostgreSQL or Redis service is added to Compose.
-- The API uses the hostname or network alias of the existing PostgreSQL service on the configured external Docker network. Inside the API container, `localhost` refers to the API container itself.
-- Prefer exposing the web/reverse-proxy port publicly and keeping the API internal. If a host API port is needed for debugging, bind it to loopback unless a deliberate network policy requires broader access.
-- Move the Compose file to `infra/compose.yaml` in a separate, verified change; update build contexts, relative volume mounts, documentation and commands at the same time.
-- Database migrations remain explicit deploy steps. Never run destructive schema changes automatically on normal API startup.
-- Before any schema change, inspect the existing database and keep changes scoped to the `visionhub` schema. Do not modify unrelated schemas or tables.
-- Use read-only configuration mounts where appropriate and never commit database credentials or signing keys.
+- Direct connection: set `DATABASE_URL` for a host process and optionally `DATABASE_URL_DOCKER` for a different address reachable from the API container. A direct IP/hostname does not need a Docker network overlay.
+- Existing database network: include `infra/compose.existing-db-network.yaml` only when the database hostname is resolvable exclusively on an already-existing Docker network.
+- Optional Compose database: include `infra/compose.database.yaml` explicitly to run the local PostgreSQL service with a named data volume. The default Compose configuration must never start this service.
+
+Other deployment constraints:
+
+- The base `infra/compose.yaml` contains Web and API only. It publishes Web and keeps the API internal by default.
+- Bind public traffic to the Web/Nginx reverse proxy. If host-side API access is needed, use `infra/compose.api-published.yaml`, which binds only to loopback.
+- Database migrations remain explicit deploy steps. Never run schema changes automatically on ordinary API startup or as a side effect of `docker compose up`.
+- Keep all schema changes scoped to `visionhub`; do not modify unrelated schemas or tables.
+- Use read-only configuration mounts where appropriate and inject credentials through environment variables or deployment secrets.
+- Keep Compose paths, database URL behavior and operating procedures aligned across local development, tests, and production.
 
 Acceptance criteria:
 
-- `docker compose config` resolves the intended external network and mounts.
-- Compose has no database or Redis service.
-- A clean API startup can connect to the existing database using a network-resolvable host.
-- No production migration runs as a side effect of container boot.
-- The API port is not exposed more broadly than intended.
+- Each Compose overlay passes `docker compose config` validation in CI.
+- Default Compose does not publish the API port or start a PostgreSQL service.
+- A direct host/IP connection works without an external Docker network; joining an existing network is an explicit alternative.
+- A Compose-managed PostgreSQL service starts only when the database overlay is selected and persists data in a named volume.
+- No production migration runs during container boot.
+- A schema-scoped backup, deployment and rollback procedure is documented and tested against a disposable database before claiming full deployment acceptance.
 
 ## 7. Player architecture
 
@@ -527,4 +535,4 @@ Every phase should meet these gates before merge:
 5. **P5.4 acceptance is complete (2026-10-14).** Preserve the documented codec/container limitations; do not repeat the accepted playback checklist unless a regression is introduced.
 6. **Phase 6 is active.** Base Compose runs only Web/API; choose direct database address, existing data-network overlay, and/or the opt-in PostgreSQL overlay for the deployment at hand. Verify the chosen deployment against a real/disposable database before treating operations acceptance as complete.
 
-Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
+Do not start the optional database container by default, add a worker, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
