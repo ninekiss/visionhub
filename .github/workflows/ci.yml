@@ -57,6 +57,8 @@ jobs:
           docker compose -f infra/compose.yaml config --format json > /tmp/visionhub-compose-default.json
           node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-default.json', 'utf8')); if (c.services.postgres) throw new Error('PostgreSQL must remain opt-in'); if ((c.services.api.ports ?? []).length) throw new Error('API host port must remain unpublished by default');"
           docker compose -f infra/compose.yaml -f infra/compose.database.yaml config --quiet
+          docker compose -f infra/compose.yaml -f infra/compose.database.yaml config --format json > /tmp/visionhub-compose-database.json
+          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-database.json', 'utf8')); if (!c.services.postgres.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('PostgreSQL 18 data volume must target /var/lib/postgresql');"
           docker compose -f infra/compose.yaml -f infra/compose.existing-db-network.yaml config --quiet
           docker compose -f infra/compose.yaml -f infra/compose.api-published.yaml config --quiet
 
