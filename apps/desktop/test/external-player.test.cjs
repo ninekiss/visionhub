@@ -124,7 +124,7 @@ test("external-player browser extensions use an isolated persistent session", ()
   const { readFileSync } = require("node:fs");
   const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
   assert.match(mainSource, /electronSession\.fromPartition\(EXTERNAL_PLAYER_PARTITION\)/);
-  assert.match(mainSource, /externalPlayerElectronSession\.extensions\.loadExtension\(/);
+  assert.match(mainSource, /extensionSession\.extensions\.loadExtension\(/);
   assert.match(mainSource, /session: externalPlayerElectronSession/);
   assert.match(mainSource, /nodeIntegration: false/);
   assert.match(mainSource, /contextIsolation: true/);
