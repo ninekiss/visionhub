@@ -204,6 +204,43 @@ docker compose --env-file .env --profile backup -f infra/compose.yaml logs -f --
 
 Use the same Compose file list and profile to stop the scheduler, for example `docker compose --env-file .env --profile backup -f infra/compose.yaml stop backup`. Do not use `down -v` as a backup-management shortcut.
 
+### Asymmetric encryption before upload (required for off-site copies)
+
+When `BACKUP_REMOTE` is configured, off-site upload now **fails closed unless `BACKUP_AGE_RECIPIENTS` contains at least one age public recipient**. The scheduler packages each logical dump (including its checksum metadata) or each physical backup directory into a tar stream, encrypts that stream with `age`, and only then gives the resulting `.tar.age` file to rclone. Uploaded objects are stored under `BACKUP_REMOTE/encrypted/logical/` and `BACKUP_REMOTE/encrypted/physical/`; the older plaintext upload paths are not used by the new implementation.
+
+The cloud container receives public recipient keys only. It must never receive the matching private identity. Age uses public-key recipients for encryption and the private identity for decryption; see the [age CLI documentation](https://github.com/FiloSottile/age/blob/main/doc/age.1.ronn) and [age-keygen documentation](https://manpages.debian.org/testing/age/age-keygen.1.en.html).
+
+Generate the key pair on a trusted machine that is not the cloud backup host. Keep the identity file in an offline or otherwise securely managed location:
+
+```sh
+age-keygen -o backup-identity.txt
+age-keygen -y backup-identity.txt
+```
+
+The second command prints the public recipient beginning with `age1`. Put only that public value in the cloud environment:
+
+```dotenv
+BACKUP_REMOTE=cloud:your-bucket/visionhub
+BACKUP_AGE_RECIPIENTS=age1replace-with-your-public-recipient
+```
+
+Multiple recipients are supported; separate them with commas or whitespace. This is useful for planned key rotation or an additional recovery custodian. Every private identity that was used for earlier uploads must be retained to decrypt those older objects. Never commit the private identity file or paste its contents into deployment variables.
+
+Encrypted archives waiting for a retry are staged under `/backups/.encrypted-pending/`. They are deleted from the pending directory after a successful upload; failed uploads leave only encrypted pending files for retry. The source backup files on the VM remain plaintext to support local restore, so protect that persistent volume with strict access permissions and provider-side disk encryption as appropriate. This feature guarantees encryption before remote upload; it does not encrypt the on-host source backup directory.
+
+Restore on a trusted recovery machine after downloading the required `.tar.age` object:
+
+```sh
+age --decrypt -i backup-identity.txt -o backup.tar archive.tar.age
+tar -tf backup.tar
+mkdir -p restored-backup
+tar -xf backup.tar -C restored-backup
+```
+
+For a logical archive, the extracted directory contains the `.dump` and its `.dump.json` checksum metadata. For physical backups, each archive contains a `full-...` or `incr-...` directory; to restore an incremental snapshot you must download and decrypt every parent archive back to the full root before using the physical restore-test workflow. Test the recovered backup in an isolated PostgreSQL instance before any production restore.
+
+**Migration warning:** earlier scheduler versions uploaded plaintext under `BACKUP_REMOTE/logical/` and `BACKUP_REMOTE/physical/`. The encrypted implementation deliberately writes to a new `encrypted/` prefix and does not delete remote objects. If you previously used cloud upload without encryption, treat those old objects as plaintext: first verify you can decrypt and restore a new encrypted backup, then securely remove the old plaintext objects using your storage provider's controls.
+
 ### Optional off-site S3-compatible storage
 
 The container uses `rclone` to copy successful local backups to an optional S3-compatible destination. Configure these values in the deployment environment (not in Git):
