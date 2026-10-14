@@ -160,9 +160,24 @@ jobs:
           "${compose[@]}" run --rm db-tools physical-list
           "${compose[@]}" run --rm db-tools physical-restore-test "$full_id"
           "${compose[@]}" run --rm db-tools physical-restore-test "$incr_id"
-          "${compose[@]}" --profile backup run --rm -e BACKUP_DATABASE_MODE=direct backup --once
+          # Generate an ephemeral age identity in the test container. The private key never leaves this disposable CI job.
+          "${compose[@]}" --profile backup run --rm --entrypoint /bin/sh backup -c '
+            set -eu
+            age-keygen -o /tmp/visionhub-test-identity.txt 2>/dev/null
+            recipient="$(age-keygen -y /tmp/visionhub-test-identity.txt)"
+            BACKUP_DATABASE_MODE=managed BACKUP_AGE_RECIPIENTS="$recipient" BACKUP_REMOTE=/backups/offsite-test node scripts/backup-scheduler.mjs --once
+            logical_archive="$(find /backups/offsite-test/encrypted/logical -maxdepth 1 -type f -name "*.tar.age" | sort | head -n 1)"
+            physical_archive="$(find /backups/offsite-test/encrypted/physical -maxdepth 1 -type f -name "*.tar.age" | sort | head -n 1)"
+            test -n "$logical_archive"
+            test -n "$physical_archive"
+            age --decrypt --identity /tmp/visionhub-test-identity.txt --output /tmp/logical-backup.tar "$logical_archive"
+            tar -tf /tmp/logical-backup.tar | grep -q "\\.dump$"
+            age --decrypt --identity /tmp/visionhub-test-identity.txt --output /tmp/physical-backup.tar "$physical_archive"
+            tar -tf /tmp/physical-backup.tar | grep -q "pgdata/backup_manifest"
+            echo "Asymmetric-encryption upload test passed: logical and physical archives decrypted and inspected."
+          '
           echo "Database backup/restore integration tests passed: logical, standalone full, and full+incremental chain."
-          echo "Containerized backup scheduler one-shot test passed."
+          echo "Containerized scheduler and age-encrypted off-site upload integration tests passed."
       - name: Build Web Docker image
         uses: docker/build-push-action@v6
         with:
