@@ -1,6 +1,6 @@
 # VisionHub Development Plan
 
-> Status date: 2026-10-13  
+> Status date: 2026-10-14  
 > Repository: [ninekiss/visionhub](https://github.com/ninekiss/visionhub)  
 > Scope: retain the first-class Web client while evolving the shared foundation and adding an Electron desktop client  
 > This document is a roadmap and current-state assessment. It does not claim that future-phase work is already implemented.
@@ -21,7 +21,7 @@ Core constraints:
 
 ## 2. Current state snapshot
 
-The following status is based on the repository code and lockfile on 2026-10-13.
+The following status is based on the repository code and lockfile on 2026-10-14.
 
 | Area | Current state | Status against target |
 |---|---|---|
@@ -36,7 +36,7 @@ The following status is based on the repository code and lockfile on 2026-10-13.
 | Package manager | pnpm 12.11.2 with a committed lockfile | Implemented; retain reproducible installs |
 | Configuration | `@visionhub/config` centralizes YAML/env loading, precedence and Zod validation; desktop has an independent config file | Phase 2 implemented; CI and both Docker builds passed |
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
-| Player | Plyr 3.8.5 wrapper, playback status/progress, client-local volume/speed preferences, and hls.js multi-rendition quality selection | P5.3 behavior was accepted in Web and Windows Electron; P5.4 timeout handling was accepted; Issue #40 source-player integration is under implementation in PR #41 |
+| Player | Plyr 3.8.5 wrapper, playback status/progress, client-local volume/speed preferences, hls.js multi-rendition quality selection, and configured external-source playback | Direct MP4/HLS and P5.3 behavior were accepted in Web and Windows Electron; external-source implementation across PRs #41, #43, #45 and #46 is merged with CI passing. Real-provider end-to-end acceptance remains pending because the example provider list is intentionally empty until an authorized source is configured |
 | HLS | hls.js 1.7.3 adapter with bounded network/media recovery and cleanup; playback and P5.3 quality switching manually accepted in Web and Windows Electron | Implemented for the tested source; do not infer support for untested media/container combinations |
 | Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | Windows Electron workflow acceptance reported passed on 2026-10-13; macOS-specific and packaged security acceptance remain open; P4.5 release packaging deferred until explicitly reactivated |
 | Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation and planned Phase 3 migration slices implemented; Web remains first-class |
@@ -391,7 +391,7 @@ P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until th
 
 ### Phase 5 — Player adapters and playback preferences
 
-Status: P5.1–P5.3 are merged and manually accepted in Web and Windows Electron (2026-10-13). P5.4 was merged via [PR #39](https://github.com/ninekiss/visionhub/pull/39); the user verified the unreachable-host timeout prompt and the MP4/HLS no-regression playback checks in Web and Windows Electron on 2026-10-13. The separate redistributable fixture and broader codec/container matrix remain unverified. A temporary priority task from [Issue #40](https://github.com/ninekiss/visionhub/issues/40) is inserted before final P5.4 media-matrix sign-off. Plyr remains the player UI; macOS-specific acceptance remains deferred.
+Status: P5.1–P5.3 are merged and manually accepted in Web and Windows Electron (2026-10-13). The P5.4 HTML5 startup-timeout and error-mapping changes were merged via [PR #39](https://github.com/ninekiss/visionhub/pull/39); the user verified the unreachable-host timeout prompt and the MP4/HLS regression checks in both clients on 2026-10-13. The separate redistributable fixture and broader codec/container matrix remain unverified. External-source playback from [Issue #40](https://github.com/ninekiss/visionhub/issues/40) is implemented and merged through PRs [#41](https://github.com/ninekiss/visionhub/pull/41), [#43](https://github.com/ninekiss/visionhub/pull/43), [#45](https://github.com/ninekiss/visionhub/pull/45), and [#46](https://github.com/ninekiss/visionhub/pull/46); CI passed, but end-to-end acceptance against an explicitly configured, authorized provider remains pending. The next action is to finish the P5.4 fixture and compatibility checks. Plyr remains the player UI; macOS-specific acceptance remains deferred.
 
 #### P5.1 — Separate media source, playback events and cleanup
 
@@ -424,30 +424,23 @@ Public test source (Mux-hosted HLS test stream; requires network access and cros
 - [x] Verify volume and speed persistence, plus HLS Auto/manual quality changes, in Web and Windows Electron. Test seeking and pause/resume after switching quality (user acceptance, 2026-10-13; PR #38). macOS acceptance remains deferred.
 - [ ] Prepare subtitle-track selection UI only when actual subtitle tracks can be exercised.
 
-#### Temporary priority insertion — Issue #40: external-source player in the existing playback panel
+#### External-source playback integration — Issue #40 (completed)
 
-**Status: implementation in progress on [PR #41](https://github.com/ninekiss/visionhub/pull/41).** The branch now contains typed source metadata, admin editing, validated provider configuration, API serialization, the Web source selector/embed fallback, isolated Electron `WebContentsView`, and focused tests. The provider list intentionally remains empty until a real authorized source site and its selectors are configured. Manual Web/Windows Electron acceptance remains pending. Keep Phase 5 numbering and the Phase 6/7 order unchanged; after this task, return to the unchecked P5.4 acceptance items below.
+**Status: implementation merged.** The feature was delivered incrementally through [PR #41](https://github.com/ninekiss/visionhub/pull/41) (provider/source contracts and playback entry points), [PR #43](https://github.com/ninekiss/visionhub/pull/43) (desktop external-player behavior), [PR #45](https://github.com/ninekiss/visionhub/pull/45) (Web progress bridge), and [PR #46](https://github.com/ninekiss/visionhub/pull/46) (readiness handshake, configurable timeout, and player-only extension mode). CI passed on the latest implementation. [Issue #40](https://github.com/ninekiss/visionhub/issues/40) is closed as completed. Provider examples intentionally remain unconfigured until an authorized source site and its selectors/origins are supplied. Manual real-provider verification remains an explicit acceptance task, not a claim of universal source-site compatibility.
 
 Goal: support a catalog item or episode that has no direct media-file URL but has an authorized source-site page capable of playing the content. The user chooses a configured source ID; VisionHub resolves the associated source page from metadata and temporarily presents its player in the existing video-panel area, with a loading/transition state while the source player becomes ready.
 
-Implementation requirements:
+Implementation and safety record:
 
 - [x] Define a typed playback-source contract that distinguishes direct media URLs (existing Plyr/HTML5/HLS flow) from external source-site references. Keep a stable source ID, provider/site ID, and external content ID in catalog/episode metadata; do not overload `videoUrl` with multiple unrelated meanings.
 - [x] Keep provider rules in validated external configuration: allowed HTTPS origins, URL template, player selector, optional readiness selector, and narrowly scoped visibility/cleanup rules. Metadata may select a configured provider/content ID but must not provide arbitrary executable JavaScript.
-- [x] Preserve the current player panel's geometry and surrounding layout. Show a clear loading overlay during navigation, use a bounded readiness timeout, surface a useful failure message, and clean up the external view when the user changes source, episode, route, or closes the window. End-to-end behavior still requires a configured real source site.
-- [x] Web must use an official/authorized embed URL when the provider permits embedding. Do not assume that a normal browser can inject script into a cross-origin page; when embedding is not permitted or available, provide a safe external-open fallback rather than defeating the site's protections.
-- [x] Use Electron `WebContentsView` as the isolated surface instead of enabling the legacy `<webview>` tag. Keep remote content isolated (`nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`, `webSecurity: true`), validate destinations and redirects against the configured origin allowlist, disable unexpected popups/navigation, and expose only the minimum validated IPC operations needed to mount, position, and dispose the view.
-- [ ] Review the `content.js` attached to Issue #40 if it becomes accessible. It could not be retrieved through the available GitHub attachment fetch; the current selector-based implementation was authored independently. Inject only reviewed local code into explicitly configured, authorized provider pages; never execute code supplied by catalog metadata or load arbitrary remote scripts.
-- [x] Do not bypass DRM, paywalls, authentication, anti-embedding protections, or other access controls; do not add stream extraction/download behavior. The integration is for source sites the user is authorized to embed or automate.
-- [ ] Keep Web independently buildable and do not regress the current Plyr path. Unit tests for provider config, source metadata and Electron destination/bounds validation are added on PR #41; CI is pending, and manual Web/Windows Electron results remain open. macOS testing remains deferred.
-
-Acceptance criteria:
-
-- A movie/episode with multiple configured source IDs shows a source selector; choosing one resolves by the metadata IDs and displays the correct authorized source.
-- A direct MP4/HLS source continues to use the existing Plyr adapter unchanged.
-- Loading, timeout, navigation rejection, source switching, episode switching, window resizing, and disposal are covered by tests or a repeatable checklist.
-- Web embed behavior is explicitly configured per provider; non-embeddable pages do not trigger attempts to bypass browser or source-site protections.
-- All remote destinations and injected behavior are constrained by explicit provider config and reviewed security rules.
+- [x] Preserve the player panel's geometry, show a loading state while the external player is checked, use a bounded configurable readiness timeout (default 60 seconds), and clean up when the source/episode/route/window changes.
+- [x] Web uses a configured official/authorized embed URL when allowed; it does not attempt to bypass source-site anti-embedding protections.
+- [x] Use Electron `WebContentsView` with isolation enabled, validate destinations against configured origins, block unexpected popups/navigation, and expose only the minimum validated IPC operations.
+- [x] The issue attachment's `content.js` could not be retrieved. The implementation was authored independently; do not execute code supplied by catalog metadata or load arbitrary remote scripts.
+- [x] Do not bypass DRM, paywalls, authentication, anti-embedding protections, or other access controls; do not add stream extraction/download behavior.
+- [x] Keep Web independently buildable and preserve the existing Plyr path; typecheck, tests, production builds and API/Web Docker image builds passed in CI for PR #46.
+- [ ] Configure at least one authorized test provider, then verify player readiness, timeout/fallback, progress reporting, source switching, navigation restrictions and player-only layout in Web and Windows Electron. Record the tested origin/provider config and observed limitations; do not generalize beyond the tested site.
 
 #### P5.4 — Media compatibility acceptance
 
@@ -520,6 +513,6 @@ Every phase should meet these gates before merge:
 2. **P4.3 Windows workflow acceptance passed (2026-10-13).** Catalog/search/detail/playback, API proxy, renderer resources and Plyr controls were verified in the Windows Electron runtime. Packaged macOS acceptance remains outstanding.
 3. **P4.4 Windows interactive acceptance passed (2026-10-13).** macOS-specific menu, lifecycle, and display-restoration checks are deferred until a Mac is available.
 4. **P4.5 is intentionally deferred.** Do not start macOS ARM64 packaging, signing, notarization or GitHub Release automation until the user explicitly reactivates this phase. On reactivation, revalidate the toolchain and runner before following the recorded release plan.
-5. **Temporary priority task: [Issue #40](https://github.com/ninekiss/visionhub/issues/40).** Implement the authorized external-source player integration described under Phase 5, then resume the outstanding P5.4 media-fixture/compatibility checks before proceeding to Phase 6.
+5. **Next: finish P5.4 media compatibility acceptance.** Test the redistributable Big Buck Bunny MP4 fixture in Web and Windows Electron; record OS/browser/Electron versions and inspect actual codec metadata. Verify source switching, seeking, buffering, progress restoration and network-error behavior, then update [the compatibility matrix](./MEDIA_COMPATIBILITY.md). Track real-provider external-source acceptance separately until an authorized provider is configured. Proceed to Phase 6 only after these checks are recorded.
 
 Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
