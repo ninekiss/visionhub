@@ -36,6 +36,7 @@ Nested objects merge recursively. Arrays replace the prior array as a whole. Unk
 | `ADMIN_SESSION_SECRET` | `admin.sessionSecret` | At least 32 characters when admin authentication is configured |
 | `ADMIN_COOKIE_SECURE` | `admin.cookieSecure` | Strict `true`/`false`; use true behind HTTPS |
 | `DESKTOP_API_BASE_URL` | `desktop.apiBaseUrl` | Electron-only override; leaves Web/API settings untouched |
+| `DESKTOP_EXTENSIONS_DIR` | `desktop.extensionsDir` | Optional absolute path to unpacked browser extensions for the isolated desktop source-player session |
 | `PLAYBACK_SOURCES_CONFIG_PATH` | — | Selects provider URLs, exact HTTPS origin allowlists, player selectors and startup timeout; selected file must exist |
 
 The development launcher loads a workspace-local `.env` first and then the repository-root `.env`, without replacing values already set by the process/container.
@@ -81,7 +82,15 @@ Set `PLAYBACK_SOURCES_CONFIG_PATH` to select a non-default file. When that varia
 
 ## Desktop configuration isolation
 
-`configs/desktop.yaml` is loaded separately by `loadDesktopConfig()`. It contains only the Electron API endpoint and is not merged into the API server configuration. Override it with `DESKTOP_API_BASE_URL` or select a different file with `DESKTOP_CONFIG_PATH`.
+`configs/desktop.yaml` is loaded separately by `loadDesktopConfig()`. It contains only Electron desktop settings and is not merged into the API server configuration. Override the API endpoint with `DESKTOP_API_BASE_URL`, override the extension folder with `DESKTOP_EXTENSIONS_DIR`, or select a different config file with `DESKTOP_CONFIG_PATH`.
+
+### Browser extensions in desktop source players
+
+Set `desktop.extensionsDir` in `configs/desktop.yaml`, or set `DESKTOP_EXTENSIONS_DIR` to an absolute path. The folder can be a single unpacked extension containing `manifest.json`, a folder containing extension subfolders, or a browser profile's `Extensions` directory. VisionHub scans a bounded directory depth and loads discovered unpacked extensions into a dedicated persistent Electron session used **only** by external source-player `WebContentsView` pages, not by VisionHub's own renderer.
+
+Electron supports only a subset of Chrome extension APIs; arbitrary extensions are not guaranteed to work, and packed `.crx` files cannot be loaded directly. Extensions are loaded at every app startup. For a content script to run inside a cross-origin player iframe, that extension's manifest must match the iframe's origin and be configured to run in frames where appropriate (for example, `all_frames`). The iframe origin must also remain in the playback provider's explicit `allowedOrigins` list; extension support does not bypass that navigation boundary.
+
+Only load extensions you trust. A content script can read and modify pages on the origins granted by the extension's manifest. When an extension cannot be loaded, VisionHub logs the error and continues startup; it does not silently relax the source navigation allowlist.
 
 ## Secrets and database safety
 
