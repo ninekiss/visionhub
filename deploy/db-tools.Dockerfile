@@ -6,13 +6,15 @@ USER root
 # PostgreSQL 18 CLI tools provide pg_dump/pg_restore plus physical
 # incremental backup/restore utilities (pg_basebackup, pg_combinebackup).
 COPY --from=node-runtime /usr/local/ /usr/local/
-RUN apk add --no-cache su-exec rclone tzdata \
+RUN apk add --no-cache su-exec rclone age tzdata \
     && corepack enable pnpm \
     && node --version \
     && pnpm --version \
     && pg_basebackup --version \
     && pg_combinebackup --version \
     && rclone version \
+    && age --version \
+    && age-keygen --version \
     && mkdir -p /app /backups
 
 WORKDIR /app
