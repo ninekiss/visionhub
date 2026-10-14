@@ -23,4 +23,4 @@ playback:
       readinessSelector: ".player-container video"
 
       # 等待播放器就绪的最长时间
-      timeoutMs: 15000
+      timeoutMs: 60000

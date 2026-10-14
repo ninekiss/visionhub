@@ -209,6 +209,18 @@ test("loads playback provider configuration and validates URL templates against 
   }
 });
 
+test("defaults the playback provider timeout to 60 seconds when omitted", async () => {
+  const configDir = await createConfigDirectory({
+    "playback-sources.yaml": validPlaybackSourcesYaml.replace("      timeoutMs: 15000\n", ""),
+  });
+  try {
+    const config = await loadPlaybackSourcesConfig({ cwd: configDir, configDir, env: {} });
+    assert.equal(config.playback.providers[0].timeoutMs, 60000);
+  } finally {
+    await rm(configDir, { recursive: true, force: true });
+  }
+});
+
 test("rejects provider templates outside allowlisted origins, duplicate IDs, and non-HTTPS origins", async () => {
   const configDir = await createConfigDirectory({
     "playback-sources.yaml": validPlaybackSourcesYaml

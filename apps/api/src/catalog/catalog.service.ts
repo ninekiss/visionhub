@@ -172,6 +172,7 @@ export class CatalogService {
     return (this.config.playback?.providers ?? []).map((provider) => ({
       id: provider.id,
       name: provider.name,
+      timeoutMs: provider.timeoutMs,
       ...(provider.webEmbedUrlTemplate ? { webEmbedUrlTemplate: provider.webEmbedUrlTemplate } : {}),
       ...(provider.urlTemplate ? { webOpenUrlTemplate: provider.urlTemplate } : {}),
     }));
