@@ -4,11 +4,17 @@ import type { PlaybackProvider, PlaybackSource } from '@visionhub/contracts';
 type ProviderSource = Extract<PlaybackSource, { kind: 'provider' }>;
 type Status = 'loading' | 'ready' | 'error';
 
+type SourceProgress = { currentTime: number; duration: number };
+
 type Props = {
   source: ProviderSource;
   provider?: PlaybackProvider;
   title: string;
+  initialTime?: number;
+  onProgress?: (progress: SourceProgress) => void;
 };
+
+const SOURCE_PROGRESS_CHANNEL = 'visionhub-source-progress-v1';
 
 function resolveTemplate(template: string | undefined, contentId: string): string | null {
   if (!template || !template.includes('{contentId}')) return null;
@@ -54,11 +60,13 @@ function getVisibleBounds(element: HTMLDivElement) {
   };
 }
 
-export default function ExternalSourcePlayer({ source, provider, title }: Props) {
+export default function ExternalSourcePlayer({ source, provider, title, initialTime = 0, onProgress }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<Status>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [retryNonce, setRetryNonce] = useState(0);
+  const [extensionConnected, setExtensionConnected] = useState(false);
   const frameTimeoutRef = useRef<number | undefined>(undefined);
   const requestId = useMemo(
     () => createExternalPlayerRequestId(retryNonce),
@@ -72,6 +80,26 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     () => resolveTemplate(provider?.webOpenUrlTemplate, source.contentId),
     [provider?.webOpenUrlTemplate, source.contentId],
   );
+  const embedOrigin = useMemo(() => {
+    if (!embedUrl) return null;
+    try {
+      return new URL(embedUrl).origin;
+    } catch {
+      return null;
+    }
+  }, [embedUrl]);
+  const bridgeToken = useMemo(() => {
+    try {
+      const token = window.crypto?.randomUUID?.();
+      if (token) return token;
+    } catch {
+      // Fall through to a per-instance nonce in restricted browser contexts.
+    }
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + '-' +
+      Math.random().toString(36).slice(2);
+  }, [source.providerId, source.contentId, retryNonce]);
+  const initialTimeRef = useRef(initialTime);
+  const progressCallbackRef = useRef(onProgress);
   const desktop = window.visionHubDesktop;
   const desktopUnavailable = !desktop && !embedUrl && Boolean(openUrl);
   const browserEmbedFallbackNote = !desktop && embedUrl && status === 'ready'
@@ -84,6 +112,72 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
     const root = rootRef.current;
     return root ? getVisibleBounds(root) : { x: 0, y: 0, width: 1, height: 1, visible: false };
   }, []);
+
+  useEffect(() => {
+    progressCallbackRef.current = onProgress;
+  }, [onProgress]);
+
+  const postProgressBridgeInit = useCallback(() => {
+    const frame = frameRef.current;
+    if (!frame?.contentWindow || !embedOrigin || !bridgeToken || window.visionHubDesktop) return;
+    frame.contentWindow.postMessage({
+      channel: SOURCE_PROGRESS_CHANNEL,
+      type: 'initialize',
+      token: bridgeToken,
+      topOrigin: window.location.origin,
+      initialTime: initialTimeRef.current,
+    }, embedOrigin);
+  }, [bridgeToken, embedOrigin]);
+
+  useEffect(() => {
+    if (!embedUrl || !embedOrigin || !bridgeToken || window.visionHubDesktop) return;
+    let active = true;
+    let attempts = 0;
+    const retryHandle = window.setInterval(() => {
+      attempts += 1;
+      postProgressBridgeInit();
+      if (attempts >= 20) window.clearInterval(retryHandle);
+    }, 500);
+
+    const onBridgeMessage = (event: MessageEvent<unknown>) => {
+      if (!active || event.source !== frameRef.current?.contentWindow || event.origin !== embedOrigin) return;
+      if (!event.data || typeof event.data !== 'object') return;
+      const message = event.data as {
+        channel?: unknown;
+        type?: unknown;
+        token?: unknown;
+        currentTime?: unknown;
+        duration?: unknown;
+      };
+      if (message.channel !== SOURCE_PROGRESS_CHANNEL || message.token !== bridgeToken) return;
+      if (message.type === 'connected') {
+        setExtensionConnected(true);
+        window.clearInterval(retryHandle);
+        return;
+      }
+      if (message.type !== 'progress') return;
+      if (
+        typeof message.currentTime !== 'number' ||
+        !Number.isFinite(message.currentTime) ||
+        message.currentTime < 0 ||
+        typeof message.duration !== 'number' ||
+        !Number.isFinite(message.duration) ||
+        message.duration <= 0
+      ) return;
+      progressCallbackRef.current?.({
+        currentTime: message.currentTime,
+        duration: message.duration,
+      });
+    };
+
+    window.addEventListener('message', onBridgeMessage);
+    postProgressBridgeInit();
+    return () => {
+      active = false;
+      window.clearInterval(retryHandle);
+      window.removeEventListener('message', onBridgeMessage);
+    };
+  }, [bridgeToken, embedOrigin, embedUrl, postProgressBridgeInit]);
 
   useEffect(() => {
     setStatus('loading');
@@ -177,6 +271,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
         {embedUrl && !window.visionHubDesktop && (
           <iframe
             className="external-source-frame"
+            ref={frameRef}
             src={embedUrl}
             title={title + ' - ' + (provider?.name ?? '源站')}
             sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
@@ -190,6 +285,7 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
               }
               setStatus('ready');
               setErrorMessage('');
+              postProgressBridgeInit();
             }}
           />
         )}
@@ -211,7 +307,14 @@ export default function ExternalSourcePlayer({ source, provider, title }: Props)
         )}
       </div>
       <div className="external-source-footer">
-        <span className="external-source-footer-note">{browserEmbedFallbackNote}</span>
+        <span className="external-source-footer-note">
+          {browserEmbedFallbackNote}
+          {!window.visionHubDesktop && embedUrl && (
+            <span>{browserEmbedFallbackNote ? ' ' : ''}{extensionConnected
+              ? '源站播放进度同步已连接'
+              : '自动获取与恢复源站进度需要启用 VisionHub Source Progress 浏览器扩展'}</span>
+          )}
+        </span>
         {openUrl && (
           <a className="external-source-open-link" href={openUrl} target="_blank" rel="noopener noreferrer">
             源站无法显示？在新标签页打开
