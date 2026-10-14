@@ -399,10 +399,13 @@ async function loadDesktopRuntimeConfig() {
 }
 
 async function initializeExternalPlayerSession(extensionsDirectory) {
-  // Keep extension permissions and storage isolated from VisionHub's own renderer.
-  // Only source-site WebContentsViews share this persistent partition.
-  externalPlayerElectronSession = electronSession.fromPartition(EXTERNAL_PLAYER_PARTITION);
-  if (!extensionsDirectory) return;
+  // Preserve the previous session behavior unless the user explicitly enables
+  // extensions. When enabled, keep extension permissions and storage away from
+  // VisionHub's own renderer by using a dedicated persistent session.
+  if (!extensionsDirectory) {
+    externalPlayerElectronSession = electronSession.defaultSession;
+    return;
+  }
 
   let extensionPaths;
   try {
@@ -412,17 +415,22 @@ async function initializeExternalPlayerSession(extensionsDirectory) {
       "Unable to discover configured external-player browser extensions:",
       error instanceof Error ? error.message : error,
     );
+    externalPlayerElectronSession = electronSession.defaultSession;
     return;
   }
 
   if (extensionPaths.length === 0) {
     console.warn("No unpacked browser extensions with manifest.json were found in DESKTOP_EXTENSIONS_DIR / desktop.extensionsDir.");
+    externalPlayerElectronSession = electronSession.defaultSession;
     return;
   }
 
+  const extensionSession = electronSession.fromPartition(EXTERNAL_PLAYER_PARTITION);
+  let loadedExtensions = 0;
   for (const extensionPath of extensionPaths) {
     try {
-      const extension = await externalPlayerElectronSession.extensions.loadExtension(extensionPath);
+      const extension = await extensionSession.extensions.loadExtension(extensionPath);
+      loadedExtensions += 1;
       console.info("Loaded external-player browser extension:", extension.name, extension.id);
     } catch (error) {
       // One incompatible extension must not stop playback or the rest of the app.
@@ -432,6 +440,10 @@ async function initializeExternalPlayerSession(extensionsDirectory) {
       );
     }
   }
+
+  externalPlayerElectronSession = loadedExtensions > 0
+    ? extensionSession
+    : electronSession.defaultSession;
 }
 
 function installPackagedRendererProtocol(apiBaseUrl) {
