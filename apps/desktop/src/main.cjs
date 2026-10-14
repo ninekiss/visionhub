@@ -9,6 +9,7 @@ const {
 } = require("./security.cjs");
 const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
 const {
+  canShowExternalPlayer,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
@@ -195,8 +196,13 @@ function startExternalPlayerReadinessCheck(session) {
       // transition/loading surface for a moment after their DOM/video becomes ready.
       if (Date.now() - session.readySince < 2500) return;
 
+      session.ready = true;
       clearExternalPlayerTimers(session);
-      session.view.setVisible(true);
+      session.view.setVisible(canShowExternalPlayer({
+        ready: session.ready,
+        visible: session.bounds.visible,
+        htmlFullscreen: session.htmlFullscreen,
+      }));
       sendExternalPlayerStatus("ready", session.providerId, session.requestId);
     } catch {
       // Continue until the provider's bounded readiness timeout.
@@ -236,9 +242,22 @@ function fillExternalPlayerFullscreen(session) {
   if (!session || externalPlayerSession !== session || !mainWindow || mainWindow.isDestroyed()) return;
   if (session.view.webContents.isDestroyed()) return;
 
-  const [width, height] = mainWindow.getContentSize();
-  session.view.setBounds({ x: 0, y: 0, width, height });
-  session.view.setVisible(true);
+  // The window's content size may still report its pre-fullscreen dimensions
+  // while the OS transition is in progress. The selected display bounds are
+  // stable and are expressed in the same DIP coordinate space as View bounds.
+  const { bounds } = screen.getDisplayMatching(mainWindow.getBounds());
+  session.view.setBounds({
+    x: 0,
+    y: 0,
+    width: Math.round(bounds.width),
+    height: Math.round(bounds.height),
+  });
+  // A resize/fullscreen event must never bypass the loading readiness gate.
+  session.view.setVisible(canShowExternalPlayer({
+    ready: session.ready,
+    visible: session.bounds.visible,
+    htmlFullscreen: true,
+  }));
 }
 
 function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
@@ -264,9 +283,11 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     },
   });
   view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
-  mainWindow.contentView.addChildView(view);
-  // Hide only after attaching, so the native view cannot cover the renderer's loading indicator.
+  view.webContents.setBackgroundColor("#080a0f");
+  // Keep the native child hidden before it is attached: otherwise its initial
+  // white compositor surface can flash above the renderer's loading indicator.
   view.setVisible(false);
+  mainWindow.contentView.addChildView(view);
 
   const session = {
     view,
@@ -276,6 +297,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, visible: bounds.visible },
     htmlFullscreen: false,
     changedWindowFullscreen: false,
+    ready: false,
     readinessInterval: null,
     timeoutHandle: null,
     readySince: null,
@@ -319,7 +341,11 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     session.htmlFullscreen = false;
     const bounds = session.bounds;
     view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
-    view.setVisible(bounds.visible);
+    view.setVisible(canShowExternalPlayer({
+      ready: session.ready,
+      visible: bounds.visible,
+      htmlFullscreen: false,
+    }));
     if (session.changedWindowFullscreen) {
       session.changedWindowFullscreen = false;
       if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()) {
@@ -510,7 +536,11 @@ app.whenReady().then(async () => {
     const bounds = validateExternalPlayerBounds(request.bounds);
     session.bounds = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, visible: bounds.visible };
     session.view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
-    session.view.setVisible(bounds.visible);
+    session.view.setVisible(canShowExternalPlayer({
+      ready: session.ready,
+      visible: bounds.visible,
+      htmlFullscreen: false,
+    }));
     return true;
   });
 
