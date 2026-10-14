@@ -212,4 +212,5 @@ packages/
   ui/        跨客户端 tokens、Tailwind 组件原语
 configs/     开发、生产、桌面 YAML 配置
 deploy/      Dockerfile 与 Nginx 配置
+infra/       Compose 主文件及可选数据库、网络和 API 端口 overlays
 ```
