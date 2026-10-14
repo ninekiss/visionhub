@@ -533,6 +533,6 @@ Every phase should meet these gates before merge:
 3. **P4.4 Windows interactive acceptance passed (2026-10-13).** macOS-specific menu, lifecycle, and display-restoration checks are deferred until a Mac is available.
 4. **P4.5 is intentionally deferred.** Do not start macOS ARM64 packaging, signing, notarization or GitHub Release automation until the user explicitly reactivates this phase. On reactivation, revalidate the toolchain and runner before following the recorded release plan.
 5. **P5.4 acceptance is complete (2026-10-14).** Preserve the documented codec/container limitations; do not repeat the accepted playback checklist unless a regression is introduced.
-6. **Phase 6 is active.** Base Compose runs only Web/API; choose direct database address, existing data-network overlay, and/or the opt-in PostgreSQL overlay for the deployment at hand. Verify the chosen deployment against a real/disposable database before treating operations acceptance as complete.
+6. **Phase 6 is active.** Base Compose runs only Web/API; choose a direct database address, the existing data-network overlay, or the opt-in PostgreSQL overlay. The two database overlays are alternatives; the API port overlay is independent. Verify the chosen deployment against a real/disposable database before treating operations acceptance as complete.
 
 Do not start the optional database container by default, add a worker, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
