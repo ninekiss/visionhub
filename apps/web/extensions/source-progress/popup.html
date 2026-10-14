@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VisionHub Source Progress</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    body { width: 360px; margin: 0; padding: 16px; background: #0b0e13; color: #eef1f5; box-sizing: border-box; }
+    h1 { font-size: 16px; margin: 0 0 7px; }
+    p { font-size: 12px; line-height: 1.55; color: #a3adba; margin: 0 0 12px; }
+    .origin { overflow-wrap: anywhere; padding: 9px 10px; border: 1px solid #28313c; border-radius: 7px; background: #111720; font-size: 12px; margin: 8px 0 12px; }
+    button { font: inherit; font-size: 12px; border: 1px solid #384452; border-radius: 7px; padding: 9px 11px; cursor: pointer; color: #edf2f7; background: #1a222d; }
+    button.primary { background: #c7f36b; color: #13180d; border-color: #c7f36b; font-weight: 700; }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+    .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .section { margin-top: 18px; padding-top: 14px; border-top: 1px solid #202832; }
+    .section h2 { font-size: 12px; margin: 0 0 8px; }
+    .domain-list { max-height: 190px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+    label.domain { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid #222d38; border-radius: 7px; cursor: pointer; }
+    label.domain span { min-width: 0; overflow-wrap: anywhere; font-size: 11px; line-height: 1.4; }
+    input { margin: 2px 0 0; accent-color: #c7f36b; }
+    #status { min-height: 18px; color: #c7f36b; font-size: 11px; line-height: 1.5; margin-top: 10px; }
+    .muted { color: #738092; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <h1>VisionHub Source Progress</h1>
+  <p>让浏览器扩展进入已授权的源站 iframe，读取 HTML5 视频进度，并将恢复位置交给 VisionHub Web。</p>
+
+  <div class="section" style="margin-top:0;padding-top:0;border-top:0">
+    <h2>当前 Web 站点</h2>
+    <div class="origin" id="current-origin">正在读取…</div>
+    <div class="row">
+      <button class="primary" id="trust-site">信任此 Web 站点</button>
+      <span class="muted" id="trust-state"></span>
+    </div>
+    <p class="muted" style="margin-top:8px">只有你明确信任的站点才能向源站 iframe 发送进度恢复命令。</p>
+  </div>
+
+  <div class="section">
+    <h2>检测到的 iframe / 源站域名</h2>
+    <p>勾选需要读取进度的 HTTPS 域名。只请求所选域名的权限。</p>
+    <div class="domain-list" id="domain-list"><span class="muted">正在扫描当前页面…</span></div>
+    <div class="row" style="margin-top:10px">
+      <button class="primary" id="enable-domains">启用所选域名</button>
+      <button id="refresh-scan">重新扫描</button>
+    </div>
+    <p class="muted" style="margin-top:8px">启用后请刷新 VisionHub Web 播放页。嵌套 iframe 的域名可能需要播放一次后，再回来启用。</p>
+  </div>
+
+  <div id="status" role="status" aria-live="polite"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
