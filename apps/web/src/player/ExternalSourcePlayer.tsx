@@ -339,6 +339,7 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
               }
               if (extensionReadyRef.current) {
                 setStatus('ready');
+                postProgressBridgeInit();
                 return;
               }
 
