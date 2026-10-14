@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  canShowExternalPlayer,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
@@ -62,9 +63,20 @@ test("player isolation logic is selector-based and does not evaluate metadata as
   assert.doesNotMatch(script, /eval\(|Function\(/);
 });
 
+test("native player remains hidden through loading, resize, and fullscreen until ready", () => {
+  assert.equal(canShowExternalPlayer({ ready: false, visible: true, htmlFullscreen: false }), false);
+  assert.equal(canShowExternalPlayer({ ready: false, visible: true, htmlFullscreen: true }), false);
+  assert.equal(canShowExternalPlayer({ ready: true, visible: false, htmlFullscreen: false }), false);
+  assert.equal(canShowExternalPlayer({ ready: true, visible: false, htmlFullscreen: true }), true);
+  assert.equal(canShowExternalPlayer({ ready: true, visible: true, htmlFullscreen: false }), true);
+});
+
 test("player isolation waits until a native video has current frame data", () => {
   const script = createPlayerIsolationScript(".vp-player", ".vp-player video");
   assert.ok(script.includes("video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA"));
   assert.ok(script.includes("video.videoWidth <= 0"));
   assert.ok(script.includes("video.videoHeight <= 0"));
+  assert.ok(script.includes("getBoundingClientRect()"));
+  assert.ok(script.includes("window.getComputedStyle(element)"));
+  assert.ok(script.includes("style.display === \"none\""));
 });
