@@ -132,7 +132,7 @@ docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.y
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.api-published.yaml up --build -d
 ```
 
-该映射只绑定到宿主机 loopback 地址 `127.0.0.1`。上面不同的 overlay 可以按需组合。Compose 文件位于 `infra/`，但相对构建路径和配置挂载已按仓库根目录调整。
+该映射只绑定到宿主机 loopback 地址 `127.0.0.1`。API 端口 overlay 可与任一种数据库模式组合；本地 PostgreSQL overlay 与现有数据库网络 overlay 是互斥选择，不要同时启用。Compose 文件位于 `infra/`，但相对构建路径和配置挂载已按仓库根目录调整。
 
 ## 管理后台
 
