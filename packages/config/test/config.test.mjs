@@ -153,13 +153,17 @@ test("loads an independent desktop API endpoint and allows an environment overri
 
 test("loads and overrides an optional absolute desktop extensions directory", async () => {
   const configDir = await createConfigDirectory({
-    "desktop.yaml": "desktop:\\n  apiBaseUrl: http://127.0.0.1:3000/api/v1\\n",
+    "desktop.yaml": `desktop:
+  apiBaseUrl: http://127.0.0.1:3000/api/v1
+`,
   });
   const configuredDirectory = join(configDir, "extensions");
   const overriddenDirectory = join(configDir, "extension-override");
   try {
-    const configuredYaml = "desktop:\\n  apiBaseUrl: http://127.0.0.1:3000/api/v1\\n  extensionsDir: " +
-      JSON.stringify(configuredDirectory) + "\\n";
+    const configuredYaml = `desktop:
+  apiBaseUrl: http://127.0.0.1:3000/api/v1
+  extensionsDir: ${JSON.stringify(configuredDirectory)}
+`;
     await writeFile(join(configDir, "desktop.yaml"), configuredYaml, "utf8");
     assert.equal(
       (await loadDesktopConfig({ cwd: configDir, configDir, env: {} })).desktop.extensionsDir,
