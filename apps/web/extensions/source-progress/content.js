@@ -17,10 +17,15 @@
   const observedFrames = new WeakSet();
   let restoreAttempted = false;
 
-  function validOrigin(value) {
+  function validAppOrigin(value) {
     try {
       const url = new URL(value);
-      return url.protocol === "https:" ? url.origin : null;
+      if (url.protocol === "https:") return url.origin;
+      if (
+        url.protocol === "http:" &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+      ) return url.origin;
+      return null;
     } catch {
       return null;
     }
@@ -200,7 +205,7 @@
 
     if (message.type === "initialize") {
       if (event.source !== window.parent) return;
-      const topOrigin = validOrigin(message.topOrigin);
+      const topOrigin = validAppOrigin(message.topOrigin);
       const directFromApp = trustedAppOrigins.includes(event.origin) && topOrigin === event.origin &&
         message.__vhRelay !== true;
       const relayedFromSource = message.__vhRelay === true &&
