@@ -26,7 +26,14 @@ The overlay adds only the API service to that external network. The network must
 
 ### Optional PostgreSQL service in Compose
 
-The database service is deliberately separate and is not started by the default Compose file. To opt in, set `POSTGRES_PASSWORD`, make the `DATABASE_URL_DOCKER` credentials/database match `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`, then include the database overlay:
+The database service is deliberately separate and is not started by the default Compose file. To opt in, set `POSTGRES_PASSWORD`, make the `DATABASE_URL_DOCKER` credentials/database match `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`, then start PostgreSQL by itself:
+
+```sh
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up -d postgres
+pnpm db:setup
+```
+
+After the migration and seed step succeeds, start the application with the same files:
 
 ```sh
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up --build -d
