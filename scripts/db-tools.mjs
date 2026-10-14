@@ -413,7 +413,7 @@ async function reconstructPhysicalBackup(id, keep) {
 
 async function physicalRestoreTest(id, keep) {
   const { output, selected, chain } = await reconstructPhysicalBackup(id, keep);
-  const logPath = path.join(PHYSICAL_ROOT, `restore-test-${selected.id}.log`);
+  const logPath = path.join(output, "restore-test.log");
   let started = false;
   try {
     run("chown", ["-R", "postgres:postgres", output]);
