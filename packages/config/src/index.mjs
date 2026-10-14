@@ -33,6 +33,64 @@ const corsOriginSchema = z.string().url().refine((value) => {
   }
 }, { message: "must be an HTTP(S) origin without a path" });
 
+const httpsOriginSchema = z.string().url().refine((value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && Boolean(url.hostname) &&
+      url.pathname === "/" && !url.search && !url.hash &&
+      !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}, { message: "must be an HTTPS origin without credentials, path, query, or hash" });
+
+const playbackProviderSchema = z.object({
+  id: z.string().trim().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/),
+  name: z.string().trim().min(1).max(100),
+  urlTemplate: z.string().trim().min(1).max(2000),
+  webEmbedUrlTemplate: z.string().trim().min(1).max(2000).optional(),
+  allowedOrigins: z.array(httpsOriginSchema).min(1).max(20),
+  playerSelector: z.string().trim().min(1).max(300),
+  readinessSelector: z.string().trim().min(1).max(300).optional(),
+  timeoutMs: z.coerce.number().int().min(1000).max(60000).default(15000),
+}).strict().superRefine((provider, context) => {
+  const validateTemplate = (template, field) => {
+    if (!template.includes("{contentId}")) {
+      context.addIssue({ code: "custom", path: [field], message: "must contain the {contentId} placeholder" });
+      return;
+    }
+    const normalizedTemplate = template.replaceAll("{contentId}", "content-id-check");
+    if (normalizedTemplate.includes("{") || normalizedTemplate.includes("}")) {
+      context.addIssue({ code: "custom", path: [field], message: "must not contain unknown template variables" });
+      return;
+    }
+    try {
+      const url = new URL(template.replaceAll("{contentId}", "content-id-check"));
+      if (url.protocol !== "https:" || url.username || url.password || !provider.allowedOrigins.includes(url.origin)) {
+        context.addIssue({ code: "custom", path: [field], message: "must resolve to an HTTPS URL on one of allowedOrigins" });
+      }
+    } catch {
+      context.addIssue({ code: "custom", path: [field], message: "must be a valid HTTPS URL template" });
+    }
+  };
+  validateTemplate(provider.urlTemplate, "urlTemplate");
+  if (provider.webEmbedUrlTemplate) validateTemplate(provider.webEmbedUrlTemplate, "webEmbedUrlTemplate");
+});
+
+export const playbackSourcesConfigSchema = z.object({
+  playback: z.object({
+    providers: z.array(playbackProviderSchema).max(100).default([]),
+  }).strict(),
+}).strict().superRefine((config, context) => {
+  const seen = new Set();
+  config.playback.providers.forEach((provider, index) => {
+    if (seen.has(provider.id)) {
+      context.addIssue({ code: "custom", path: ["playback", "providers", index, "id"], message: "provider IDs must be unique" });
+    }
+    seen.add(provider.id);
+  });
+});
+
 export const appConfigSchema = z.object({
   app: z.object({
     name: z.string().trim().min(1),
@@ -61,6 +119,7 @@ export const appConfigSchema = z.object({
   database: z.object({
     url: postgresUrlSchema,
   }).strict(),
+  playback: z.object({ providers: z.array(playbackProviderSchema).max(100) }).strict(),
   admin: z.object({
     username: z.string().trim().min(1).optional(),
     password: z.string().min(1).optional(),
@@ -233,6 +292,7 @@ function baseDefaults(environment) {
     },
     catalog: { pageSize: 8 },
     database: {},
+    playback: { providers: [] },
     admin: { cookieSecure: false },
   };
 }
@@ -313,10 +373,29 @@ export async function loadAppConfig(options = {}) {
     getEnvironmentOverrides(env),
   ];
 
+  const playbackSources = await loadPlaybackSourcesConfig({ env, cwd, configDir });
   const rawConfig = layers.reduce((current, layer) => mergeDeep(current, layer || {}), {});
+  rawConfig.playback = playbackSources.playback;
   const result = appConfigSchema.safeParse(rawConfig);
   if (!result.success) throw new Error(formatValidationError(result.error, rawConfig));
   return result.data;
+}
+
+/**
+ * Provider configuration is deliberately separate from database/API secrets so both
+ * the API and Electron main process can load the same allowlist independently.
+ */
+export async function loadPlaybackSourcesConfig(options = {}) {
+  const env = options.env || process.env;
+  const cwd = resolve(options.cwd || process.cwd());
+  const configDir = resolve(options.configDir ? resolve(cwd, options.configDir) :
+    (env.APP_CONFIG_DIR ? resolve(cwd, env.APP_CONFIG_DIR) : defaultConfigDirectory));
+  const context = { cwd, configDir };
+  const filePath = env.PLAYBACK_SOURCES_CONFIG_PATH
+    ? resolveConfiguredPath(env.PLAYBACK_SOURCES_CONFIG_PATH, context)
+    : resolve(configDir, "playback-sources.yaml");
+  const rawConfig = await readYamlFile(filePath, { optional: !env.PLAYBACK_SOURCES_CONFIG_PATH }) || { playback: { providers: [] } };
+  return parseConfig(playbackSourcesConfigSchema, rawConfig, "Playback source configuration");
 }
 
 /**

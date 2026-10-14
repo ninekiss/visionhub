@@ -11,7 +11,9 @@ import type {
   CatalogItem,
   CatalogListQuery,
   PaginatedResponse,
+  PlaybackSource,
 } from "@visionhub/contracts";
+import { parsePlaybackSources, readStoredPlaybackSources } from "../catalog/playback-sources.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { CatalogService } from "../catalog/catalog.service.js";
 import { PrismaService } from "../database/prisma.service.js";
@@ -28,7 +30,8 @@ type ItemRecord = {
   mediaType: "movie" | "series";
   description: string;
   posterUrl: string;
-  videoUrl: string;
+  videoUrl: string | null;
+  playbackSources: unknown;
   sortOrder: number;
   categoryLinks: Array<{ category: { name: string } }>;
   _count: { episodes: number };
@@ -40,7 +43,8 @@ type ItemInput = {
   mediaType: "movie" | "series";
   description: string;
   posterUrl: string;
-  videoUrl: string;
+  videoUrl: string | null;
+  playbackSources: PlaybackSource[];
   sortOrder: number;
   categories: string[];
 };
@@ -49,7 +53,8 @@ type EpisodeInput = {
   episodeNumber: number;
   title: string;
   summary: string;
-  videoUrl: string;
+  videoUrl: string | null;
+  playbackSources: PlaybackSource[];
   durationMinutes: number;
 };
 
@@ -87,7 +92,7 @@ function safeHttpUrl(value: unknown, field: string, required = true): string {
   const result = requiredText(value, field, 4000);
   try {
     const parsed = new URL(result);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("protocol");
+    if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.username || parsed.password) throw new Error("protocol or credentials");
     return result;
   } catch {
     throw new BadRequestException(`${field} 必须是有效的 HTTP 或 HTTPS URL。`);
@@ -108,13 +113,19 @@ function parseItemInput(value: unknown): ItemInput {
     throw new BadRequestException("分类最多 20 个，每个名称不超过 60 个字符。");
   }
   const mediaType = value.mediaType;
+  const playbackSources = parsePlaybackSources(value.playbackSources);
+  const videoUrl = safeHttpUrl(value.videoUrl, "视频源地址", false) || null;
+  if (mediaType === "movie" && !videoUrl && playbackSources.length === 0) {
+    throw new BadRequestException("电影必须配置默认视频源或至少一个播放源。");
+  }
   return {
     title: requiredText(value.title, "作品标题", 200),
     year: positiveInteger(value.year, "发行年份", 1888, 2200),
     mediaType,
     description: optionalText(value.description, "作品简介", 12000),
     posterUrl: safeHttpUrl(value.posterUrl, "海报地址"),
-    videoUrl: safeHttpUrl(value.videoUrl, "视频源地址", mediaType === "movie"),
+    videoUrl,
+    playbackSources,
     sortOrder: value.sortOrder === undefined ? 0 : positiveInteger(value.sortOrder, "排序值", 0, 100000000),
     categories,
   };
@@ -122,11 +133,17 @@ function parseItemInput(value: unknown): ItemInput {
 
 function parseEpisodeInput(value: unknown): EpisodeInput {
   if (!isRecord(value)) throw new BadRequestException("分集数据格式无效。");
+  const playbackSources = parsePlaybackSources(value.playbackSources);
+  const videoUrl = safeHttpUrl(value.videoUrl, "视频源地址", false) || null;
+  if (!videoUrl && playbackSources.length === 0) {
+    throw new BadRequestException("分集必须配置视频源地址或至少一个播放源。");
+  }
   return {
     episodeNumber: positiveInteger(value.episodeNumber, "集数", 1, 100000),
     title: requiredText(value.title, "分集标题", 200),
     summary: optionalText(value.summary, "分集简介", 12000),
-    videoUrl: safeHttpUrl(value.videoUrl, "视频源地址"),
+    videoUrl,
+    playbackSources,
     durationMinutes: positiveInteger(value.durationMinutes, "时长", 1, 10000),
   };
 }
@@ -198,6 +215,7 @@ export class AdminService {
           description: input.description,
           posterUrl: input.posterUrl,
           videoUrl: input.videoUrl,
+          playbackSources: input.playbackSources as Prisma.InputJsonValue,
           sortOrder: input.sortOrder,
           categoryLinks: {
             create: categoryIds.map((categoryId) => ({ category: { connect: { id: categoryId } } })),
@@ -232,6 +250,7 @@ export class AdminService {
             description: input.description,
             posterUrl: input.posterUrl,
             videoUrl: input.videoUrl,
+            playbackSources: input.playbackSources as Prisma.InputJsonValue,
             sortOrder: input.sortOrder,
             categoryLinks: {
               deleteMany: {},
@@ -260,27 +279,30 @@ export class AdminService {
 
   async listEpisodes(seriesId: string): Promise<CatalogEpisode[]> {
     await this.requireSeries(seriesId);
-    return this.prisma.catalogEpisode.findMany({
+    const records = await this.prisma.catalogEpisode.findMany({
       where: { seriesId },
       orderBy: { episodeNumber: "asc" },
       select: {
         id: true, episodeNumber: true, title: true, summary: true,
-        videoUrl: true, durationMinutes: true,
+        videoUrl: true, playbackSources: true, durationMinutes: true,
       },
     });
+    return records.map((record) => this.toCatalogEpisode(record));
   }
 
   async createEpisode(seriesId: string, body: unknown): Promise<CatalogEpisode> {
     await this.requireSeries(seriesId);
     const input = parseEpisodeInput(body);
     try {
-      return await this.prisma.catalogEpisode.create({
-        data: { id: randomUUID(), seriesId, ...input },
+      const { playbackSources, ...storedInput } = input;
+      const record = await this.prisma.catalogEpisode.create({
+        data: { id: randomUUID(), seriesId, ...storedInput, playbackSources: playbackSources as Prisma.InputJsonValue },
         select: {
           id: true, episodeNumber: true, title: true, summary: true,
-          videoUrl: true, durationMinutes: true,
+          videoUrl: true, playbackSources: true, durationMinutes: true,
         },
       });
+      return this.toCatalogEpisode(record);
     } catch (error) {
       if (databaseConflict(error)) throw new ConflictException("该剧集已经存在这个集数，请更换集数。");
       throw error;
@@ -295,14 +317,16 @@ export class AdminService {
     if (!existing) throw new NotFoundException("没有找到这集内容。");
     const input = parseEpisodeInput(body);
     try {
-      return await this.prisma.catalogEpisode.update({
+      const { playbackSources, ...storedInput } = input;
+      const record = await this.prisma.catalogEpisode.update({
         where: { id: episodeId },
-        data: input,
+        data: { ...storedInput, playbackSources: playbackSources as Prisma.InputJsonValue },
         select: {
           id: true, episodeNumber: true, title: true, summary: true,
-          videoUrl: true, durationMinutes: true,
+          videoUrl: true, playbackSources: true, durationMinutes: true,
         },
       });
+      return this.toCatalogEpisode(record);
     } catch (error) {
       if (databaseConflict(error)) throw new ConflictException("该剧集已经存在这个集数，请更换集数。");
       throw error;
@@ -407,6 +431,27 @@ export class AdminService {
       description: record.description,
       poster: record.posterUrl,
       videoUrl: record.videoUrl,
+      playbackSources: readStoredPlaybackSources(record.playbackSources),
+    };
+  }
+
+  private toCatalogEpisode(record: {
+    id: string;
+    episodeNumber: number;
+    title: string;
+    summary: string;
+    videoUrl: string | null;
+    playbackSources: unknown;
+    durationMinutes: number;
+  }): CatalogEpisode {
+    return {
+      id: record.id,
+      episodeNumber: record.episodeNumber,
+      title: record.title,
+      summary: record.summary,
+      videoUrl: record.videoUrl,
+      playbackSources: readStoredPlaybackSources(record.playbackSources),
+      durationMinutes: record.durationMinutes,
     };
   }
 }

@@ -21,8 +21,11 @@ import type {
   CatalogItem,
   PaginatedResponse,
   PaginationMetadata,
+  PlaybackProvider,
+  PlaybackSource,
 } from '@visionhub/contracts';
 import PlyrPlayer, { type PlaybackState } from './player/PlyrPlayer';
+import ExternalSourcePlayer from './player/ExternalSourcePlayer';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api/v1').replace(/\/$/, '');
 const PAGE_SIZE = 8;
@@ -662,6 +665,7 @@ type WatchViewProps = {
   error: string;
   navigate: (path: string) => void;
   playbackState: PlaybackState;
+  playbackProviders: PlaybackProvider[];
   watchHistory: WatchProgress[];
   onPlaybackStateChange: (state: PlaybackState) => void;
   onProgress: (
@@ -674,9 +678,14 @@ type WatchViewProps = {
 };
 
 function WatchView({
-  route, item, episodes, loading, error, navigate, playbackState, watchHistory,
+  route, item, episodes, loading, error, navigate, playbackState, playbackProviders, watchHistory,
   onPlaybackStateChange, onProgress,
 }: WatchViewProps) {
+  const [selectedSourceId, setSelectedSourceId] = useState('');
+  useEffect(() => {
+    setSelectedSourceId('');
+  }, [route.id, route.episodeId]);
+
   if (loading) return <main className="page-state"><div role="status" aria-live="polite"><div className="section-kicker">PLAYER</div><h1>正在准备播放器…</h1></div></main>;
   if (!item) {
     return <main className="page-state"><div role="alert"><h1>无法打开播放页面</h1><p>{error || '请稍后重试。'}</p></div><Button kind="primary" onClick={() => navigate('/')}>返回片库</Button></main>;
@@ -685,13 +694,27 @@ function WatchView({
   const selectedEpisode = episodes.find((episode) => episode.id === route.episodeId) ?? (!route.episodeId ? episodes[0] : undefined);
   const episodeIndex = selectedEpisode ? episodes.findIndex((episode) => episode.id === selectedEpisode.id) : -1;
   const episodeInvalid = item.mediaType === 'series' && Boolean(route.episodeId) && !selectedEpisode;
-  const source = selectedEpisode?.videoUrl ?? (item.mediaType === 'movie' ? item.videoUrl : '');
+  const fallbackVideoUrl = selectedEpisode
+    ? selectedEpisode.videoUrl
+    : item.mediaType === 'movie'
+      ? item.videoUrl
+      : null;
+  const metadataSources = selectedEpisode
+    ? selectedEpisode.playbackSources ?? []
+    : item.playbackSources ?? [];
+  const playbackSources: PlaybackSource[] = [...metadataSources];
+  if (fallbackVideoUrl && !playbackSources.some((entry) => entry.kind === 'direct' && entry.url === fallbackVideoUrl)) {
+    let defaultId = 'default-url';
+    while (playbackSources.some((entry) => entry.id === defaultId)) defaultId += '-legacy';
+    playbackSources.unshift({ id: defaultId, label: '默认视频源', kind: 'direct', url: fallbackVideoUrl });
+  }
   const title = selectedEpisode?.title ?? item.title;
   const savedProgress = watchHistory.find(
     (progress) =>
       progress.item.id === item.id &&
       (progress.episodeId ?? '') === (selectedEpisode?.id ?? ''),
   );
+  const selectedSource = playbackSources.find((entry) => entry.id === selectedSourceId) ?? playbackSources[0];
 
   return (
     <main className="play-page">
@@ -712,13 +735,24 @@ function WatchView({
 
       <div className="play-layout">
         <section className="play-main">
+          {playbackSources.length > 1 && (
+            <div className="play-source-toolbar">
+              <label>
+                <span>播放源</span>
+                <select aria-label="选择播放源" value={selectedSource?.id ?? ''} onChange={(event) => setSelectedSourceId(event.currentTarget.value)}>
+                  {playbackSources.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
+                </select>
+              </label>
+              <small>{playbackSources.length} 个可用来源</small>
+            </div>
+          )}
           <div className="video-panel play-video-panel">
             {episodeInvalid ? (
               <div className="player-empty" role="alert"><Film size={26} /><strong>没有找到这一集</strong><Button kind="secondary" onClick={() => navigate('/title/' + encodeURIComponent(item.id))}>选择其他剧集</Button></div>
-            ) : source ? (
+            ) : selectedSource?.kind === 'direct' ? (
               <PlyrPlayer
-                key={item.id + ':' + (selectedEpisode?.id ?? 'movie')}
-                src={source}
+                key={item.id + ':' + (selectedEpisode?.id ?? 'movie') + ':' + selectedSource.id}
+                src={selectedSource.url}
                 poster={item.poster}
                 title={title}
                 initialTime={savedProgress?.currentTime ?? 0}
@@ -731,8 +765,15 @@ function WatchView({
                 )}
                 onPlaybackStateChange={onPlaybackStateChange}
               />
+            ) : selectedSource?.kind === 'provider' ? (
+              <ExternalSourcePlayer
+                key={item.id + ':' + (selectedEpisode?.id ?? 'movie') + ':' + selectedSource.id}
+                source={selectedSource}
+                provider={playbackProviders.find((provider) => provider.id === selectedSource.providerId)}
+                title={title}
+              />
             ) : (
-              <div className="player-empty" role="status" aria-live="polite"><Film size={26} /><strong>暂时没有可播放的视频源</strong><span>请返回详情页选择其他剧集。</span></div>
+              <div className="player-empty" role="status" aria-live="polite"><Film size={26} /><strong>暂时没有可播放的视频源</strong><span>请在管理后台配置视频 URL 或播放源 JSON。</span></div>
             )}
           </div>
           <div className="play-description">
@@ -811,6 +852,23 @@ export default function App() {
   const [detailError, setDetailError] = useState('');
   const [playbackState, setPlaybackState] = useState<PlaybackState>('ready');
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>(readWatchHistory);
+  const [playbackProviders, setPlaybackProviders] = useState<PlaybackProvider[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(API_BASE + '/catalog/playback-providers', { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error('播放源配置加载失败');
+        return response.json() as Promise<ApiResponse<PlaybackProvider[]>>;
+      })
+      .then((result) => {
+        if (Array.isArray(result.data)) setPlaybackProviders(result.data);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPlaybackProviders([]);
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1018,6 +1076,7 @@ export default function App() {
           error={detailError}
           navigate={navigate}
           playbackState={playbackState}
+          playbackProviders={playbackProviders}
           watchHistory={watchHistory}
           onPlaybackStateChange={setPlaybackState}
           onProgress={saveWatchProgress}

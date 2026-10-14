@@ -3,6 +3,18 @@
  */
 export type CatalogMediaType = "movie" | "series";
 
+export type PlaybackSource =
+  | { id: string; label: string; kind: "direct"; url: string }
+  | { id: string; label: string; kind: "provider"; providerId: string; contentId: string };
+
+/** Public subset of a configured provider. Private URL allowlists and selectors stay in server/desktop config. */
+export interface PlaybackProvider {
+  id: string;
+  name: string;
+  webEmbedUrlTemplate?: string;
+  webOpenUrlTemplate?: string;
+}
+
 export interface CatalogItem {
   id: string;
   title: string;
@@ -13,7 +25,8 @@ export interface CatalogItem {
   description: string;
   poster: string;
   /** Default preview/playback URL for movies and fallback playback. */
-  videoUrl: string;
+  videoUrl: string | null;
+  playbackSources?: PlaybackSource[];
 }
 
 export interface CatalogEpisode {
@@ -21,7 +34,8 @@ export interface CatalogEpisode {
   episodeNumber: number;
   title: string;
   summary: string;
-  videoUrl: string;
+  videoUrl: string | null;
+  playbackSources?: PlaybackSource[];
   durationMinutes: number;
 }
 
