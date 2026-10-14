@@ -141,7 +141,9 @@ function closeExternalPlayer(options = {}) {
   if (!session || (options.requestId && options.requestId !== session.requestId)) return false;
   clearExternalPlayerTimers(session);
   externalPlayerSession = null;
+  session.htmlFullscreen = false;
   if (session.changedWindowFullscreen && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()) {
+    session.changedWindowFullscreen = false;
     try { mainWindow.setFullScreen(false); } catch {}
   }
   try {
@@ -247,6 +249,9 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     provider,
     providerId,
     requestId,
+    bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, visible: bounds.visible },
+    htmlFullscreen: false,
+    changedWindowFullscreen: false,
     readinessInterval: null,
     timeoutHandle: null,
   };
@@ -277,16 +282,25 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
   });
   view.webContents.on("enter-html-full-screen", () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    session.htmlFullscreen = true;
     if (!mainWindow.isFullScreen()) {
       session.changedWindowFullscreen = true;
       mainWindow.setFullScreen(true);
     }
+    const [width, height] = mainWindow.getContentSize();
+    view.setBounds({ x: 0, y: 0, width, height });
+    view.setVisible(true);
   });
   view.webContents.on("leave-html-full-screen", () => {
-    if (!session.changedWindowFullscreen) return;
-    session.changedWindowFullscreen = false;
-    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()) {
-      mainWindow.setFullScreen(false);
+    session.htmlFullscreen = false;
+    const bounds = session.bounds;
+    view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+    view.setVisible(bounds.visible);
+    if (session.changedWindowFullscreen) {
+      session.changedWindowFullscreen = false;
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFullScreen()) {
+        mainWindow.setFullScreen(false);
+      }
     }
   });
   view.webContents.on("render-process-gone", () => {
@@ -375,6 +389,14 @@ function createWindow() {
   window.webContents.on("will-navigate", blockUntrustedNavigation);
   window.webContents.on("will-redirect", blockUntrustedNavigation);
 
+  window.on("enter-full-screen", () => {
+    const session = externalPlayerSession;
+    if (!session?.htmlFullscreen || session.view.webContents.isDestroyed()) return;
+    const [width, height] = window.getContentSize();
+    session.view.setBounds({ x: 0, y: 0, width, height });
+    session.view.setVisible(true);
+  });
+
   const loading = developmentUrl
     ? window.loadURL(developmentUrl)
     : window.loadURL(packagedRendererUrl);
@@ -453,7 +475,9 @@ app.whenReady().then(async () => {
     if (!isTrustedRendererEvent(event)) throw new Error("Rejected external-player resize from an untrusted renderer.");
     const session = externalPlayerSession;
     if (!session || !request || request.providerId !== session.providerId || request.requestId !== session.requestId) return false;
+    if (session.htmlFullscreen) return true;
     const bounds = validateExternalPlayerBounds(request.bounds);
+    session.bounds = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, visible: bounds.visible };
     session.view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
     session.view.setVisible(bounds.visible);
     return true;
