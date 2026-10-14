@@ -15,6 +15,7 @@ Use a URL-safe `POSTGRES_PASSWORD` (letters, digits, hyphens and underscores are
 Initialize a new database from inside the tools container. In managed mode, Compose starts the PostgreSQL dependency automatically:
 
 ```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up --build -d postgres
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools init
 ```
 
