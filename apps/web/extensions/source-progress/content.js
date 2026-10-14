@@ -16,6 +16,7 @@
   const relayedFrames = new WeakMap();
   const observedFrames = new WeakSet();
   let restoreAttempted = false;
+  let playerReadyReported = false;
 
   function validAppOrigin(value) {
     try {
@@ -77,6 +78,13 @@
     });
   }
 
+  function reportPlayerReady(video) {
+    if (!session || playerReadyReported || primaryVideo() !== video ||
+        video.readyState < HTMLMediaElement.HAVE_METADATA) return;
+    playerReadyReported = true;
+    postToParent({ type: "ready" });
+  }
+
   function tryRestore(video) {
     if (!session || restoreAttempted || primaryVideo() !== video) return;
     if (video.readyState < HTMLMediaElement.HAVE_METADATA ||
@@ -102,6 +110,7 @@
 
     const update = (force = false) => {
       if (!session) return;
+      reportPlayerReady(video);
       tryRestore(video);
       reportProgress(video, force);
     };
@@ -196,6 +205,8 @@
       });
     } else if (message.type === "connected") {
       postToParent({ type: "connected" });
+    } else if (message.type === "ready") {
+      postToParent({ type: "ready" });
     }
   }
 
@@ -228,9 +239,11 @@
         lastReportAt: 0,
       };
       restoreAttempted = false;
+      playerReadyReported = false;
       postToParent({ type: "connected" });
       for (const video of Array.from(document.querySelectorAll("video"))) {
         attachVideo(video);
+        reportPlayerReady(video);
         tryRestore(video);
         reportProgress(video, true);
       }
@@ -238,7 +251,7 @@
       return;
     }
 
-    if (message.type === "progress" || message.type === "connected") {
+    if (message.type === "progress" || message.type === "connected" || message.type === "ready") {
       forwardChildMessage(event, message);
     }
   }
@@ -256,7 +269,14 @@
     if (root) {
       mutationObserver = new MutationObserver(() => {
         for (const video of Array.from(document.querySelectorAll("video"))) attachVideo(video);
-        if (session) relayInitializationToChildren();
+        if (session) {
+          const video = primaryVideo();
+          if (video) {
+            reportPlayerReady(video);
+            tryRestore(video);
+          }
+          relayInitializationToChildren();
+        }
       });
       mutationObserver.observe(root, { childList: true, subtree: true });
     }
