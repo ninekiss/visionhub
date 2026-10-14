@@ -23,6 +23,10 @@ html[data-vh-sp-active="true"] body {
   perspective: none !important;
   contain: none !important;
   content-visibility: visible !important;
+  overflow: visible !important;
+  will-change: auto !important;
+  clip-path: none !important;
+  mask: none !important;
 }
 
 [data-vh-sp-root="true"] {
