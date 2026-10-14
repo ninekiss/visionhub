@@ -151,6 +151,41 @@ test("loads an independent desktop API endpoint and allows an environment overri
   }
 });
 
+test("loads and overrides an optional absolute desktop extensions directory", async () => {
+  const configDir = await createConfigDirectory({
+    "desktop.yaml": "desktop:\\n  apiBaseUrl: http://127.0.0.1:3000/api/v1\\n",
+  });
+  const configuredDirectory = join(configDir, "extensions");
+  const overriddenDirectory = join(configDir, "extension-override");
+  try {
+    const configuredYaml = "desktop:\\n  apiBaseUrl: http://127.0.0.1:3000/api/v1\\n  extensionsDir: " +
+      JSON.stringify(configuredDirectory) + "\\n";
+    await writeFile(join(configDir, "desktop.yaml"), configuredYaml, "utf8");
+    assert.equal(
+      (await loadDesktopConfig({ cwd: configDir, configDir, env: {} })).desktop.extensionsDir,
+      configuredDirectory,
+    );
+    assert.equal(
+      (await loadDesktopConfig({
+        cwd: configDir,
+        configDir,
+        env: { DESKTOP_EXTENSIONS_DIR: overriddenDirectory },
+      })).desktop.extensionsDir,
+      overriddenDirectory,
+    );
+    await assert.rejects(
+      loadDesktopConfig({
+        cwd: configDir,
+        configDir,
+        env: { DESKTOP_EXTENSIONS_DIR: "relative/extensions" },
+      }),
+      /must be an absolute directory path/,
+    );
+  } finally {
+    await rm(configDir, { recursive: true, force: true });
+  }
+});
+
 test("rejects desktop API endpoints containing credentials, query strings, fragments, or unsupported schemes", async () => {
   const configDir = await createConfigDirectory({
     "desktop.yaml": "desktop:\n  apiBaseUrl: http://127.0.0.1:3001/api/v1\n",
