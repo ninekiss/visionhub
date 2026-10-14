@@ -1,96 +1,128 @@
-# Deployment and database operations
+# Deployment, database maintenance and backups
 
-## Deployment options
+## Database modes
 
-Create the repository-root `.env` from `.env.example` and set the connection URL for the environment where each process runs. The API requires a reachable PostgreSQL database and uses only the `visionhub` schema.
+Copy `.env.example` to the repository-root `.env`. The one-shot `db-tools` service is in the `tools` profile: it is not started by ordinary `docker compose up`, and has no published ports.
 
-### Direct database address
+- **Direct address:** use `infra/compose.yaml`. `DATABASE_URL_DOCKER` takes priority for both API and tools; if it is unset, they use `DATABASE_URL`. That address must be reachable from a container.
+- **Existing Docker network:** set `EXISTING_DB_NETWORK`, point `DATABASE_URL_DOCKER` at the database alias, and include `infra/compose.existing-db-network.yaml`. Both API and db-tools join the external network.
+- **Compose-managed PostgreSQL:** include `infra/compose.database.yaml`. That overlay sets the API and db-tools URL to `postgres:5432` based on `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`, so an old `DATABASE_URL_DOCKER` value cannot redirect this mode. `DATABASE_URL` remains the host-side URL, usually `127.0.0.1:5433`.
 
-The default `infra/compose.yaml` starts only Web and API. Set `DATABASE_URL_DOCKER` to a host name or IP reachable from inside the API container; if it is unset, the container uses `DATABASE_URL`. No extra Docker network is needed when the address is directly routable.
+Use a URL-safe `POSTGRES_PASSWORD` (letters, digits, hyphens and underscores are safe choices), because the Compose overlay interpolates it into a PostgreSQL URI. Keep `.env` secret and out of Git.
 
-```sh
-docker compose --env-file .env -f infra/compose.yaml up --build -d
+## Initialization and seed
+
+Initialize a new database from inside the tools container. In managed mode, Compose starts the PostgreSQL dependency automatically:
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools init
 ```
 
-Do not use `localhost` in a container's connection URL unless PostgreSQL is in that same container. `localhost` always refers to the current container/process environment.
+`init` creates the `visionhub` schema, applies migrations and seeds the catalog. For an already initialized production database, use `migrate` for normal releases; do not run initialization just to deploy a new application build:
 
-### Existing PostgreSQL on a Docker network
-
-If the database is reachable by its container name or network alias, set `EXISTING_DB_NETWORK` to the already-existing network name and point `DATABASE_URL_DOCKER` at that alias. Then run:
-
-```sh
-docker compose --env-file .env -f infra/compose.yaml -f infra/compose.existing-db-network.yaml up --build -d
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools migrate
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools seed
 ```
 
-The overlay adds only the API service to that external network. The network must already exist; this mode does not create or manage the existing database container.
+Remove the `-f infra/compose.database.yaml` argument for direct connections. For a database reached by a container alias on an existing Docker network, include `-f infra/compose.existing-db-network.yaml`. The tool container uses the same selected connection URL as the API. `seed` uses stable IDs/upserts; it is intended for seed records, not as a general import path.
 
-### Optional PostgreSQL service in Compose
+## Logical schema backups (all database modes)
 
-The database service is deliberately separate and is not started by the default Compose file. To opt in, set `POSTGRES_PASSWORD`. This overlay explicitly points the API at `postgres:5432` and builds its connection URL from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`, so a `DATABASE_URL_DOCKER` left over from another deployment mode is ignored. Host-side migration commands still use `DATABASE_URL`, which should point to `127.0.0.1:5433` by default. Use a URL-safe password (letters, digits, hyphens and underscores are safe choices), because the overlay interpolates `POSTGRES_PASSWORD` into the connection URI, then start PostgreSQL by itself:
+`logical-backup` creates a standalone custom-format dump of **only** the `visionhub` schema. It verifies the archive list and writes a SHA-256 sidecar. By default, logical dumps older than `LOGICAL_RETENTION_DAYS` (30) are pruned automatically. Files are kept on the host in the repository-root `backups/logical/` directory, which is Git-ignored.
 
-```sh
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools logical-backup
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools logical-list
+```
+
+Before overwriting a real schema, test the dump in a disposable database on the same PostgreSQL instance. This requires permission to create and drop databases:
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools logical-restore-test /backups/logical/visionhub-schema-YYYYMMDDTHHMMSSZ.dump
+```
+
+The test restores the dump into a temporary database, checks that `visionhub.catalog_items` exists and can be queried, then drops the temporary database. Add `--keep` to retain it for manual inspection. For direct/network modes, use the corresponding Compose file list; these logical backup commands work with any reachable PostgreSQL that supports the selected schema and grants the needed permissions.
+
+To restore the actual `visionhub` schema, first verify the resolved database target and retain a recent backup. This is destructive to the current `visionhub` schema only; other schemas are not selected:
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools logical-restore /backups/logical/visionhub-schema-YYYYMMDDTHHMMSSZ.dump --replace-schema
+```
+
+`--replace-schema` is required as an explicit acknowledgement. The dump does not include database roles or unrelated schemas. Stop application writes or use a maintenance window when restoring a live database.
+
+## Physical full and incremental backups (managed PostgreSQL 18 only)
+
+The `physical-backup-*` commands are deliberately enabled only by `infra/compose.database.yaml`, where the tools container can access the managed PostgreSQL 18 data volume. They use PostgreSQL's `pg_basebackup`, `pg_combinebackup` and `pg_verifybackup`. The source role must have `REPLICATION` permission or be a superuser, and `pg_hba.conf` must allow replication connections.
+
+**Physical backups cover the whole PostgreSQL cluster**, not only the `visionhub` schema. Use this mode only for the dedicated Compose-managed database in this project; for a shared external PostgreSQL instance, use schema-scoped logical backups unless its DBA has deliberately configured cluster-wide backup operations.
+
+Run one full backup first; after that, the incremental backup uses the most recent successful full or incremental backup as its parent:
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools physical-init
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools physical-backup-full
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools physical-backup-incr
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools physical-list
+```
+
+Each backup directory contains PostgreSQL's `backup_manifest`; VisionHub's dependency metadata is stored beside the data directory so it does not interfere with manifest verification. `physical-backup-full` is standalone. An incremental backup is **not** standalone: its parent may itself be incremental, so every link back to the full backup must be retained. A failed or missing parent makes the dependent chain unrestorable. `physical-list` shows the parent and full-chain root for each backup.
+
+By default, the latest four full backup roots and all increments depending on those roots are retained (`PHYSICAL_KEEP_FULL=4`). When a new full is taken, older roots and their dependent increments are removed together. The daily logical dumps have independent retention and are not part of this physical chain.
+
+### Verify a full-only or full-plus-incremental restore
+
+Restore testing builds the selected backup chain into a temporary directory, runs `pg_verifybackup`, starts a separate PostgreSQL instance inside the one-shot tools container and verifies the catalog table. It does not touch the live data volume:
+
+```powershell
+# Use a full backup ID to test the full backup by itself.
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools physical-restore-test full-YYYYMMDDTHHMMSSZ
+
+# Use an incremental ID or 'latest' to combine the full backup and every required increment.
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm db-tools physical-restore-test latest
+```
+
+Add `--keep` to retain the reconstructed test data directory. If the isolated PostgreSQL server fails to start, the script preserves that directory for diagnosis.
+
+### Apply a physical restore
+
+An in-place physical restore replaces the managed PostgreSQL data directory. Test the selected backup first and stop the application and database before proceeding. `--no-deps` is essential here: it prevents Compose from starting PostgreSQL while its files are being replaced.
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml stop api web postgres
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml run --rm --no-deps db-tools physical-restore latest --apply --yes
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up -d postgres
-pnpm db:setup
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up --build -d api web
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml ps
 ```
 
-After the migration and seed step succeeds, start the application with the same files:
+The restore command refuses to proceed unless `--apply --yes` is present and PostgreSQL is not accepting connections. It prepares and verifies a reconstructed chain before replacing `PGDATA`, and retains the prepared copy under `backups/physical/` for recovery. Do not delete that directory until the restored database and API have been verified.
 
-```sh
-docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up --build -d
+These physical backups restore to the selected backup snapshot; they do not provide arbitrary point-in-time recovery between snapshots. PITR requires continuous WAL archiving and a separately planned WAL retention policy.
+
+## Suggested schedule and off-host protection
+
+Baseline policy:
+
+- **Every day:** create a logical `visionhub` schema dump. Each dump is independent and can restore without other dump files.
+- **Sunday:** create a physical full backup of the managed PostgreSQL 18 cluster.
+- **Other days:** create a physical incremental backup, depending on the most recent backup chain.
+- **Retention:** 30 days of logical dumps and the latest four physical full chains by default.
+- **After a successful run:** copy completed backups to a second device or remote/object-storage repository. `backups/` on the same host does not protect against disk loss, host loss or ransomware.
+
+On Windows, `scripts/backup-schedule.ps1` performs the daily logical backup and, in managed mode, selects a weekly full or daily incremental backup. Create a Windows Task Scheduler job to run it daily at a quiet time, for example:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Path\To\visionhub\scripts\backup-schedule.ps1" -DatabaseMode managed
 ```
 
-The service uses a named `postgres_data` volume. Its host port is bound to `127.0.0.1:5433` by default so it is not exposed to the LAN. The API connects over the Compose app network using `postgres:5432`; host-side commands such as `pnpm db:setup` should use `DATABASE_URL` pointing to `127.0.0.1:5433`.
+For direct or existing-network deployments, pass `-DatabaseMode direct` or `-DatabaseMode network`; the script then performs logical backups only. Use `-ForceFull` to trigger a full physical backup manually. Configure Task Scheduler not to start a second instance while a prior run is still active.
 
-To stop this deployment, use the same Compose file list and run `down`. The named volume remains. Do not remove the volume unless the intent is to permanently delete this database's data.
+Treat dumps and physical backups as sensitive data. Limit filesystem access, do not commit backup files, and regularly test restore rather than relying only on a successful backup exit code.
 
-### Optional API host port
+## Runtime behavior
 
-The API is not published to the host by default; browsers reach it through the Web/Nginx reverse proxy. When a local tool needs direct API access, include `infra/compose.api-published.yaml`:
-
-```sh
-docker compose --env-file .env -f infra/compose.yaml -f infra/compose.api-published.yaml up --build -d
-```
-
-The optional mapping binds only to `127.0.0.1` and can be combined with either database mode. The local PostgreSQL overlay and existing-database-network overlay are alternative database choices; do not enable them together.
-
-## Database migration procedure
-
-1. Confirm `DATABASE_URL` points to the intended database and that the account has permission to create/update objects in the `visionhub` schema.
-2. Take a schema-only backup before a schema change (instructions below).
-3. Run migrations explicitly from the repository root with `pnpm db:migrate`. For a new local database, `pnpm db:setup` also seeds the catalog; do not run setup against a production database merely to deploy an application version.
-4. Deploy/restart the application version and check the Web UI and API health.
-5. Keep the backup until the new version has been accepted.
-
-Neither API startup nor `docker compose up` runs Prisma migrations automatically.
-
-## Backup and rollback
-
-Use PostgreSQL client tools compatible with the server version. Run these commands from a machine that can reach the database, and use a connection URI with the real host, port, user and database name. For `pg_dump`/`pg_restore`, omit Prisma's `?schema=visionhub` query parameter from the URI; select the application schema with the command-line option instead.
-
-Create a custom-format backup of only VisionHub's schema:
-
-```sh
-pg_dump --format=custom --schema=visionhub --file=visionhub-before-change.dump --dbname="postgresql://USER@HOST:PORT/visionhub"
-```
-
-The client prompts for the password when needed. Keep backup files outside the repository and limit access to them. Check the archive before relying on it:
-
-```sh
-pg_restore --list visionhub-before-change.dump
-```
-
-For rollback, stop the application first. Prefer testing the archive against a separate empty database before touching the existing schema. Restoring in place replaces objects from the selected schema and can discard data written since the backup; do it only after verifying the target connection and coordinating a maintenance window:
-
-```sh
-pg_restore --clean --if-exists --no-owner --no-privileges --schema=visionhub --dbname="postgresql://USER@HOST:PORT/visionhub" visionhub-before-change.dump
-```
-
-These examples target only the `visionhub` schema, not other schemas or PostgreSQL roles. They do not replace an infrastructure-level backup for the whole database cluster.
-
-## Operational behavior
-
-- API and Web containers restart unless explicitly stopped.
-- API readiness checks a catalog request, which also exercises its database path; Web waits for API health before starting.
-- NestJS listens for termination signals so it can finish shutdown and disconnect Prisma cleanly.
-- Admin credentials and session secrets are injected through environment variables. Keep real `.env` files out of Git.
-- The API container port is internal by default. Only Web publishes a host port unless the API port overlay is selected.
+- API and Web restart unless explicitly stopped; the API health check queries the database-backed catalog endpoint.
+- The API port is internal by default; Web/Nginx proxies browser requests to the API.
+- Migrations remain explicit: neither API startup nor `docker compose up` runs migrations automatically.
