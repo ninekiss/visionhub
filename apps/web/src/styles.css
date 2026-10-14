@@ -170,6 +170,13 @@ iframe.external-source-frame {
   height: 100%;
   border: 0;
   background: #050608;
+  opacity: 1;
+  transition: opacity 160ms ease;
+}
+
+.external-source-frame-pending {
+  opacity: 0;
+  pointer-events: none;
 }
 .external-source-state {
   position: absolute;
