@@ -54,6 +54,177 @@
       })[0] ?? null;
   }
 
+
+  // Track only attributes added by this extension so source DOM can be restored
+  // when the selected player container is replaced.
+  const PLAYER_ONLY_STYLE_ID = "visionhub-source-progress-player-only-style";
+  const PLAYER_ONLY_ACTIVE = "data-vh-sp-active";
+  const PLAYER_ONLY_HIDDEN = "data-vh-sp-hidden";
+  const PLAYER_ONLY_PATH = "data-vh-sp-path";
+  const PLAYER_ONLY_ROOT = "data-vh-sp-root";
+  const playerOnlyHiddenNodes = new Set();
+  const playerOnlyPathNodes = new Set();
+  let isolatedPlayerRoot = null;
+  let addedRootMarker = false;
+
+  function ensurePlayerOnlyStyles() {
+    if (document.getElementById(PLAYER_ONLY_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = PLAYER_ONLY_STYLE_ID;
+    style.textContent = `
+      html[${PLAYER_ONLY_ACTIVE}="true"],
+      html[${PLAYER_ONLY_ACTIVE}="true"] body {
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background: #000 !important;
+      }
+      [${PLAYER_ONLY_HIDDEN}="true"] {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+      [${PLAYER_ONLY_PATH}="true"]:not([${PLAYER_ONLY_ROOT}="true"]) {
+        transform: none !important;
+        filter: none !important;
+        backdrop-filter: none !important;
+        perspective: none !important;
+        contain: none !important;
+        content-visibility: visible !important;
+      }
+      [${PLAYER_ONLY_ROOT}="true"] {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+        filter: none !important;
+        perspective: none !important;
+        contain: none !important;
+        overflow: hidden !important;
+        z-index: 2147483647 !important;
+      }
+      [${PLAYER_ONLY_ROOT}="true"] video {
+        max-width: 100% !important;
+        max-height: 100% !important;
+      }
+    `;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  function clearPlayerOnlyMode() {
+    for (const element of playerOnlyHiddenNodes) element.removeAttribute(PLAYER_ONLY_HIDDEN);
+    for (const element of playerOnlyPathNodes) element.removeAttribute(PLAYER_ONLY_PATH);
+    playerOnlyHiddenNodes.clear();
+    playerOnlyPathNodes.clear();
+    if (isolatedPlayerRoot && addedRootMarker) {
+      isolatedPlayerRoot.removeAttribute(PLAYER_ONLY_ROOT);
+    }
+    document.documentElement?.removeAttribute(PLAYER_ONLY_ACTIVE);
+    isolatedPlayerRoot = null;
+    addedRootMarker = false;
+  }
+
+  function playerRootFor(video) {
+    const videoRect = video.getBoundingClientRect();
+    const videoArea = Math.max(1, videoRect.width * videoRect.height);
+    let best = video.parentElement;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    let current = video.parentElement;
+    let depth = 0;
+
+    // Prefer recognizable player wrappers that also contain the native player's
+    // own controls. Avoid selecting a whole article/page container.
+    while (current && current !== document.body && current !== document.documentElement && depth < 9) {
+      const rect = current.getBoundingClientRect();
+      const area = rect.width * rect.height;
+      if (rect.width >= 100 && rect.height >= 56 && area >= videoArea * 0.8) {
+        const className = typeof current.className === "string"
+          ? current.className
+          : current.getAttribute("class") || "";
+        const identity = `${current.id} ${className} ${current.getAttribute("data-testid") || ""}`;
+        const isPlayerNamed = /(player|plyr|dplayer|jwplayer|artplayer|xgplayer|video-js|vjs|prism|bpx-player|media-player)/i.test(identity);
+        const isVideoNamed = /(video|media)/i.test(identity);
+        const controls = Math.min(8, current.querySelectorAll(
+          "button, [role='button'], [role='slider'], [class*='control'], [class*='Control'], [class*='progress']"
+        ).length);
+        const areaRatio = area / videoArea;
+        let score = -depth * 3 + controls * 3;
+        if (isPlayerNamed) score += 45;
+        else if (isVideoNamed) score += 22;
+        if (areaRatio <= 1.5) score += 12;
+        else if (areaRatio <= 3) score += 8;
+        else if (areaRatio <= 6) score += 2;
+        else if (areaRatio > 20) score -= 25;
+        if (score > bestScore) {
+          bestScore = score;
+          best = current;
+        }
+      }
+      current = current.parentElement;
+      depth += 1;
+    }
+    return best instanceof HTMLElement ? best : video.parentElement;
+  }
+
+  function isolatePageToPlayer(element, force = false) {
+    if (!(element instanceof HTMLElement) || !element.isConnected ||
+        !document.body || !document.documentElement) return;
+    if (!force && isolatedPlayerRoot === element &&
+        document.documentElement.getAttribute(PLAYER_ONLY_ACTIVE) === "true") return;
+
+    clearPlayerOnlyMode();
+    ensurePlayerOnlyStyles();
+
+    const chain = [];
+    let current = element;
+    while (current) {
+      chain.push(current);
+      if (current === document.body) break;
+      current = current.parentElement;
+    }
+    if (chain[chain.length - 1] !== document.body) return;
+
+    document.documentElement.setAttribute(PLAYER_ONLY_ACTIVE, "true");
+    isolatedPlayerRoot = element;
+    if (!element.hasAttribute(PLAYER_ONLY_ROOT)) {
+      element.setAttribute(PLAYER_ONLY_ROOT, "true");
+      addedRootMarker = true;
+    }
+    for (const node of chain) {
+      if (!node.hasAttribute(PLAYER_ONLY_PATH)) {
+        node.setAttribute(PLAYER_ONLY_PATH, "true");
+        playerOnlyPathNodes.add(node);
+      }
+    }
+
+    // At every level, hide sibling subtrees which are not part of the path to
+    // the selected player. The DOM is retained so source-page player scripts
+    // and custom controls keep working; visually, only the player remains.
+    for (let index = 0; index < chain.length - 1; index += 1) {
+      const childOnPath = chain[index];
+      const parent = chain[index + 1];
+      for (const sibling of parent.children) {
+        if (sibling === childOnPath) continue;
+        if (parent === document.documentElement && sibling.tagName === "HEAD") continue;
+        if (!sibling.hasAttribute(PLAYER_ONLY_HIDDEN)) {
+          sibling.setAttribute(PLAYER_ONLY_HIDDEN, "true");
+          playerOnlyHiddenNodes.add(sibling);
+        }
+      }
+    }
+  }
+
   function postToParent(payload) {
     if (!session || !session.parentOrigin || window.parent === window) return;
     window.parent.postMessage({
@@ -79,8 +250,11 @@
   }
 
   function reportPlayerReady(video) {
-    if (!session || playerReadyReported || primaryVideo() !== video ||
+    if (!session || primaryVideo() !== video ||
         video.readyState < HTMLMediaElement.HAVE_METADATA) return;
+    const playerRoot = playerRootFor(video);
+    if (playerRoot) isolatePageToPlayer(playerRoot);
+    if (playerReadyReported) return;
     playerReadyReported = true;
     postToParent({ type: "ready" });
   }
@@ -193,7 +367,15 @@
     const frame = childFrameFor(event.source);
     if (!frame) return;
 
-    // Prefer a visible video in this frame; otherwise relay the nested frame's progress upward.
+    // If the actual player is in a nested frame, make that frame the only
+    // visible element in this document and relay its ready signal upward.
+    if (message.type === "ready") {
+      isolatePageToPlayer(frame);
+      postToParent({ type: "ready" });
+      return;
+    }
+
+    // Prefer a native video in this frame; otherwise relay nested-frame progress.
     if (primaryVideo()) return;
     if (message.type === "progress") {
       if (typeof message.currentTime !== "number" || typeof message.duration !== "number") return;
@@ -274,6 +456,8 @@
           if (video) {
             reportPlayerReady(video);
             tryRestore(video);
+          } else if (isolatedPlayerRoot?.isConnected) {
+            isolatePageToPlayer(isolatedPlayerRoot, true);
           }
           relayInitializationToChildren();
         }
