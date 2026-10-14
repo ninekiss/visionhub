@@ -300,7 +300,7 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
       if (cancelled) return;
       setStatus('error');
       setErrorMessage('源站嵌入内容未及时载入。如果源站禁止嵌入，请改用新标签页打开。');
-    }, 15000);
+    }, playerReadyTimeoutMs);
     return () => {
       cancelled = true;
       if (frameTimeoutRef.current !== undefined) {
