@@ -15,6 +15,8 @@ type Props = {
 };
 
 const SOURCE_PROGRESS_CHANNEL = 'visionhub-source-progress-v1';
+const EXTENSION_CONNECTION_TIMEOUT_MS = 1800;
+const PLAYER_READY_TIMEOUT_MS = 15000;
 
 function resolveTemplate(template: string | undefined, contentId: string): string | null {
   if (!template || !template.includes('{contentId}')) return null;
@@ -67,7 +69,13 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
   const [errorMessage, setErrorMessage] = useState('');
   const [retryNonce, setRetryNonce] = useState(0);
   const [extensionConnected, setExtensionConnected] = useState(false);
+  const [extensionReady, setExtensionReady] = useState(false);
+  const [readinessFallback, setReadinessFallback] = useState(false);
   const frameTimeoutRef = useRef<number | undefined>(undefined);
+  const connectionTimeoutRef = useRef<number | undefined>(undefined);
+  const readinessTimeoutRef = useRef<number | undefined>(undefined);
+  const extensionConnectedRef = useRef(false);
+  const extensionReadyRef = useRef(false);
   const requestId = useMemo(
     () => createExternalPlayerRequestId(retryNonce),
     [source.providerId, source.contentId, retryNonce],
@@ -152,6 +160,29 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
       if (message.channel !== SOURCE_PROGRESS_CHANNEL || message.token !== bridgeToken) return;
       if (message.type === 'connected') {
         setExtensionConnected(true);
+        extensionConnectedRef.current = true;
+        if (connectionTimeoutRef.current !== undefined) {
+          window.clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = undefined;
+        }
+        return;
+      }
+      if (message.type === 'ready') {
+        setExtensionConnected(true);
+        setExtensionReady(true);
+        setReadinessFallback(false);
+        extensionConnectedRef.current = true;
+        extensionReadyRef.current = true;
+        setStatus('ready');
+        setErrorMessage('');
+        if (connectionTimeoutRef.current !== undefined) {
+          window.clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = undefined;
+        }
+        if (readinessTimeoutRef.current !== undefined) {
+          window.clearTimeout(readinessTimeoutRef.current);
+          readinessTimeoutRef.current = undefined;
+        }
         window.clearInterval(retryHandle);
         return;
       }
@@ -182,6 +213,19 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
   useEffect(() => {
     setStatus('loading');
     setErrorMessage('');
+    setExtensionConnected(false);
+    setExtensionReady(false);
+    setReadinessFallback(false);
+    extensionConnectedRef.current = false;
+    extensionReadyRef.current = false;
+    if (connectionTimeoutRef.current !== undefined) {
+      window.clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = undefined;
+    }
+    if (readinessTimeoutRef.current !== undefined) {
+      window.clearTimeout(readinessTimeoutRef.current);
+      readinessTimeoutRef.current = undefined;
+    }
 
     if (!provider) {
       setStatus('error');
@@ -262,6 +306,14 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
         window.clearTimeout(frameTimeoutRef.current);
         frameTimeoutRef.current = undefined;
       }
+      if (connectionTimeoutRef.current !== undefined) {
+        window.clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = undefined;
+      }
+      if (readinessTimeoutRef.current !== undefined) {
+        window.clearTimeout(readinessTimeoutRef.current);
+        readinessTimeoutRef.current = undefined;
+      }
     };
   }, [provider, source.providerId, source.contentId, embedUrl, getBounds, requestId, retryNonce]);
 
@@ -270,7 +322,9 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
       <div className="external-source-player" ref={rootRef} aria-label={'外部源站播放器：' + title}>
         {embedUrl && !window.visionHubDesktop && (
           <iframe
-            className="external-source-frame"
+            className={`external-source-frame${status === 'ready' ? '' : ' external-source-frame-pending'}`}
+            aria-hidden={status !== 'ready'}
+            tabIndex={status === 'ready' ? 0 : -1}
             ref={frameRef}
             src={embedUrl}
             title={title + ' - ' + (provider?.name ?? '源站')}
@@ -283,8 +337,35 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
                 window.clearTimeout(frameTimeoutRef.current);
                 frameTimeoutRef.current = undefined;
               }
-              setStatus('ready');
+              if (extensionReadyRef.current) {
+                setStatus('ready');
+                return;
+              }
+
+              setStatus('loading');
               setErrorMessage('');
+              setReadinessFallback(false);
+              if (connectionTimeoutRef.current !== undefined) {
+                window.clearTimeout(connectionTimeoutRef.current);
+                connectionTimeoutRef.current = undefined;
+              }
+              if (!extensionConnectedRef.current) {
+                connectionTimeoutRef.current = window.setTimeout(() => {
+                  if (extensionReadyRef.current || extensionConnectedRef.current) return;
+                  setReadinessFallback(true);
+                  setStatus('ready');
+                  setErrorMessage('');
+                }, EXTENSION_CONNECTION_TIMEOUT_MS);
+              }
+              if (readinessTimeoutRef.current !== undefined) {
+                window.clearTimeout(readinessTimeoutRef.current);
+              }
+              readinessTimeoutRef.current = window.setTimeout(() => {
+                if (extensionReadyRef.current) return;
+                setReadinessFallback(true);
+                setStatus('ready');
+                setErrorMessage('');
+              }, PLAYER_READY_TIMEOUT_MS);
               postProgressBridgeInit();
             }}
           />
@@ -310,9 +391,15 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
         <span className="external-source-footer-note">
           {browserEmbedFallbackNote}
           {!window.visionHubDesktop && embedUrl && (
-            <span>{browserEmbedFallbackNote ? ' ' : ''}{extensionConnected
-              ? '源站播放进度同步已连接'
-              : '自动获取与恢复源站进度需要启用 VisionHub Source Progress 浏览器扩展'}</span>
+            <span>{browserEmbedFallbackNote ? ' ' : ''}{extensionReady
+              ? '源站播放器已就绪，播放进度同步已连接'
+              : readinessFallback
+                ? extensionConnected
+                  ? '未检测到可用的视频就绪信号，已显示源站页面'
+                  : '未检测到扩展，就绪检查已跳过'
+                : extensionConnected
+                  ? '扩展已连接，正在等待源站播放器就绪…'
+                  : '正在等待扩展确认源站播放器就绪…'}</span>
           )}
         </span>
         {openUrl && (
