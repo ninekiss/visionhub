@@ -84,5 +84,5 @@ test("player isolation waits until a native video has current frame data", () =>
 test("desktop player setup does not call unsupported WebContents background APIs", () => {
   const { readFileSync } = require("node:fs");
   const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
-  assert.doesNotMatch(mainSource, /view\\.webContents\\.setBackgroundColor\\s*\\(/);
+  assert.doesNotMatch(mainSource, /view\.webContents\.setBackgroundColor\s*\(/);
 });
