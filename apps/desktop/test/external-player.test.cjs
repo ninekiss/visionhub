@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  createPlayerFullscreenScript,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
@@ -57,4 +58,21 @@ test("player isolation logic is selector-based and does not evaluate metadata as
   assert.match(script, /document\.querySelector\("\.vp-player video"\)/);
   assert.match(script, /setProperty\("display", "none", "important"\)/);
   assert.doesNotMatch(script, /eval\(|Function\(/);
+});
+
+test("player isolation waits until a native video has current frame data", () => {
+  const script = createPlayerIsolationScript(".vp-player", ".vp-player video");
+  assert.match(script, /video\\.readyState < HTMLMediaElement\\.HAVE_CURRENT_DATA/);
+  assert.match(script, /video\\.videoWidth <= 0/);
+  assert.match(script, /video\\.videoHeight <= 0/);
+});
+
+test("fullscreen script sizes the actual fullscreen element and restores styles on exit", () => {
+  const enterScript = createPlayerFullscreenScript(".vp-player", true);
+  const leaveScript = createPlayerFullscreenScript(".vp-player", false);
+  assert.match(enterScript, /document\\.fullscreenElement/);
+  assert.match(enterScript, /object-fit/);
+  assert.match(enterScript, /100vh/);
+  assert.match(leaveScript, /__VisionHubFullscreenStyleSnapshots/);
+  assert.match(leaveScript, /removeProperty/);
 });
