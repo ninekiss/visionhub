@@ -15,7 +15,7 @@ const SCHEDULE_TIME = process.env.BACKUP_SCHEDULE_TIME || "02:30";
 const TIME_ZONE = process.env.BACKUP_TIMEZONE || "UTC";
 const RETRY_MINUTES = Number.parseInt(process.env.BACKUP_RETRY_MINUTES || "15", 10);
 const REMOTE = (process.env.BACKUP_REMOTE || "").replace(/\/+$/, "");
-const AGE_RECIPIENTS = (process.env.BACKUP_AGE_RECIPIENTS || "").split(/[\\s,]+/).map((value) => value.trim()).filter(Boolean);
+const AGE_RECIPIENTS = (process.env.BACKUP_AGE_RECIPIENTS || "").split(/[\s,]+/).map((value) => value.trim()).filter(Boolean);
 const ONCE = process.argv.includes("--once");
 
 if (!["managed", "direct", "network"].includes(MODE)) {
@@ -181,7 +181,7 @@ async function pathExists(value) {
 async function logicalBackupNames() {
   await mkdir(path.join(BACKUP_ROOT, "logical"), { recursive: true });
   return (await readdir(path.join(BACKUP_ROOT, "logical")))
-    .filter((name) => /^visionhub-schema-.*\\.dump$/.test(name))
+    .filter((name) => /^visionhub-schema-.*\.dump$/.test(name))
     .sort();
 }
 
