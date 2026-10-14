@@ -135,6 +135,7 @@ function clearExternalPlayerTimers(session) {
   if (session.timeoutHandle) clearTimeout(session.timeoutHandle);
   session.readinessInterval = null;
   session.timeoutHandle = null;
+  session.readySince = null;
 }
 
 function closeExternalPlayer(options = {}) {
@@ -180,11 +181,24 @@ function startExternalPlayerReadinessCheck(session) {
         session.provider.readinessSelector || session.provider.playerSelector,
       );
       const ready = await session.view.webContents.executeJavaScript(script, false);
-      if (ready && externalPlayerSession === session) {
-        clearExternalPlayerTimers(session);
-        session.view.setVisible(true);
-        sendExternalPlayerStatus("ready", session.providerId, session.requestId);
+      if (externalPlayerSession !== session) return;
+
+      if (!ready) {
+        // A selector can appear before the source has settled into a usable player.
+        // Restart the grace period whenever the player loses readiness.
+        session.readySince = null;
+        return;
       }
+
+      if (session.readySince === null) session.readySince = Date.now();
+      // Keep the native view hidden and the renderer spinner visible briefly after
+      // the first valid frame is detected. Source players often still show a white
+      // transition/loading surface for a moment after their DOM/video becomes ready.
+      if (Date.now() - session.readySince < 2500) return;
+
+      clearExternalPlayerTimers(session);
+      session.view.setVisible(true);
+      sendExternalPlayerStatus("ready", session.providerId, session.requestId);
     } catch {
       // Continue until the provider's bounded readiness timeout.
     } finally {
@@ -271,6 +285,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     changedWindowFullscreen: false,
     readinessInterval: null,
     timeoutHandle: null,
+    readySince: null,
   };
   externalPlayerSession = session;
 
