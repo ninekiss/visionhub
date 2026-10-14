@@ -105,7 +105,7 @@ test("discovers unpacked extensions and Chrome profile version folders", async (
 
     assert.deepEqual(
       await discoverUnpackedExtensions(root),
-      [directExtension, profileExtension].sort((left, right) => left.localeCompare(right)),
+      [directExtension, profileExtension].sort((left, right) => right.localeCompare(left, undefined, { numeric: true })),
     );
     assert.deepEqual(await discoverUnpackedExtensions(directExtension), [directExtension]);
   } finally {
