@@ -1,8 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { mkdtemp, mkdir, rm, writeFile } = require("node:fs/promises");
+const { tmpdir } = require("node:os");
+const path = require("node:path");
 const {
   canShowExternalPlayer,
   createPlayerIsolationScript,
+  discoverUnpackedExtensions,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
@@ -79,6 +83,41 @@ test("player isolation waits until a native video has current frame data", () =>
   assert.ok(script.includes("getBoundingClientRect()"));
   assert.ok(script.includes("window.getComputedStyle(element)"));
   assert.ok(script.includes("style.display === \"none\""));
+});
+
+test("discovers unpacked extensions and Chrome profile version folders", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "visionhub-extensions-"));
+  const directExtension = path.join(root, "translation-extension");
+  const profileExtension = path.join(root, "chrome-profile", "sample-extension-id", "1.2.3_0");
+  try {
+    await mkdir(directExtension, { recursive: true });
+    await mkdir(profileExtension, { recursive: true });
+    await writeFile(path.join(directExtension, "manifest.json"), JSON.stringify({
+      manifest_version: 3,
+      name: "Translation extension",
+      version: "1.0.0",
+    }));
+    await writeFile(path.join(profileExtension, "manifest.json"), JSON.stringify({
+      manifest_version: 3,
+      name: "Sample extension",
+      version: "1.2.3",
+    }));
+
+    assert.deepEqual(
+      await discoverUnpackedExtensions(root),
+      [directExtension, profileExtension].sort((left, right) => left.localeCompare(right)),
+    );
+    assert.deepEqual(await discoverUnpackedExtensions(directExtension), [directExtension]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects a missing configured extension directory", async () => {
+  await assert.rejects(
+    discoverUnpackedExtensions(path.join(tmpdir(), "visionhub-extension-folder-that-does-not-exist")),
+    /does not exist or is not accessible/,
+  );
 });
 
 test("desktop player setup does not call unsupported WebContents background APIs", () => {
