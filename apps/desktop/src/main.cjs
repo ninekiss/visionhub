@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, dialog, ipcMain, Menu, protocol, screen, shell } = require("electron");
+const { app, BrowserWindow, WebContentsView, dialog, ipcMain, Menu, protocol, screen, shell, session: electronSession } = require("electron");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const {
@@ -11,6 +11,7 @@ const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
 const {
   canShowExternalPlayer,
   createPlayerIsolationScript,
+  discoverUnpackedExtensions,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
@@ -50,7 +51,9 @@ const packagedRendererUrl = "visionhub://app/index.html";
 let mainWindow = null;
 let windowStateSaveTimer = null;
 let externalPlayerSession = null;
+let externalPlayerElectronSession = null;
 let playbackProviders = [];
+const EXTERNAL_PLAYER_PARTITION = "persist:visionhub-external-player";
 
 function getWindowStatePath() {
   return path.join(app.getPath("userData"), "window-state.json");
@@ -271,8 +274,12 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
   const bounds = validateExternalPlayerBounds(boundsValue);
   closeExternalPlayer();
 
+  if (!externalPlayerElectronSession) {
+    throw new Error("外部播放器浏览器会话尚未初始化。");
+  }
   const view = new WebContentsView({
     webPreferences: {
+      session: externalPlayerElectronSession,
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -365,7 +372,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
   });
 }
 
-async function loadDesktopApiBaseUrl() {
+async function loadDesktopRuntimeConfig() {
   const workspaceRoot = path.resolve(__dirname, "../../..");
   const { loadDesktopConfig, loadEnvironmentFiles } = await import("@visionhub/config");
 
@@ -388,7 +395,43 @@ async function loadDesktopApiBaseUrl() {
     cwd: configRoot,
     configDir: configDirectory,
   });
-  return config.desktop.apiBaseUrl;
+  return config.desktop;
+}
+
+async function initializeExternalPlayerSession(extensionsDirectory) {
+  // Keep extension permissions and storage isolated from VisionHub's own renderer.
+  // Only source-site WebContentsViews share this persistent partition.
+  externalPlayerElectronSession = electronSession.fromPartition(EXTERNAL_PLAYER_PARTITION);
+  if (!extensionsDirectory) return;
+
+  let extensionPaths;
+  try {
+    extensionPaths = await discoverUnpackedExtensions(extensionsDirectory);
+  } catch (error) {
+    console.warn(
+      "Unable to discover configured external-player browser extensions:",
+      error instanceof Error ? error.message : error,
+    );
+    return;
+  }
+
+  if (extensionPaths.length === 0) {
+    console.warn("No unpacked browser extensions with manifest.json were found in DESKTOP_EXTENSIONS_DIR / desktop.extensionsDir.");
+    return;
+  }
+
+  for (const extensionPath of extensionPaths) {
+    try {
+      const extension = await externalPlayerElectronSession.extensions.loadExtension(extensionPath);
+      console.info("Loaded external-player browser extension:", extension.name, extension.id);
+    } catch (error) {
+      // One incompatible extension must not stop playback or the rest of the app.
+      console.warn(
+        "Unable to load external-player browser extension at " + extensionPath + ":",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
 }
 
 function installPackagedRendererProtocol(apiBaseUrl) {
@@ -487,23 +530,23 @@ app.whenReady().then(async () => {
     dialog.showErrorBox("外部播放源配置无效", message + "\\n\\n应用仍会启动，但外部源站播放已禁用。");
   }
 
-  if (!developmentUrl) {
-    let apiBaseUrl;
-    try {
-      apiBaseUrl = await loadDesktopApiBaseUrl();
-    } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : "Check configs/desktop.yaml or set DESKTOP_API_BASE_URL.";
-      dialog.showErrorBox(
-        "VisionHub desktop API configuration is invalid",
-        message + "\n\nThe desktop app will not silently use a fallback API endpoint.",
-      );
-      app.quit();
-      return;
-    }
-    installPackagedRendererProtocol(apiBaseUrl);
+  let desktopConfig;
+  try {
+    desktopConfig = await loadDesktopRuntimeConfig();
+  } catch (error) {
+    const message = error instanceof Error
+      ? error.message
+      : "Check configs/desktop.yaml or set DESKTOP_API_BASE_URL.";
+    dialog.showErrorBox(
+      "VisionHub desktop configuration is invalid",
+      message + "\n\nThe desktop app will not silently use a fallback configuration.",
+    );
+    app.quit();
+    return;
   }
+
+  await initializeExternalPlayerSession(desktopConfig.extensionsDir);
+  if (!developmentUrl) installPackagedRendererProtocol(desktopConfig.apiBaseUrl);
 
   ipcMain.handle("desktop:get-app-info", (event) => {
     if (!isTrustedRendererEvent(event)) {
