@@ -17,6 +17,20 @@ function originFrom(value) {
   }
 }
 
+function appOriginFrom(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol === "https:") return url.origin;
+    if (
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+    ) return url.origin;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function patternFor(origin) {
   return origin + "/*";
 }
@@ -37,7 +51,7 @@ async function getActiveTab() {
     throw new Error("无法读取当前浏览器标签页。");
   }
   activeTab = tab;
-  currentOrigin = originFrom(tab.url);
+  currentOrigin = appOriginFrom(tab.url);
   document.getElementById("current-origin").textContent = currentOrigin ?? "当前页面不是 HTTPS 站点";
   document.getElementById("trust-site").disabled = !currentOrigin;
 
