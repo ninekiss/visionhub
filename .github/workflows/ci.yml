@@ -56,7 +56,7 @@ jobs:
           PHYSICAL_KEEP_FULL: "4"
         run: |
           docker compose -f infra/compose.yaml config --quiet
-          docker compose -f infra/compose.yaml config --format json > /tmp/visionhub-compose-default.json
+          docker compose --profile tools -f infra/compose.yaml config --format json > /tmp/visionhub-compose-default.json
           node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-default.json', 'utf8')); if (c.services.postgres) throw new Error('PostgreSQL must remain opt-in'); if ((c.services.api.ports ?? []).length) throw new Error('API host port must remain unpublished by default'); if (!(c.services['db-tools'].profiles ?? []).includes('tools')) throw new Error('db-tools must remain an on-demand profile');"
           docker compose -f infra/compose.yaml -f infra/compose.database.yaml config --quiet
           docker compose -f infra/compose.yaml -f infra/compose.database.yaml config --format json > /tmp/visionhub-compose-database.json
