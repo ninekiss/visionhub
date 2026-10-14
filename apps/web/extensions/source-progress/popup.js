@@ -76,13 +76,6 @@ async function scanFrameOrigins(fromStorage = []) {
   };
 
   try {
-    const frames = await chrome.webNavigation.getAllFrames({ tabId: activeTab.id });
-    for (const frame of frames ?? []) add(frame.url);
-  } catch {
-    // Direct iframe URLs below are still available through the temporary activeTab grant.
-  }
-
-  try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: activeTab.id },
       func: () => Array.from(document.querySelectorAll("iframe"))
