@@ -229,7 +229,11 @@
       };
       restoreAttempted = false;
       postToParent({ type: "connected" });
-      for (const video of Array.from(document.querySelectorAll("video"))) attachVideo(video);
+      for (const video of Array.from(document.querySelectorAll("video"))) {
+        attachVideo(video);
+        tryRestore(video);
+        reportProgress(video, true);
+      }
       relayInitializationToChildren();
       return;
     }
