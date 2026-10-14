@@ -33,6 +33,10 @@ function isValidExternalPlayerRequestId(value) {
   return typeof value === "string" && /^[a-zA-Z0-9:._-]{1,160}$/.test(value);
 }
 
+function canShowExternalPlayer({ ready, visible, htmlFullscreen }) {
+  return ready === true && (htmlFullscreen === true || visible === true);
+}
+
 function validateExternalPlayerBounds(value) {
   if (!isRecord(value)) throw new TypeError("Invalid external-player bounds.");
   for (const key of ["x", "y", "width", "height"]) {
@@ -72,11 +76,23 @@ function createPlayerIsolationScript(playerSelector, readinessSelector) {
     }
     if (!target || target === document.documentElement || target === document.body) return false;
 
+    const isVisibleWithBounds = (element) => {
+      if (!(element instanceof Element) || !element.isConnected) return false;
+      const style = window.getComputedStyle(element);
+      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) <= 0) return false;
+      const rect = element.getBoundingClientRect();
+      return rect.width > 1 && rect.height > 1;
+    };
+    // Do not start the display grace period for a selector that merely exists
+    // in the DOM but is hidden, collapsed, or has not been laid out yet.
+    if (!isVisibleWithBounds(target) || !isVisibleWithBounds(readinessTarget)) return false;
+
     // A matched <video> element is not necessarily displaying a frame yet.
     const video = readinessTarget instanceof HTMLVideoElement
       ? readinessTarget
       : readinessTarget.querySelector?.("video");
     if (video && (
+      !isVisibleWithBounds(video) ||
       video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
       video.videoWidth <= 0 ||
       video.videoHeight <= 0
@@ -129,6 +145,7 @@ function providerOriginAllowed(urlValue, provider) {
 }
 
 module.exports = {
+  canShowExternalPlayer,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
