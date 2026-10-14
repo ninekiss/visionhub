@@ -26,7 +26,7 @@ The overlay adds only the API service to that external network. The network must
 
 ### Optional PostgreSQL service in Compose
 
-The database service is deliberately separate and is not started by the default Compose file. To opt in, set `POSTGRES_PASSWORD`, make the `DATABASE_URL_DOCKER` credentials/database match `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`, then start PostgreSQL by itself:
+The database service is deliberately separate and is not started by the default Compose file. To opt in, set `POSTGRES_PASSWORD`. This overlay explicitly points the API at `postgres:5432` and builds its connection URL from `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`, so a `DATABASE_URL_DOCKER` left over from another deployment mode is ignored. Host-side migration commands still use `DATABASE_URL`, which should point to `127.0.0.1:5433` by default. Use a URL-safe password (or percent-encode reserved characters when the URL is parsed), then start PostgreSQL by itself:
 
 ```sh
 docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up -d postgres
