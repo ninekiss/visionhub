@@ -1,6 +1,6 @@
 # VisionHub
 
-影视内容浏览与播放应用。Web 使用 React/Vite，API 使用 NestJS/Prisma；片库数据存储在现有 PostgreSQL 的独立 `visionhub` schema 中。Docker Compose 只托管 web/api，不创建数据库容器。Web 是长期保留、可独立部署的一等客户端；Electron 桌面端将与 Web 共享页面、UI 组件和 API 契约，不会替换 Web。
+影视内容浏览与播放应用。Web 使用 React/Vite，API 使用 NestJS/Prisma；片库数据存储在 PostgreSQL 的独立 `visionhub` schema 中。默认 Compose 只启动 web/api；可按需通过单独的 Compose 文件启动 PostgreSQL，或连接现有数据库网络。Web 是长期保留、可独立部署的一等客户端；Electron 桌面端与 Web 共享页面、UI 组件和 API 契约，不会替换 Web。
 
 ## 技术栈
 
@@ -10,7 +10,7 @@
 - Player：[Plyr](https://github.com/sampotts/plyr) + HTML5 video
 - Shared UI：`packages/ui` provides shared design tokens and Tailwind-based React primitives
 - Database：现有 PostgreSQL
-- Runtime：Docker Compose（仅应用服务，连接已存在的外部数据库网络）
+- Runtime：Docker Compose（应用服务默认启动；数据库容器和外部数据库网络均按需选择）
 
 ## 开发与部署配置
 
@@ -19,7 +19,7 @@
 | 场景 | Web | API 进程/容器端口 | 宿主机访问地址 |
 |---|---:|---:|---|
 | 本地开发 `pnpm dev` | 5173 | 3001 | Web: `http://localhost:5173`，API: `http://localhost:3001` |
-| Docker Compose | 容器 80 | 容器 3000 | Web: `http://localhost:8080`，API 可选映射为 `http://localhost:3000` |
+| Docker Compose | 容器 80 | 容器 3000（内部） | Web: `http://localhost:8080`；API 默认不发布端口，可通过独立 overlay 映射到 `127.0.0.1:3000` |
 
 配置文件分别是：
 
@@ -35,7 +35,7 @@
 
 ## 本地开发
 
-需要 Node.js 24.21.0（与仓库 `.nvmrc` 一致）、pnpm 12，以及已经运行且可访问的 PostgreSQL。
+需要 Node.js 24.21.0（与仓库 `.nvmrc` 一致）、pnpm 12，以及一个可访问的 PostgreSQL。可以使用已有实例，也可以按需启动 Compose 提供的本地数据库服务。
 
 1. 将 `.env.example` 复制为根目录的 `.env`，配置真实的数据库连接。
 2. 如果尚未初始化数据，在仓库根目录执行 `pnpm db:setup`。
@@ -86,13 +86,45 @@ pnpm --filter @visionhub/desktop test
 
 ## Docker Compose 部署
 
-配置 `.env` 中的 `EXISTING_DB_NETWORK`、`DATABASE_URL`、`DATABASE_URL_DOCKER`。数据库容器必须已经存在，并加入 `EXISTING_DB_NETWORK` 指定的网络。然后运行：
+先把 `.env.example` 复制为根目录 `.env`，再按实际数据库连接方式修改 `DATABASE_URL` 与 `DATABASE_URL_DOCKER`。配置里的数据库地址必须能从相应运行环境访问；从 API 容器访问数据库时，`localhost` 指的是 API 容器自身，而不是宿主机。
+
+### 默认方式：通过直连地址访问数据库
 
 ```powershell
-docker compose --env-file .env up --build -d
+docker compose --env-file .env -f infra/compose.yaml up --build -d
 ```
 
-Compose 只运行 Web 与 API，不会创建 PostgreSQL 容器。API 在容器内部固定监听 3000，默认发布到宿主机 3000；如要修改宿主机访问端口，只需更改 `API_PORT`，不影响容器内部 Nginx 的 `api:3000` 地址。Web 默认发布到宿主机 8080，可通过 `WEB_PORT` 调整。
+默认只启动 Web 与 API。Web 发布到 `WEB_PORT`（默认 8080），API 仅在 Compose 内部网络可访问。API 容器优先使用 `DATABASE_URL_DOCKER`，未设置时使用 `DATABASE_URL`。直连地址可以是 API 容器可访问的主机名或 IP，不要求存在独立的 Docker 数据网络。
+
+### 方式 A：加入已有 PostgreSQL 容器所在的数据网络
+
+在 `.env` 中设置实际的 `EXISTING_DB_NETWORK`，并将 `DATABASE_URL_DOCKER` 配置为该网络上可解析的数据库地址/别名：
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.existing-db-network.yaml up --build -d
+```
+
+此 overlay 只把 API 加入指定的外部网络；Web 仍只加入应用网络。如果数据库地址是可从应用容器直接访问的 IP/DNS，也可以不用这个 overlay。
+
+### 方式 B：按需启动 Compose PostgreSQL 容器
+
+默认不会创建或启动数据库容器。需要临时或独立运行 PostgreSQL 时，配置 `POSTGRES_PASSWORD`，并使 `DATABASE_URL_DOCKER` 的用户名、密码、数据库名与 `POSTGRES_*` 配置匹配，然后执行：
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.database.yaml up --build -d
+```
+
+数据库数据保存在名为 `postgres_data` 的 Docker volume 中。宿主机端口默认绑定到 `127.0.0.1:5433`，不对局域网或公网发布；API 容器通过 Compose 网络内的 `postgres:5432` 访问。需要在宿主机上运行 `pnpm db:setup` 时，将 `DATABASE_URL` 指向 `127.0.0.1:5433`。停用服务时使用同一组 `-f` 参数执行 `down`；不要删除该 volume，除非明确要销毁其中的数据。
+
+### 按需将 API 端口映射到宿主机
+
+默认不发布 API 端口。如果调试工具需要直接访问 API，可以额外加入：
+
+```powershell
+docker compose --env-file .env -f infra/compose.yaml -f infra/compose.api-published.yaml up --build -d
+```
+
+该映射只绑定到宿主机 loopback 地址 `127.0.0.1`。上面不同的 overlay 可以按需组合。Compose 文件位于 `infra/`，但相对构建路径和配置挂载已按仓库根目录调整。
 
 ## 管理后台
 
