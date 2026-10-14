@@ -9,7 +9,6 @@ const {
 } = require("./security.cjs");
 const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
 const {
-  createPlayerFullscreenScript,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
@@ -240,12 +239,6 @@ function fillExternalPlayerFullscreen(session) {
   const [width, height] = mainWindow.getContentSize();
   session.view.setBounds({ x: 0, y: 0, width, height });
   session.view.setVisible(true);
-  void session.view.webContents.executeJavaScript(
-    createPlayerFullscreenScript(session.provider.playerSelector, true),
-    false,
-  ).catch(() => {
-    // The source may leave fullscreen while the native view is resizing.
-  });
 }
 
 function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
@@ -324,12 +317,6 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
   });
   view.webContents.on("leave-html-full-screen", () => {
     session.htmlFullscreen = false;
-    void view.webContents.executeJavaScript(
-      createPlayerFullscreenScript(session.provider.playerSelector, false),
-      false,
-    ).catch(() => {
-      // The guest may already be navigating or closing.
-    });
     const bounds = session.bounds;
     view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
     view.setVisible(bounds.visible);
