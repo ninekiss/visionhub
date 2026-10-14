@@ -13,6 +13,8 @@ export interface PlaybackProvider {
   name: string;
   webEmbedUrlTemplate?: string;
   webOpenUrlTemplate?: string;
+  /** Source-player readiness timeout in milliseconds (default 60000). */
+  timeoutMs?: number;
 }
 
 export interface CatalogItem {
