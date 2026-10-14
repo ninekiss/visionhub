@@ -116,104 +116,6 @@ function createPlayerIsolationScript(playerSelector, readinessSelector) {
   })()`;
 }
 
-/**
- * Size the actual fullscreen element/video only while the guest page is in HTML fullscreen.
- * This is guest-content sizing, not a fullscreen overlay in the host React page.
- */
-function createPlayerFullscreenScript(playerSelector, active) {
-  if (!active) {
-    return `(() => {
-      const snapshots = window.__VisionHubFullscreenStyleSnapshots || [];
-      for (const entry of snapshots) {
-        if (!entry.element || !entry.element.style) continue;
-        for (const property of entry.properties) {
-          if (property.value) entry.element.style.setProperty(property.name, property.value, property.priority);
-          else entry.element.style.removeProperty(property.name);
-        }
-      }
-      delete window.__VisionHubFullscreenStyleSnapshots;
-      return true;
-    })()`;
-  }
-
-  const selector = JSON.stringify(playerSelector);
-  return `(() => {
-    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
-    let target = fullscreenElement;
-    if (!target) {
-      try { target = document.querySelector(${selector}); } catch { return false; }
-    }
-    if (!target || !target.style) return false;
-
-    const video = target.matches?.("video") ? target : target.querySelector?.("video");
-    const elements = video && video !== target ? [target, video] : [target];
-    const names = ["position", "inset", "width", "height", "max-width", "max-height", "margin", "z-index", "object-fit", "display"];
-    const documentElements = [document.documentElement, document.body].filter(Boolean);
-    const documentNames = ["position", "inset", "overflow", "overflow-x", "overflow-y", "width", "height", "min-width", "min-height", "margin", "padding"];
-    if (!window.__VisionHubFullscreenStyleSnapshots) window.__VisionHubFullscreenStyleSnapshots = [];
-    const snapshots = window.__VisionHubFullscreenStyleSnapshots;
-    for (const element of [...new Set([...elements, ...documentElements])]) {
-      if (snapshots.some((entry) => entry.element === element)) continue;
-      const properties = (documentElements.includes(element) ? documentNames : names).map((name) => ({
-        name,
-        value: element.style.getPropertyValue(name),
-        priority: element.style.getPropertyPriority(name)
-      }));
-      snapshots.push({ element, properties });
-    }
-
-    // Remove the guest page's document scrollbar before sizing the fullscreen
-    // player. Otherwise its scrollbar gutter can remain visible at the right
-    // edge and the video appears not to fill the native fullscreen viewport.
-    for (const element of documentElements) {
-      for (const [name, value] of [
-        ["position", "fixed"],
-        ["inset", "0"],
-        ["overflow", "hidden"],
-        ["overflow-x", "hidden"],
-        ["overflow-y", "hidden"],
-        ["width", "100vw"],
-        ["height", "100vh"],
-        ["min-width", "0"],
-        ["min-height", "0"],
-        ["margin", "0"],
-        ["padding", "0"]
-      ]) element.style.setProperty(name, value, "important");
-    }
-
-    for (const [name, value] of [
-      ["position", "fixed"],
-      ["inset", "0"],
-      ["width", "100vw"],
-      ["height", "100vh"],
-      ["max-width", "none"],
-      ["max-height", "none"],
-      ["margin", "0"],
-      ["z-index", "2147483647"]
-    ]) target.style.setProperty(name, value, "important");
-
-    if (video) {
-      // Size the video itself against the fullscreen viewport, not against a
-      // source-site wrapper that may retain max-width, aspect-ratio, grid, or
-      // flex constraints. Keep the source aspect ratio without stretching it.
-      for (const [name, value] of [
-        ["position", "fixed"],
-        ["inset", "0"],
-        ["display", "block"],
-        ["width", "100vw"],
-        ["height", "100vh"],
-        ["max-width", "none"],
-        ["max-height", "none"],
-        ["min-width", "0"],
-        ["min-height", "0"],
-        ["margin", "0"],
-        ["object-fit", "contain"]
-      ]) video.style.setProperty(name, value, "important");
-    }
-    return true;
-  })()`;
-}
-
 function providerOriginAllowed(urlValue, provider) {
   try {
     const url = new URL(urlValue);
@@ -227,7 +129,6 @@ function providerOriginAllowed(urlValue, provider) {
 }
 
 module.exports = {
-  createPlayerFullscreenScript,
   createPlayerIsolationScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
