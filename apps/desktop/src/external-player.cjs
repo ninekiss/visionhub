@@ -44,7 +44,9 @@ function validateExternalPlayerBounds(value) {
   const y = Math.round(value.y);
   const width = Math.round(value.width);
   const height = Math.round(value.height);
-  if (x < 0 || y < 0 || x > 20000 || y > 20000 ||
+  // Negative origins are valid for a child view partially scrolled beyond
+  // the renderer viewport. Electron clips the child view to its parent.
+  if (x < -20000 || y < -20000 || x > 20000 || y > 20000 ||
       width < 1 || height < 1 || width > 20000 || height > 20000) {
     throw new TypeError("External-player bounds are outside the accepted range.");
   }
