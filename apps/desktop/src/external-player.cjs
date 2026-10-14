@@ -149,7 +149,7 @@ function createPlayerFullscreenScript(playerSelector, active) {
     const elements = video && video !== target ? [target, video] : [target];
     const names = ["position", "inset", "width", "height", "max-width", "max-height", "margin", "z-index", "object-fit", "display"];
     const documentElements = [document.documentElement, document.body].filter(Boolean);
-    const documentNames = ["overflow", "overflow-x", "overflow-y", "width", "height", "margin", "padding"];
+    const documentNames = ["position", "inset", "overflow", "overflow-x", "overflow-y", "width", "height", "min-width", "min-height", "margin", "padding"];
     if (!window.__VisionHubFullscreenStyleSnapshots) window.__VisionHubFullscreenStyleSnapshots = [];
     const snapshots = window.__VisionHubFullscreenStyleSnapshots;
     for (const element of [...new Set([...elements, ...documentElements])]) {
@@ -167,11 +167,15 @@ function createPlayerFullscreenScript(playerSelector, active) {
     // edge and the video appears not to fill the native fullscreen viewport.
     for (const element of documentElements) {
       for (const [name, value] of [
+        ["position", "fixed"],
+        ["inset", "0"],
         ["overflow", "hidden"],
         ["overflow-x", "hidden"],
         ["overflow-y", "hidden"],
-        ["width", "100%"],
-        ["height", "100%"],
+        ["width", "100vw"],
+        ["height", "100vh"],
+        ["min-width", "0"],
+        ["min-height", "0"],
         ["margin", "0"],
         ["padding", "0"]
       ]) element.style.setProperty(name, value, "important");
@@ -189,12 +193,20 @@ function createPlayerFullscreenScript(playerSelector, active) {
     ]) target.style.setProperty(name, value, "important");
 
     if (video) {
+      // Size the video itself against the fullscreen viewport, not against a
+      // source-site wrapper that may retain max-width, aspect-ratio, grid, or
+      // flex constraints. Keep the source aspect ratio without stretching it.
       for (const [name, value] of [
+        ["position", "fixed"],
+        ["inset", "0"],
         ["display", "block"],
-        ["width", "100%"],
-        ["height", "100%"],
-        ["max-width", "100%"],
-        ["max-height", "100%"],
+        ["width", "100vw"],
+        ["height", "100vh"],
+        ["max-width", "none"],
+        ["max-height", "none"],
+        ["min-width", "0"],
+        ["min-height", "0"],
+        ["margin", "0"],
         ["object-fit", "contain"]
       ]) video.style.setProperty(name, value, "important");
     }
