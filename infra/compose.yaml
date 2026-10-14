@@ -80,6 +80,7 @@ services:
       context: ..
       dockerfile: deploy/db-tools.Dockerfile
     entrypoint: ["node", "scripts/backup-scheduler.mjs"]
+    command: []
     environment:
       DATABASE_URL: ${DATABASE_URL_DOCKER:-${DATABASE_URL:?Set DATABASE_URL or DATABASE_URL_DOCKER}}
       VISIONHUB_BACKUP_DIR: /backups
