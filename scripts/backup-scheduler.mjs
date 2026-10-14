@@ -149,7 +149,6 @@ async function encryptArchive(sourceDirectory, members, targetPath) {
     "--encrypt",
     ...AGE_RECIPIENTS.flatMap((recipient) => ["--recipient", recipient]),
     "--output", targetPath,
-    "-",
   ];
   // Only public recipients are supplied to age. The private identity never
   // enters the cloud VM or the upload container.
