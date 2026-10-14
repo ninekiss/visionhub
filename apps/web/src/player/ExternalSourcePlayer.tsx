@@ -38,16 +38,18 @@ function createExternalPlayerRequestId(retryNonce: number): string {
 
 function getVisibleBounds(element: HTMLDivElement) {
   const rect = element.getBoundingClientRect();
-  const left = Math.max(0, rect.left);
-  const top = Math.max(0, rect.top);
-  const right = Math.min(window.innerWidth, rect.right);
-  const bottom = Math.min(window.innerHeight, rect.bottom);
-  const visible = right > left && bottom > top;
+  const visible = rect.right > 0 &&
+    rect.bottom > 0 &&
+    rect.left < window.innerWidth &&
+    rect.top < window.innerHeight;
+  // Keep the native view at the element's full size. The parent content view
+  // clips the portion outside the renderer viewport; shrinking to the visible
+  // intersection makes the video itself scale down while the page scrolls.
   return {
-    x: visible ? left : 0,
-    y: visible ? top : 0,
-    width: visible ? right - left : 1,
-    height: visible ? bottom - top : 1,
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
     visible,
   };
 }
