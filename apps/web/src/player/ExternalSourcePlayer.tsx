@@ -60,7 +60,7 @@ function getVisibleBounds(element: HTMLDivElement) {
   };
 }
 
-export default function ExternalSourcePlayer({ source, provider, title }: Props) {
+export default function ExternalSourcePlayer({ source, provider, title, initialTime = 0, onProgress }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<Status>('loading');
