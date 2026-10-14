@@ -49,7 +49,10 @@ test("bounds reject malformed and absurd coordinates and preserve explicit visib
   assert.deepEqual(validateExternalPlayerBounds({ x: 0, y: 0, width: 1, height: 1, visible: false }), {
     x: 0, y: 0, width: 1, height: 1, visible: false,
   });
-  assert.throws(() => validateExternalPlayerBounds({ x: -1, y: 0, width: 1, height: 1 }), /accepted range/);
+  assert.deepEqual(validateExternalPlayerBounds({ x: -120, y: -40, width: 500, height: 280 }), {
+    x: -120, y: -40, width: 500, height: 280, visible: true,
+  });
+  assert.throws(() => validateExternalPlayerBounds({ x: -20001, y: 0, width: 1, height: 1 }), /accepted range/);
   assert.throws(() => validateExternalPlayerBounds({ x: 0, y: 0, width: NaN, height: 1 }), /finite numbers/);
 });
 
