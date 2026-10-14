@@ -1,5 +1,45 @@
 const STORAGE_KEY = "visionHubDiscoveredOriginsByApp";
 
+const ENABLED_SOURCE_ORIGINS_KEY = "visionHubEnabledSourceOrigins";
+
+function sourceScriptIdFor(origin) {
+  return "vh-source-progress-" + origin.replace(/[^a-zA-Z0-9]/g, "-");
+}
+
+async function refreshRegisteredSourceScripts() {
+  const stored = await chrome.storage.local.get(ENABLED_SOURCE_ORIGINS_KEY);
+  const enabledOrigins = Array.isArray(stored[ENABLED_SOURCE_ORIGINS_KEY])
+    ? stored[ENABLED_SOURCE_ORIGINS_KEY]
+    : [];
+  for (const value of enabledOrigins) {
+    const origin = normalizedSourceOrigin(value);
+    if (!origin) continue;
+    const pattern = origin + "/*";
+    const allowed = await chrome.permissions.contains({ origins: [pattern] }).catch(() => false);
+    if (!allowed) continue;
+
+    const id = sourceScriptIdFor(origin);
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [id] });
+    if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: [id] });
+    await chrome.scripting.registerContentScripts([{
+      id,
+      matches: [pattern],
+      css: ["player-only.css"],
+      js: ["content.js"],
+      allFrames: true,
+      runAt: "document_idle",
+      persistAcrossSessions: true,
+    }]);
+  }
+}
+
+// Upgrade registrations after unpacked-extension reloads or extension updates,
+// so existing grants pick up the player-only stylesheet without reauthorization.
+chrome.runtime.onInstalled.addListener(() => {
+  void refreshRegisteredSourceScripts().catch(() => {});
+});
+
+
 function normalizedSourceOrigin(value) {
   try {
     const url = new URL(value);
