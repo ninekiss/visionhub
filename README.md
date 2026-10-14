@@ -182,7 +182,7 @@ docker compose --env-file .env --profile backup -f infra/compose.yaml run --rm b
 docker compose --env-file .env --profile backup -f infra/compose.yaml logs -f --tail=100 backup
 ```
 
-云端建议把 `BACKUP_HOST_DIR` 指向持久磁盘，并配置 `BACKUP_REMOTE=cloud:bucket/visionhub` 与 S3 兼容存储凭据，将备份复制到异地对象存储。完整配置和安全注意事项见 [云端自动备份说明](docs/DEPLOYMENT.md#cloud-deployment-automated-backup-container)。
+云端建议把 `BACKUP_HOST_DIR` 指向持久磁盘，并配置 `BACKUP_REMOTE=cloud:bucket/visionhub` 与 S3 兼容存储凭据，将备份复制到异地对象存储。启用远程上传时必须同时配置 `BACKUP_AGE_RECIPIENTS`：在可信机器离线生成 age 密钥对，只将 `age1...` 公钥放到云端，私钥保留在离线恢复位置；否则上传会失败并拒绝传输明文。完整配置、解密恢复和迁移旧明文备份的注意事项见 [云端自动备份说明](docs/DEPLOYMENT.md#cloud-deployment-automated-backup-container)。
 
 
 ### 按需将 API 端口映射到宿主机
