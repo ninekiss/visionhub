@@ -35,6 +35,8 @@ COPY scripts scripts
 
 RUN pnpm --filter @visionhub/api db:generate \
     && node --check scripts/db-tools.mjs \
+    && node --check scripts/backup-alerts.mjs \
+    && node --check scripts/backup-alerts.test.mjs \
     && node --check scripts/backup-scheduler.mjs
 
 ENV VISIONHUB_BACKUP_DIR=/backups
