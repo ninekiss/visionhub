@@ -4,6 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { access, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sanitizeAlertMessage, sendBackupAlert } from "./backup-alerts.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TOOLS = path.join(ROOT, "scripts", "db-tools.mjs");
@@ -17,6 +18,8 @@ const RETRY_MINUTES = Number.parseInt(process.env.BACKUP_RETRY_MINUTES || "15", 
 const REMOTE = (process.env.BACKUP_REMOTE || "").replace(/\/+$/, "");
 const AGE_RECIPIENTS = (process.env.BACKUP_AGE_RECIPIENTS || "").split(/[\s,]+/).map((value) => value.trim()).filter(Boolean);
 const ONCE = process.argv.includes("--once");
+const ALERT_WEBHOOK_ENABLED = Boolean((process.env.BACKUP_ALERT_WEBHOOK_URL || "").trim());
+let currentPhase = "scheduled_backup";
 
 if (!["managed", "direct", "network"].includes(MODE)) {
   throw new Error("BACKUP_DATABASE_MODE must be managed, direct, or network.");
@@ -38,6 +41,19 @@ const dateFormatter = new Intl.DateTimeFormat("en-CA", {
   hourCycle: "h23",
 });
 
+function normalizeLastFailure(value) {
+  if (!value || typeof value !== "object" || typeof value.phase !== "string") return null;
+  return {
+    phase: value.phase,
+    occurredAt: typeof value.occurredAt === "string" ? value.occurredAt : "",
+    message: sanitizeAlertMessage(value.message ?? ""),
+    consecutiveFailures: Number.isInteger(value.consecutiveFailures) && value.consecutiveFailures > 0
+      ? value.consecutiveFailures
+      : 1,
+    backupDate: typeof value.backupDate === "string" ? value.backupDate : "",
+  };
+}
+
 function nowParts(date = new Date()) {
   const result = {};
   for (const part of dateFormatter.formatToParts(date)) {
@@ -57,6 +73,7 @@ async function readState() {
       encryptionVersion: state.encryptionVersion === 1 ? 1 : 0,
       uploadedLogicalIds: Array.isArray(state.uploadedLogicalIds) ? state.uploadedLogicalIds.filter((value) => typeof value === "string") : [],
       uploadedPhysicalIds: Array.isArray(state.uploadedPhysicalIds) ? state.uploadedPhysicalIds.filter((value) => typeof value === "string") : [],
+      lastFailure: normalizeLastFailure(state.lastFailure),
     };
   } catch (error) {
     if (error && error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
@@ -66,6 +83,7 @@ async function readState() {
       encryptionVersion: 0,
       uploadedLogicalIds: [],
       uploadedPhysicalIds: [],
+      lastFailure: null,
     };
   }
 }
@@ -118,11 +136,14 @@ async function hasPhysicalFullBackup() {
 
 async function createLocalBackups(parts) {
   console.log("Starting VisionHub backup for " + parts.date + " (" + MODE + ", " + TIME_ZONE + ").");
+  currentPhase = "logical_backup";
   runDbTool("logical-backup");
 
   if (MODE === "managed") {
+    currentPhase = "physical_backup_preflight";
     runDbTool("physical-init");
     const makeFull = !(await hasPhysicalFullBackup()) || parts.weekday === "Sun";
+    currentPhase = makeFull ? "physical_backup_full" : "physical_backup_incremental";
     runDbTool(makeFull ? "physical-backup-full" : "physical-backup-incr");
   }
 
@@ -261,6 +282,7 @@ async function uploadPendingCategory(category, state, stateKey) {
       continue;
     }
     const destination = REMOTE + "/encrypted/" + category + "/" + archiveName;
+    currentPhase = "remote_upload_" + category;
     // copyto does not delete unrelated remote objects. Upload only authenticated
     // age-encrypted archives; never pass the plaintext backup directories to rclone.
     run("rclone", ["copyto", archivePath, destination, "--log-level", "INFO"]);
@@ -274,6 +296,7 @@ async function uploadPendingCategory(category, state, stateKey) {
 
 async function uploadOffsiteBackups(state) {
   if (!REMOTE) return;
+  currentPhase = "offsite_backup_prepare";
   // Encryption happens before rclone can see the backup payload. Failed uploads
   // leave only encrypted pending artifacts for retry; private identities never
   // enter the container. The new "encrypted" prefix also avoids overwriting
@@ -290,10 +313,12 @@ async function uploadOffsiteBackups(state) {
 async function runDailyJob(force = false) {
   const parts = nowParts();
   const state = await readState();
+  currentPhase = "prepare_backup";
 
   if (force || state.localBackupDate !== parts.date) {
     await createLocalBackups(parts);
     state.localBackupDate = parts.date;
+    currentPhase = "persist_local_backup_state";
     await saveState(state);
   } else {
     console.log("Local backup already succeeded today (" + parts.date + "); skipping duplicate creation.");
@@ -308,16 +333,81 @@ async function runDailyJob(force = false) {
   } else {
     console.log("Off-site backup upload already succeeded for " + state.remoteUploadDate + ".");
   }
+
+  await reportRecoveryIfNeeded(state);
+  currentPhase = "idle";
 }
 
 async function tick() {
   const parts = nowParts();
-  if (parts.time < SCHEDULE_TIME) return;
   const state = await readState();
   const localPending = state.localBackupDate !== parts.date;
   const remotePending = Boolean(REMOTE) && (state.remoteUploadDate !== state.localBackupDate || state.encryptionVersion !== 1);
   if (!localPending && !remotePending) return;
+  // A persisted failure can be retried immediately after a process/container restart,
+  // even when the daily schedule time has not yet arrived.
+  if (parts.time < SCHEDULE_TIME && !state.lastFailure) return;
   await runDailyJob(false);
+}
+
+async function reportRecoveryIfNeeded(state) {
+  const previousFailure = state.lastFailure;
+  if (!previousFailure) return;
+
+  const previousOffsiteFailure =
+    previousFailure.phase.startsWith("offsite_") ||
+    previousFailure.phase.startsWith("remote_upload_");
+  const offsiteHealthy = REMOTE
+    ? state.remoteUploadDate === state.localBackupDate && state.encryptionVersion === 1
+    : !previousOffsiteFailure;
+  if (!state.localBackupDate || !offsiteHealthy) return;
+
+  state.lastFailure = null;
+  currentPhase = "persist_recovery_state";
+  await saveState(state);
+  await sendBackupAlert("backup_recovered", {
+    mode: MODE,
+    phase: previousFailure.phase,
+    message: `Backup recovered after ${previousFailure.consecutiveFailures} failed attempt(s).`,
+    consecutiveFailures: previousFailure.consecutiveFailures,
+    retryMinutes: RETRY_MINUTES,
+    failedAt: previousFailure.occurredAt,
+  });
+}
+
+async function recordFailure(error) {
+  const parts = nowParts();
+  const message = sanitizeAlertMessage(error instanceof Error ? error.message : String(error));
+  console.error("Backup attempt failed: " + message);
+
+  let consecutiveFailures = 1;
+  const occurredAt = new Date().toISOString();
+  try {
+    const state = await readState();
+    consecutiveFailures = state.lastFailure?.backupDate === parts.date
+      ? state.lastFailure.consecutiveFailures + 1
+      : 1;
+    state.lastFailure = {
+      phase: currentPhase,
+      occurredAt,
+      message,
+      consecutiveFailures,
+      backupDate: parts.date,
+    };
+    await saveState(state);
+  } catch (stateError) {
+    console.error("Could not persist backup failure state: " + sanitizeAlertMessage(stateError instanceof Error ? stateError.message : String(stateError)));
+  }
+
+  const offsiteFailure = currentPhase.startsWith("offsite_") || currentPhase.startsWith("remote_upload_");
+  await sendBackupAlert(offsiteFailure ? "remote_upload_failure" : "backup_failure", {
+    mode: MODE,
+    phase: currentPhase,
+    message,
+    consecutiveFailures,
+    retryMinutes: RETRY_MINUTES,
+    occurredAt,
+  });
 }
 
 async function main() {
@@ -333,6 +423,7 @@ async function main() {
   console.log("VisionHub backup scheduler started.");
   console.log("Mode: " + MODE + "; daily time: " + SCHEDULE_TIME + "; timezone: " + TIME_ZONE + "; retry interval: " + RETRY_MINUTES + " minutes.");
   console.log(REMOTE ? "Off-site destination configured: " + REMOTE : "Off-site destination not configured; backups remain on the host volume.");
+  console.log("Backup alerts: " + (ALERT_WEBHOOK_ENABLED ? "webhook configured." : "webhook not configured."));
   console.log("A missed schedule is caught up after startup; failed runs are retried.");
 
   let retryAt = 0;
@@ -344,7 +435,7 @@ async function main() {
         await tick();
         retryAt = 0;
       } catch (error) {
-        console.error("Backup attempt failed: " + (error instanceof Error ? error.stack || error.message : String(error)));
+        await recordFailure(error);
         retryAt = Date.now() + RETRY_MINUTES * 60_000;
         console.error("Retrying in " + RETRY_MINUTES + " minutes.");
       }
@@ -355,7 +446,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error("Backup scheduler failed: " + (error instanceof Error ? error.stack || error.message : String(error)));
+main().catch(async (error) => {
+  await recordFailure(error);
   process.exitCode = 1;
 });
