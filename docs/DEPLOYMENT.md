@@ -1,5 +1,7 @@
 # Deployment, database maintenance and backups
 
+For webhook alert setup and tested disaster-recovery procedures, see the [Backup Alerting and Disaster Recovery Runbook](BACKUP-RECOVERY.md).
+
 ## Database modes
 
 Copy `.env.example` to the repository-root `.env`. The one-shot `db-tools` service is in the `tools` profile: it is not started by ordinary `docker compose up`, and has no published ports.
