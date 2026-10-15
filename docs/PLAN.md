@@ -474,7 +474,7 @@ Exit criteria:
 
 ### Phase 6 — Deployment layout and operational hardening
 
-**Scope: configuration-driven deployment for every database connection mode.** The existing PostgreSQL remains the default. Direct host/IP connections and an existing Docker database network must both work. A Compose-managed PostgreSQL service is optional and must not start unless its separate overlay is explicitly included.
+**Scope: configuration-driven deployment for every database connection mode.** The existing PostgreSQL remains the default. Direct host/IP connections and an existing Docker database network are both user-accepted. A Compose-managed PostgreSQL service is optional and must not start unless its separate overlay is explicitly included. Logical and PostgreSQL 18 full/incremental physical backup/restore flows, plus Discord/Telegram alert delivery, are user-accepted.
 
 Implementation:
 - [x] Move the base application Compose file to `infra/compose.yaml` and update build/mount paths.
@@ -492,9 +492,9 @@ Implementation:
 - [x] Add a Cloudflare Worker alert receiver compatible with the original VisionHub backup-scheduler JSON payload; default to Discord and allow explicit `platform=discord` / `platform=telegram` selection.
 - [x] Preserve the existing `BACKUP_ALERT_WEBHOOK_URL` and `BACKUP_ALERT_WEBHOOK_TOKEN` integration; document Worker secrets, deployment, payload mapping, and manual verification in [`docs/CLOUDFLARE-BACKUP-ALERTS.md`](./CLOUDFLARE-BACKUP-ALERTS.md).
 - [x] Link the Cloudflare alert guide and Worker example from [`docs/BACKUP-RECOVERY.md`](./BACKUP-RECOVERY.md); implementation and documentation are merged via [PR #48](https://github.com/ninekiss/visionhub/pull/48).
-- [ ] Deploy the Worker and run the original VisionHub backup alert test end-to-end; verify the default Discord delivery and explicit Telegram delivery, and record the results without exposing tokens or webhook URLs.
-- [ ] Exercise one direct-address deployment and one external-network deployment against a representative PostgreSQL instance before calling deployment acceptance complete.
-- [ ] Run and record logical and full/incremental physical backup/restore tests against a disposable PostgreSQL 18 database. The implementation and test commands are present, but runtime acceptance remains pending.
+- [x] User acceptance confirmed: deployed the Worker and ran the original VisionHub backup alert test end-to-end; default Discord delivery and explicit Telegram delivery passed. Do not record tokens or webhook URLs.
+- [x] User acceptance confirmed: direct-address deployment and external Docker-network deployment both passed against PostgreSQL.
+- [x] User acceptance confirmed: logical backup/restore and PostgreSQL 18 full/incremental physical backup/restore passed against a disposable database.
 
 Exit criteria:
 - The default Compose file starts Web/API only; the database service is started only when its overlay is selected.
@@ -539,7 +539,7 @@ Every phase should meet these gates before merge:
 3. **P4.4 Windows interactive acceptance passed (2026-10-13).** macOS-specific menu, lifecycle, and display-restoration checks are deferred until a Mac is available.
 4. **P4.5 is intentionally deferred.** Do not start macOS ARM64 packaging, signing, notarization or GitHub Release automation until the user explicitly reactivates this phase. On reactivation, revalidate the toolchain and runner before following the recorded release plan.
 5. **P5.4 acceptance is complete (2026-10-14).** Preserve the documented codec/container limitations; do not repeat the accepted playback checklist unless a regression is introduced.
-6. **Phase 6 is active.** Base Compose runs only Web/API; choose a direct database address, the existing data-network overlay, or the opt-in PostgreSQL overlay. The two database overlays are alternatives; the API port overlay is independent. Verify the chosen deployment against a real/disposable database before treating operations acceptance as complete.
-7. **Backup alert delivery is implemented but not yet runtime-accepted.** PR #48 adds `examples/cloudflare/visionhub-alert-worker.js` and `docs/CLOUDFLARE-BACKUP-ALERTS.md`; the Worker defaults to Discord, accepts explicit Discord/Telegram selection, and maps the existing backup alert JSON fields. Next, deploy it with Cloudflare secrets and run a real end-to-end alert test.
+6. **Phase 6 operational acceptance is complete.** Base Compose runs only Web/API; direct database-address and existing data-network deployment modes have been accepted, as have logical backup/restore, PostgreSQL 18 full/incremental physical backup/restore, and Discord/Telegram alert delivery. Keep the opt-in PostgreSQL overlay and API port overlay explicit; do not start the optional database service by default.
+7. **Backup alert delivery is accepted.** PR #48 adds `examples/cloudflare/visionhub-alert-worker.js` and `docs/CLOUDFLARE-BACKUP-ALERTS.md`; user confirmed end-to-end alert acceptance for default Discord and explicit Telegram delivery.
 
 Do not start the optional database container by default, add a worker, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
