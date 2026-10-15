@@ -343,7 +343,12 @@ async function tick() {
   const state = await readState();
   const localPending = state.localBackupDate !== parts.date;
   const remotePending = Boolean(REMOTE) && (state.remoteUploadDate !== state.localBackupDate || state.encryptionVersion !== 1);
-  if (!localPending && !remotePending) return;
+  if (!localPending && !remotePending) {
+    // A completed job may only need its persisted failure marker cleared after a
+    // restart (for example, if a previous state-file write was interrupted).
+    if (state.lastFailure) await reportRecoveryIfNeeded(state);
+    return;
+  }
   // A persisted failure can be retried immediately after a process/container restart,
   // even when the daily schedule time has not yet arrived.
   if (parts.time < SCHEDULE_TIME && !state.lastFailure) return;
@@ -384,7 +389,7 @@ async function recordFailure(error) {
   const occurredAt = new Date().toISOString();
   try {
     const state = await readState();
-    consecutiveFailures = state.lastFailure?.backupDate === parts.date
+    consecutiveFailures = state.lastFailure
       ? state.lastFailure.consecutiveFailures + 1
       : 1;
     state.lastFailure = {
