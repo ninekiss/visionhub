@@ -2,6 +2,7 @@ const EVENT_META = {
   backup_failure: { severity: "error", label: "VisionHub backup failed" },
   remote_upload_failure: { severity: "error", label: "VisionHub off-site backup failed" },
   backup_recovered: { severity: "info", label: "VisionHub backup recovered" },
+  backup_alert_test: { severity: "info", label: "VisionHub backup alert test" },
 };
 
 export function sanitizeAlertMessage(value) {
