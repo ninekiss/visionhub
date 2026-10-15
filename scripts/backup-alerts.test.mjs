@@ -8,9 +8,9 @@ import {
 
 test("sanitizes database URLs, web URLs, and secret assignments", () => {
   const value = sanitizeAlertMessage(
-    "connect failed postgresql://app:supersecret@db:5432/visionhub?schema=visionhub password=anothersecret https://host.example/private/token?x=1",
+    "connect failed postgresql://app:supersecret@db:5432/visionhub?schema=visionhub password=anothersecret RCLONE_CONFIG_CLOUD_SECRET_ACCESS_KEY=cloudsecret Authorization: Bearer bearer-secret https://host.example/private/token?x=1",
   );
-  assert.doesNotMatch(value, /supersecret|anothersecret|private\/token|schema=visionhub/);
+  assert.doesNotMatch(value, /supersecret|anothersecret|cloudsecret|bearer-secret|private\/token|schema=visionhub/);
   assert.match(value, /postgresql:\/\/\[redacted\]/);
   assert.match(value, /password=\[redacted\]/);
   assert.match(value, /https:\/\/host\.example\/\[redacted-url\]/);
