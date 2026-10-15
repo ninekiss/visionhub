@@ -39,6 +39,15 @@ test("builds a structured recovery payload compatible with common webhook shapes
   assert.match(payload.text, /VisionHub backup recovered/);
 });
 
+test("manual alert diagnostic event is informational", () => {
+  const payload = buildBackupAlertPayload("backup_alert_test", {
+    phase: "manual_test",
+    message: "Manual test notification",
+  });
+  assert.equal(payload.event, "backup_alert_test");
+  assert.equal(payload.severity, "info");
+});
+
 test("posts JSON with optional bearer token without exposing credentials in the body", async () => {
   let captured;
   const result = await sendBackupAlert(
