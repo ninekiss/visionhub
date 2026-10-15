@@ -73,9 +73,9 @@ The isolated restore test reconstructs the chain, runs pg_verifybackup, starts a
 2. Restore the backup directory from the R2 objects using a trusted recovery environment. The private age identity should be mounted read-only only into the container performing decryption; never bake it into the image or copy it to the cloud backup service.
 3. Decrypt the chosen full archive and every incremental in its parent chain. Keep the directory structure unchanged beneath /backups/physical.
 4. Run physical-list and physical-restore-test latest. Do not proceed if either fails.
-5. Stop the API and managed PostgreSQL service before replacing data. Take a snapshot/copy of the current target volume first if any target data needs to be preserved:
+5. Stop the scheduler, API and managed PostgreSQL service before replacing data. Take a snapshot/copy of the current target volume first if any target data needs to be preserved:
 
-    docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml stop api postgres
+    docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml stop backup api postgres
     docker compose --env-file .env --profile tools -f infra/compose.yaml -f infra/compose.database.yaml run --rm --no-deps db-tools physical-restore latest --apply --yes
 
 6. Start PostgreSQL alone and verify database logs/health before starting the API:
