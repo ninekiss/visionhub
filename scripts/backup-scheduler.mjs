@@ -18,6 +18,7 @@ const RETRY_MINUTES = Number.parseInt(process.env.BACKUP_RETRY_MINUTES || "15", 
 const REMOTE = (process.env.BACKUP_REMOTE || "").replace(/\/+$/, "");
 const AGE_RECIPIENTS = (process.env.BACKUP_AGE_RECIPIENTS || "").split(/[\s,]+/).map((value) => value.trim()).filter(Boolean);
 const ONCE = process.argv.includes("--once");
+const TEST_ALERT = process.argv.includes("--test-alert");
 const ALERT_WEBHOOK_ENABLED = Boolean((process.env.BACKUP_ALERT_WEBHOOK_URL || "").trim());
 let currentPhase = "scheduled_backup";
 
@@ -420,6 +421,18 @@ async function main() {
   const parts = nowParts();
   await mkdir(BACKUP_ROOT, { recursive: true });
 
+  if (TEST_ALERT) {
+    if (!ALERT_WEBHOOK_ENABLED) throw new Error("BACKUP_ALERT_WEBHOOK_URL is not configured.");
+    const result = await sendBackupAlert("backup_alert_test", {
+      mode: MODE,
+      phase: "manual_test",
+      message: "Manual test alert from the VisionHub backup scheduler.",
+    });
+    if (!result.delivered) throw new Error("Webhook test notification was not delivered; check the alert logs.");
+    console.log("BACKUP_ALERT_TEST_OK");
+    return;
+  }
+
   if (ONCE) {
     await runDailyJob(true);
     return;
@@ -452,6 +465,11 @@ async function main() {
 }
 
 main().catch(async (error) => {
+  if (TEST_ALERT) {
+    console.error("Backup alert test failed: " + sanitizeAlertMessage(error instanceof Error ? error.message : String(error)));
+    process.exitCode = 1;
+    return;
+  }
   await recordFailure(error);
   process.exitCode = 1;
 });
