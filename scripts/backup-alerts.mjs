@@ -7,7 +7,7 @@ const EVENT_META = {
 export function sanitizeAlertMessage(value) {
   return String(value ?? "Unknown error")
     .replace(/\bpostgres(?:ql)?:\/\/[^\s"'\x60<>]+/gi, "postgresql://[redacted]")
-    .replace(/\b(password|secret|token|access[_ -]?key|session[_ -]?token)\b(\s*[:=]\s*)[^\s,;]+/gi, "$1$2[redacted]")
+    .replace(/\b([A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET(?:_ACCESS)?_KEY|ACCESS_KEY_ID|SESSION_TOKEN|TOKEN|AUTHORIZATION))\b(\s*[:=]\s*)(?:Bearer\s+)?[^\s,;]+/gi, "$1$2[redacted]")
     .replace(/https?:\/\/[^\s"'\x60<>]+/gi, (match) => {
       try {
         const parsed = new URL(match);
