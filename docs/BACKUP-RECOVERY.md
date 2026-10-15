@@ -113,3 +113,7 @@ The physical-restore ... --apply --yes command is destructive: it replaces the m
 - [ ] Verify the selected logical dump or full/incremental chain in an isolated instance.
 - [ ] Do not delete parent physical backups or run destructive restore commands until the recovery target and plan are reviewed.
 - [ ] After recovery, confirm a backup_recovered event and create a fresh verified off-site backup.
+
+## Cloudflare Worker adapter
+
+For a ready-to-deploy Cloudflare Worker that accepts this runbook's JSON webhook payload and forwards alerts to Discord or Telegram, see [Cloudflare Worker setup](CLOUDFLARE-BACKUP-ALERTS.md). The Worker source is in [`examples/cloudflare/visionhub-alert-worker.js`](../examples/cloudflare/visionhub-alert-worker.js).
