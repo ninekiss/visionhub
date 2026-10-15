@@ -8,6 +8,7 @@ async function bootstrap(): Promise<void> {
   // Validate runtime configuration before initializing application services or connecting to PostgreSQL.
   const config = await loadAppConfig();
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
 
   const globalPrefix = config.app.basePath.replace(/^\/+|\/+$/g, "");
   if (globalPrefix) app.setGlobalPrefix(globalPrefix);

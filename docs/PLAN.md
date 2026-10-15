@@ -12,7 +12,7 @@ VisionHub is intended to become a desktop-first media browsing and playback appl
 Core constraints:
 
 1. Use stable versions and verify compatibility before upgrades. Do not upgrade solely to maximize version numbers.
-2. Reuse the existing PostgreSQL service. Compose must not create, own, or automatically replace the database container.
+2. Reuse the existing PostgreSQL service by default. The Compose PostgreSQL service is opt-in only, never replaces an existing service, and never starts or migrates automatically.
 3. Keep operational configuration outside business code. Validate required configuration at startup and fail with an actionable error rather than silently accepting malformed configuration.
 4. Keep Plyr as the player UI. Add protocol adapters such as HTML5 and HLS as needed; do not treat Plyr as a video decoder.
 5. Keep Web as a first-class, independently deployable client. Electron is an additional client, never a replacement for Web.
@@ -30,7 +30,7 @@ The following status is based on the repository code and lockfile on 2026-10-14.
 | Styling | Tailwind CSS 4.3.3, shared `packages/ui` tokens/primitives, and completed planned Phase 3 migration slices | Phase 3 browser regression sign-off recorded on 2026-10-13; feature-specific CSS remains where it serves page/player-specific behavior |
 | API | NestJS 12.1.2; catalog and admin routes | Implemented foundation |
 | Database | Prisma 7.10.0 and PostgreSQL; data lives in the separate `visionhub` schema | Implemented foundation |
-| Database ownership | Compose has API and web services only; PostgreSQL is reached through an external Docker network | Aligned |
+| Database connectivity | Use a direct database host/IP or join an existing Docker data network; an optional Compose PostgreSQL service is available only through an explicit overlay | Multiple connection modes; no external network is required for a directly reachable address |
 | Data changes | Explicit migration and seed commands; no migration on ordinary API startup | Aligned with safety constraint |
 | Runtime baseline | Node.js 24.21.0 is pinned in `.nvmrc`, CI and Docker build stages; package engine requires `>=24.21.0 <25` | Verified in CI; aligned |
 | Package manager | pnpm 12.11.2 with a committed lockfile | Implemented; retain reproducible installs |
@@ -103,7 +103,10 @@ visionhub/
 │   ├── secrets.yaml          # Optional secret file; never committed
 │   └── desktop.yaml          # Desktop API endpoint; independent of API settings
 ├── infra/
-│   └── compose.yaml          # Application services only; external database network
+│   ├── compose.yaml          # Default Web/API services, no database or published API port
+│   ├── compose.database.yaml # Opt-in local PostgreSQL service
+│   ├── compose.existing-db-network.yaml # Opt-in existing PostgreSQL network
+│   └── compose.api-published.yaml # Opt-in host API port for local access
 ├── .gitignore
 ├── pnpm-workspace.yaml
 └── README.md
@@ -148,24 +151,29 @@ The existing environment-specific YAML files and `.env.example` are a starting p
 
 ## 6. Deployment and existing database boundary
 
-Target deployment remains intentionally small:
+Deployment defaults to using the existing PostgreSQL instance. Database connectivity is configurable for every application environment, with three supported deployment choices:
 
-- Compose runs application services only: API and, where needed, the web frontend/reverse proxy.
-- No PostgreSQL or Redis service is added to Compose.
-- The API uses the hostname or network alias of the existing PostgreSQL service on the configured external Docker network. Inside the API container, `localhost` refers to the API container itself.
-- Prefer exposing the web/reverse-proxy port publicly and keeping the API internal. If a host API port is needed for debugging, bind it to loopback unless a deliberate network policy requires broader access.
-- Move the Compose file to `infra/compose.yaml` in a separate, verified change; update build contexts, relative volume mounts, documentation and commands at the same time.
-- Database migrations remain explicit deploy steps. Never run destructive schema changes automatically on normal API startup.
-- Before any schema change, inspect the existing database and keep changes scoped to the `visionhub` schema. Do not modify unrelated schemas or tables.
-- Use read-only configuration mounts where appropriate and never commit database credentials or signing keys.
+- Direct connection: set `DATABASE_URL` for a host process and optionally `DATABASE_URL_DOCKER` for a different address reachable from the API container. A direct IP/hostname does not need a Docker network overlay.
+- Existing database network: include `infra/compose.existing-db-network.yaml` only when the database hostname is resolvable exclusively on an already-existing Docker network.
+- Optional Compose database: include `infra/compose.database.yaml` explicitly to run the local PostgreSQL service with a named data volume. The default Compose configuration must never start this service.
+
+Other deployment constraints:
+
+- The base `infra/compose.yaml` contains Web and API only. It publishes Web and keeps the API internal by default.
+- Bind public traffic to the Web/Nginx reverse proxy. If host-side API access is needed, use `infra/compose.api-published.yaml`, which binds only to loopback.
+- Database migrations remain explicit deploy steps. Never run schema changes automatically on ordinary API startup or as a side effect of `docker compose up`.
+- Keep all schema changes scoped to `visionhub`; do not modify unrelated schemas or tables.
+- Use read-only configuration mounts where appropriate and inject credentials through environment variables or deployment secrets.
+- Keep Compose paths, database URL behavior and operating procedures aligned across local development, tests, and production.
 
 Acceptance criteria:
 
-- `docker compose config` resolves the intended external network and mounts.
-- Compose has no database or Redis service.
-- A clean API startup can connect to the existing database using a network-resolvable host.
-- No production migration runs as a side effect of container boot.
-- The API port is not exposed more broadly than intended.
+- Each Compose overlay passes `docker compose config` validation in CI.
+- Default Compose does not publish the API port or start a PostgreSQL service.
+- A direct host/IP connection works without an external Docker network; joining an existing network is an explicit alternative.
+- A Compose-managed PostgreSQL service starts only when the database overlay is selected and persists data in a named volume.
+- No production migration runs during container boot.
+- A schema-scoped backup, deployment and rollback procedure is documented and tested against a disposable database before claiming full deployment acceptance.
 
 ## 7. Player architecture
 
@@ -370,7 +378,7 @@ Deliverable: a reproducible desktop release candidate and a short manual accepta
 #### Explicitly out of scope for P4
 
 - [ ] Do not remove, bundle into Electron-only workflows, or stop independently deploying Web.
-- [ ] Do not add a worker, download manager, FFmpeg pipeline, Redis, or a new database container.
+- [ ] Do not add a worker, download manager, FFmpeg pipeline, or Redis; any optional PostgreSQL container belongs to Phase 6 and must stay opt-in.
 - [ ] Do not run database migrations automatically from Electron or ordinary API startup.
 - [ ] Do not promise MKV/HEVC/HDR/subtitle or other codec/container support without tests on the actual target runtime.
 - [ ] Do not make HLS.js, subtitle preferences, or broad player refactoring a blocker for the desktop shell; track those under Phase 5 unless an agreed MVP acceptance test requires them.
@@ -391,7 +399,7 @@ P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until th
 
 ### Phase 5 — Player adapters and playback preferences
 
-Status: P5.1–P5.3 are merged and manually accepted in Web and Windows Electron (2026-10-13). The P5.4 HTML5 startup-timeout and error-mapping changes were merged via [PR #39](https://github.com/ninekiss/visionhub/pull/39); the user verified the unreachable-host timeout prompt and the MP4/HLS regression checks in both clients on 2026-10-13. The separate redistributable fixture and broader codec/container matrix remain unverified. External-source playback from [Issue #40](https://github.com/ninekiss/visionhub/issues/40) is implemented and merged through PRs [#41](https://github.com/ninekiss/visionhub/pull/41), [#43](https://github.com/ninekiss/visionhub/pull/43), [#45](https://github.com/ninekiss/visionhub/pull/45), and [#46](https://github.com/ninekiss/visionhub/pull/46); CI passed, but end-to-end acceptance against an explicitly configured, authorized provider remains pending. The next action is to finish the P5.4 fixture and compatibility checks. Plyr remains the player UI; macOS-specific acceptance remains deferred.
+Status: P5.1–P5.4 are implemented and accepted in Web and Windows Electron. P5.4 media compatibility acceptance was confirmed by the user on 2026-10-14. Retain the limits in `docs/MEDIA_COMPATIBILITY.md`: do not claim codec/container combinations that were not actually identified and tested. External-source playback from [Issue #40](https://github.com/ninekiss/visionhub/issues/40) is implemented and merged through PRs [#41](https://github.com/ninekiss/visionhub/pull/41), [#43](https://github.com/ninekiss/visionhub/pull/43), [#45](https://github.com/ninekiss/visionhub/pull/45), and [#46](https://github.com/ninekiss/visionhub/pull/46); CI passed. Real-provider end-to-end acceptance remains separate and requires an explicitly configured, authorized provider. Plyr remains the player UI; macOS-specific acceptance remains deferred.
 
 #### P5.1 — Separate media source, playback events and cleanup
 
@@ -444,40 +452,53 @@ Implementation and safety record:
 
 #### P5.4 — Media compatibility acceptance
 
-Status: in progress. See [`docs/MEDIA_COMPATIBILITY.md`](./MEDIA_COMPATIBILITY.md) for the versioned fixture matrix and acceptance procedure. The existing mock MP4 workflow and HLS workflow (including P5.3 quality switching) passed user acceptance in Web and Windows Electron; exact codec metadata for the legacy MP4 sample was not independently recorded. A separate redistributable MP4 fixture is added for repeatable codec/container checks and still requires manual playback verification in both clients.
+Status: user acceptance completed in Web and Windows Electron (2026-10-14). See [`docs/MEDIA_COMPATIBILITY.md`](./MEDIA_COMPATIBILITY.md) for fixture observations and limitations. Playback behavior is accepted, but an acceptance does not imply support for codec/container combinations whose exact metadata has not been recorded.
 
 - [x] Add a compatibility matrix that distinguishes observed playback from unverified codec/container support.
 - [x] Add a short, redistributable CC BY 3.0 MP4 fixture and record its required attribution.
 - [x] Map HTMLMediaElement abort, network, decode and unsupported-source errors to actionable messages without leaking source URLs; add deterministic unit coverage.
 - [x] Add and test a cancellable 15-second HTML5 startup timeout so unreachable hosts that never dispatch a browser error event do not leave the player indefinitely loading.
 - [x] Verify the unreachable-host timeout prompt and confirm normal MP4/HLS playback still works in Web and Windows Electron (user acceptance, 2026-10-13; PR #39).
-- [ ] Test the redistributable fixture in Web and Windows Electron; record OS/browser/Electron versions and inspect the actual stream codec metadata before asserting a codec-level result.
-- [ ] Verify source switching, seek, buffering, progress restoration, network failure and unsupported-format behavior in both clients.
-- [ ] Claim support only for the exact fixtures and codec/container combinations actually tested; do not infer MKV/HEVC/HDR/subtitle support from Plyr.
+- [x] Verify the redistributable fixture and P5.4 playback/error/source-switching behavior in Web and Windows Electron (user acceptance confirmed 2026-10-14). Exact OS/browser version and codec metadata are not inferred where they were not recorded; retain the no-unverified-codec-claims rule.
+- [x] Verify source switching, seek, buffering, progress restoration, network failure and unsupported-format behavior in both clients (P5.4 user acceptance confirmed 2026-10-14).
+- [x] Claim support only for the exact fixtures and codec/container combinations actually tested; do not infer MKV/HEVC/HDR/subtitle support from Plyr.
 
 Exit criteria:
 - [x] The media adapter and playback-event modules have unit coverage and the Web/desktop production builds pass (CI run [38400679707](https://github.com/ninekiss/visionhub/actions/runs/38400679707)).
 - [x] Existing MP4/HTML5 playback, source switching, resume position, buffering and error states remain functional (Windows manual acceptance, 2026-10-13).
 - [x] HLS playback and P5.3 quality switching are user-accepted in Web and Windows Electron (2026-10-13); retain the source/version evidence in `docs/MEDIA_COMPATIBILITY.md`.
-- [ ] The new redistributable MP4 fixture and user-facing unsupported-media/network errors are manually verified in Web and Windows Electron.
+- [x] The redistributable MP4 fixture and user-facing unsupported-media/network errors are accepted in Web and Windows Electron (2026-10-14).
 - [x] Playback preferences restore consistently within each Web/browser and Electron app profile without creating a second watch-progress store (P5.3 acceptance, PR #38).
 - [x] Multi-rendition HLS quality selection works in Web and Windows Electron, including Auto/manual changes, seek and pause/resume; fixed-source files do not show fake quality choices (P5.3 acceptance, PR #38).
-- [ ] Supported formats are documented based on testing, not assumptions.
+- [x] Supported-format guidance is constrained to observed tests; unverified codec/container combinations remain explicitly unclaimed.
 
 ### Phase 6 — Deployment layout and operational hardening
 
-Tasks:
-- Move Compose to `infra/compose.yaml` with corrected relative contexts and mounts.
-- Bind public traffic to the web/reverse proxy; keep API internal unless explicitly required.
-- Apply the shared validated configuration to API and deployment setup.
-- Review health checks, logs, restart behavior, graceful shutdown and secret mounts.
-- Document safe migration, backup and rollback procedures for the existing PostgreSQL schema.
+**Scope: configuration-driven deployment for every database connection mode.** The existing PostgreSQL remains the default. Direct host/IP connections and an existing Docker database network must both work. A Compose-managed PostgreSQL service is optional and must not start unless its separate overlay is explicitly included.
+
+Implementation:
+- [x] Move the base application Compose file to `infra/compose.yaml` and update build/mount paths.
+- [x] Keep the base Compose file limited to Web and API. Do not require an external network when the configured database host/IP is directly reachable from the API container.
+- [x] Support a direct database URL in every application environment through the shared `DATABASE_URL` contract. Compose uses optional `DATABASE_URL_DOCKER` when the container needs a different reachable address.
+- [x] Add `infra/compose.existing-db-network.yaml` to attach the API and one-shot database tools to an already-existing database network when host aliases require it.
+- [x] Add `infra/compose.database.yaml` as an explicit opt-in PostgreSQL service overlay, with a persistent named volume, a host port bound to loopback, and API/tools startup waiting for database readiness.
+- [x] Keep the API port internal by default. An optional `infra/compose.api-published.yaml` overlay exposes it only on host loopback when direct host access is needed.
+- [x] Add API/Web health checks, restart policy and NestJS shutdown hooks; retain Prisma disconnection on shutdown.
+- [x] Add an on-demand `db-tools` profile for init, migration and seed operations, plus checksummed, schema-scoped logical backups and disposable-database restore tests.
+- [x] Add PostgreSQL 18 full and incremental physical backup chains for the managed database, chain-aware restore/test, integrity verification and retention of complete full-backup roots.
+- [x] Add a Windows Task Scheduler runner with daily logical backups, weekly physical full backups and daily physical increments for managed PostgreSQL.
+- [x] Document deployment modes, explicit migration, backup strategy and restore safeguards in [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md). No migrations run automatically on API startup.
+- [x] Validate Compose deployment modes and build the db-tools image in CI.
+- [ ] Exercise one direct-address deployment and one external-network deployment against a representative PostgreSQL instance before calling deployment acceptance complete.
+- [ ] Run and record logical and full/incremental physical backup/restore tests against a disposable PostgreSQL 18 database. The implementation and test commands are present, but runtime acceptance remains pending.
 
 Exit criteria:
-- Compose manages application services only and attaches to the existing external database network.
-- The deployed API connects using the correct database hostname and secrets.
-- No database or Redis service is created, and no automatic destructive migration occurs.
-- A deployment and rollback can be performed from documented steps.
+- The default Compose file starts Web/API only; the database service is started only when its overlay is selected.
+- Both a direct reachable database URL and an existing-network alias are documented and supported.
+- Public browser traffic reaches the API through Web/Nginx by default; direct API host publication is opt-in.
+- Health status reflects API/database readiness; container shutdown disconnects Prisma cleanly.
+- A deployment, schema-scoped backup and rollback procedure is documented and has been exercised against a disposable database.
+- No Redis or worker is added, and no automatic database migration or destructive operation occurs at application startup.
 
 ### Phase 7 — Optional worker, downloads and media processing
 
@@ -513,6 +534,7 @@ Every phase should meet these gates before merge:
 2. **P4.3 Windows workflow acceptance passed (2026-10-13).** Catalog/search/detail/playback, API proxy, renderer resources and Plyr controls were verified in the Windows Electron runtime. Packaged macOS acceptance remains outstanding.
 3. **P4.4 Windows interactive acceptance passed (2026-10-13).** macOS-specific menu, lifecycle, and display-restoration checks are deferred until a Mac is available.
 4. **P4.5 is intentionally deferred.** Do not start macOS ARM64 packaging, signing, notarization or GitHub Release automation until the user explicitly reactivates this phase. On reactivation, revalidate the toolchain and runner before following the recorded release plan.
-5. **Next: finish P5.4 media compatibility acceptance.** Test the redistributable Big Buck Bunny MP4 fixture in Web and Windows Electron; record OS/browser/Electron versions and inspect actual codec metadata. Verify source switching, seeking, buffering, progress restoration and network-error behavior, then update [the compatibility matrix](./MEDIA_COMPATIBILITY.md). Track real-provider external-source acceptance separately until an authorized provider is configured. Proceed to Phase 6 only after these checks are recorded.
+5. **P5.4 acceptance is complete (2026-10-14).** Preserve the documented codec/container limitations; do not repeat the accepted playback checklist unless a regression is introduced.
+6. **Phase 6 is active.** Base Compose runs only Web/API; choose a direct database address, the existing data-network overlay, or the opt-in PostgreSQL overlay. The two database overlays are alternatives; the API port overlay is independent. Verify the chosen deployment against a real/disposable database before treating operations acceptance as complete.
 
-Do not start a worker, add a database container, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.
+Do not start the optional database container by default, add a worker, replace Plyr, or rewrite the whole UI before the corresponding need and acceptance criteria are clear.

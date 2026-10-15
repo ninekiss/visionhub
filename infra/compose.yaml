@@ -1,0 +1,120 @@
+name: visionhub
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-${DATABASE_URL:?Set DATABASE_URL or DATABASE_URL_DOCKER}}
+      APP_CONFIG_PATH: /app/configs/app.production.yaml
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
+      ADMIN_COOKIE_SECURE: ${ADMIN_COOKIE_SECURE:-false}
+    expose:
+      - "3000"
+    volumes:
+      - ../configs/app.production.yaml:/app/configs/app.production.yaml:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v1/catalog').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - app
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - app
+
+  db-tools:
+    profiles: ["tools"]
+    image: visionhub-db-tools:18
+    build:
+      context: ..
+      dockerfile: deploy/db-tools.Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-${DATABASE_URL:?Set DATABASE_URL or DATABASE_URL_DOCKER}}
+      VISIONHUB_BACKUP_DIR: /backups
+      LOGICAL_RETENTION_DAYS: ${LOGICAL_RETENTION_DAYS:-30}
+      PHYSICAL_KEEP_FULL: ${PHYSICAL_KEEP_FULL:-4}
+      DB_TOOLS_PHYSICAL_ENABLED: "false"
+    volumes:
+      - type: bind
+        source: "${BACKUP_HOST_DIR:-../backups}"
+        target: /backups
+        bind:
+          create_host_path: true
+    networks:
+      - app
+
+  # Opt-in long-running scheduler; ordinary "compose up" does not start it.
+  backup:
+    profiles: ["backup"]
+    image: visionhub-db-tools:18
+    build:
+      context: ..
+      dockerfile: deploy/db-tools.Dockerfile
+    entrypoint: ["node", "scripts/backup-scheduler.mjs"]
+    command: []
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-${DATABASE_URL:?Set DATABASE_URL or DATABASE_URL_DOCKER}}
+      VISIONHUB_BACKUP_DIR: /backups
+      LOGICAL_RETENTION_DAYS: ${LOGICAL_RETENTION_DAYS:-30}
+      PHYSICAL_KEEP_FULL: ${PHYSICAL_KEEP_FULL:-4}
+      DB_TOOLS_PHYSICAL_ENABLED: "false"
+      BACKUP_DATABASE_MODE: ${BACKUP_DATABASE_MODE:-direct}
+      BACKUP_SCHEDULE_TIME: ${BACKUP_SCHEDULE_TIME:-02:30}
+      BACKUP_TIMEZONE: ${BACKUP_TIMEZONE:-UTC}
+      BACKUP_RETRY_MINUTES: ${BACKUP_RETRY_MINUTES:-15}
+      BACKUP_ALERT_WEBHOOK_URL: ${BACKUP_ALERT_WEBHOOK_URL:-}
+      BACKUP_ALERT_WEBHOOK_TOKEN: ${BACKUP_ALERT_WEBHOOK_TOKEN:-}
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
+      BACKUP_AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:-}
+      RCLONE_CONFIG_CLOUD_TYPE: ${RCLONE_CONFIG_CLOUD_TYPE:-s3}
+      RCLONE_CONFIG_CLOUD_PROVIDER: ${RCLONE_CONFIG_CLOUD_PROVIDER:-Other}
+      RCLONE_CONFIG_CLOUD_ACCESS_KEY_ID: ${RCLONE_CONFIG_CLOUD_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_CLOUD_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_CLOUD_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_CLOUD_SESSION_TOKEN: ${RCLONE_CONFIG_CLOUD_SESSION_TOKEN:-}
+      RCLONE_CONFIG_CLOUD_ENDPOINT: ${RCLONE_CONFIG_CLOUD_ENDPOINT:-}
+      RCLONE_CONFIG_CLOUD_REGION: ${RCLONE_CONFIG_CLOUD_REGION:-auto}
+      RCLONE_CONFIG_CLOUD_ENV_AUTH: ${RCLONE_CONFIG_CLOUD_ENV_AUTH:-false}
+    volumes:
+      - type: bind
+        source: "${BACKUP_HOST_DIR:-../backups}"
+        target: /backups
+        bind:
+          create_host_path: true
+    restart: unless-stopped
+    networks:
+      - app
+
+networks:
+  app:
+    driver: bridge

@@ -23,3 +23,6 @@ apps/desktop/renderer-dist/
 apps/desktop/dist/
 apps/desktop/out/
 apps/desktop/release/
+
+# Database dumps and physical backup chains are local operational artifacts.
+/backups/

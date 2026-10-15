@@ -1,0 +1,8 @@
+# Shell scripts executed in Linux containers must keep Unix LF line endings.
+*.sh text eol=lf
+
+# Keep deployment configuration and Docker build files platform-independent.
+*.Dockerfile text eol=lf
+Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

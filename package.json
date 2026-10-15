@@ -12,7 +12,7 @@
     "db:migrate": "pnpm --filter @visionhub/api db:migrate:deploy",
     "db:seed": "pnpm --filter @visionhub/api db:seed",
     "db:setup": "pnpm --filter @visionhub/api db:setup",
-    "test": "pnpm --filter @visionhub/config test && pnpm --filter @visionhub/api build && pnpm --filter @visionhub/api test && pnpm --filter @visionhub/desktop test",
+    "test": "node --test scripts/backup-alerts.test.mjs && pnpm --filter @visionhub/config test && pnpm --filter @visionhub/api build && pnpm --filter @visionhub/api test && pnpm --filter @visionhub/desktop test",
     "dev:desktop": "pnpm --filter @visionhub/desktop dev",
     "build:desktop": "pnpm --filter @visionhub/desktop build"
   },

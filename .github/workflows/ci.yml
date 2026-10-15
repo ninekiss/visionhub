@@ -35,12 +35,44 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Test backup webhook notifications
+        run: node --test scripts/backup-alerts.test.mjs
+
       - run: pnpm --filter @visionhub/api exec prisma validate
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
 
       - uses: docker/setup-buildx-action@v3
+
+      - name: Validate Compose deployment modes
+        env:
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5433/visionhub?schema=visionhub
+          DATABASE_URL_DOCKER: postgresql://build:build@d2m_postgres:5432/existing_db?schema=visionhub
+          POSTGRES_DB: visionhub
+          POSTGRES_USER: build
+          POSTGRES_PASSWORD: build
+          POSTGRES_PORT: "5433"
+          EXISTING_DB_NETWORK: visionhub-db-ci
+          API_PORT: "3000"
+          LOGICAL_RETENTION_DAYS: "30"
+          PHYSICAL_KEEP_FULL: "4"
+        run: |
+          docker compose -f infra/compose.yaml config --quiet
+          docker compose --profile tools -f infra/compose.yaml config --format json > /tmp/visionhub-compose-default.json
+          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-default.json', 'utf8')); if (c.services.postgres) throw new Error('PostgreSQL must remain opt-in'); if ((c.services.api.ports ?? []).length) throw new Error('API host port must remain unpublished by default'); if (!(c.services['db-tools'].profiles ?? []).includes('tools')) throw new Error('db-tools must remain an on-demand profile');"
+          docker compose --profile tools -f infra/compose.yaml -f infra/compose.database.yaml config --quiet
+          docker compose --profile tools -f infra/compose.yaml -f infra/compose.database.yaml config --format json > /tmp/visionhub-compose-database.json
+          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-database.json', 'utf8')); if (!c.services.postgres.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('PostgreSQL 18 data volume must target /var/lib/postgresql'); if (!String(c.services.postgres.build?.dockerfile ?? '').includes('postgres.Dockerfile')) throw new Error('Managed PostgreSQL must use the replication-enabled image'); const url = c.services.api.environment.DATABASE_URL; if (!url.includes('@postgres:5432/visionhub?schema=visionhub') || url.includes('d2m_postgres')) throw new Error('Compose database overlay must override any previous DATABASE_URL_DOCKER'); const tools = c.services['db-tools']; if (!tools.environment.DATABASE_URL.includes('@postgres:5432/visionhub?schema=visionhub') || tools.environment.DB_TOOLS_PHYSICAL_ENABLED !== 'true') throw new Error('Managed db-tools must target Compose PostgreSQL and enable physical backup operations'); if (tools.environment.PGDATA !== '/var/lib/postgresql/18/docker' || !tools.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('db-tools must share the managed PostgreSQL data volume'); const pgCommand = c.services.postgres.command ?? []; if (!pgCommand.includes('summarize_wal=on')) throw new Error('Managed PostgreSQL must enable WAL summarization for incremental backups'); if (!pgCommand.includes('wal_summary_keep_time=30d')) throw new Error('Managed PostgreSQL must retain WAL summaries for 30 days');"
+          docker compose --profile tools -f infra/compose.yaml -f infra/compose.existing-db-network.yaml config --quiet
+          docker compose -f infra/compose.yaml -f infra/compose.api-published.yaml config --quiet
+          docker compose --profile backup -f infra/compose.yaml config --quiet
+          docker compose --profile backup -f infra/compose.yaml -f infra/compose.database.yaml config --quiet
+          docker compose --profile backup -f infra/compose.yaml -f infra/compose.existing-db-network.yaml config --quiet
+          docker compose --profile backup -f infra/compose.yaml -f infra/compose.database.yaml config --format json > /tmp/visionhub-compose-backup-managed.json
+          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-backup-managed.json', 'utf8')); const b = c.services.backup; if (!(b.profiles ?? []).includes('backup')) throw new Error('Backup scheduler must be opt-in'); if (b.entrypoint?.[1] !== 'scripts/backup-scheduler.mjs') throw new Error('Backup service must run the scheduler'); if (b.environment.BACKUP_DATABASE_MODE !== 'managed' || b.environment.DB_TOOLS_PHYSICAL_ENABLED !== 'true') throw new Error('Managed overlay must enable physical backup mode'); if (!b.volumes.some(v => v.target === '/var/lib/postgresql')) throw new Error('Managed backup scheduler must share the PostgreSQL data volume for physical backup checks');"
+          docker compose --profile backup -f infra/compose.yaml -f infra/compose.existing-db-network.yaml config --format json > /tmp/visionhub-compose-backup-network.json
+          node -e "const c = JSON.parse(require('node:fs').readFileSync('/tmp/visionhub-compose-backup-network.json', 'utf8')); if (c.services.backup.environment.BACKUP_DATABASE_MODE !== 'network') throw new Error('Existing-network overlay must select logical-only network backup mode'); const n = c.services.backup.networks ?? {}; if (!(Array.isArray(n) ? n.includes('existing_db') : Object.hasOwn(n, 'existing_db'))) throw new Error('Backup scheduler must join the existing DB network');"
 
       - name: Build API Docker image
         uses: docker/build-push-action@v6
@@ -52,6 +84,103 @@ jobs:
           cache-from: type=gha,scope=visionhub-api
           cache-to: type=gha,scope=visionhub-api,mode=max
 
+      - name: Build database tools image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/db-tools.Dockerfile
+          tags: visionhub-db-tools:18
+          load: true
+          push: false
+          cache-from: type=gha,scope=visionhub-db-tools
+          cache-to: type=gha,scope=visionhub-db-tools,mode=max
+      - name: Build managed PostgreSQL image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/postgres.Dockerfile
+          build-args: |
+            POSTGRES_IMAGE=postgres:18-alpine
+          tags: visionhub-postgres:18
+          load: true
+          push: false
+          cache-from: type=gha,scope=visionhub-postgres
+          cache-to: type=gha,scope=visionhub-postgres,mode=max
+      - name: Integration test database initialize, backup and restore
+        env:
+          DATABASE_URL: postgresql://build:build@127.0.0.1:5433/visionhub?schema=visionhub
+          DATABASE_URL_DOCKER: postgresql://build:build@d2m_postgres:5432/existing_db?schema=visionhub
+          POSTGRES_DB: visionhub
+          POSTGRES_USER: build
+          POSTGRES_PASSWORD: build
+          POSTGRES_PORT: "5433"
+          LOGICAL_RETENTION_DAYS: "30"
+          PHYSICAL_KEEP_FULL: "4"
+        run: |
+          set -euo pipefail
+          compose=(docker compose -f infra/compose.yaml -f infra/compose.database.yaml)
+          cleanup() { "${compose[@]}" down -v --remove-orphans >/dev/null 2>&1 || true; }
+          on_exit() {
+            status=$?
+            if (( status != 0 )); then
+              echo "::group::PostgreSQL integration-test diagnostics"
+              echo "Compose service status:"
+              "${compose[@]}" ps --all || true
+              echo
+              echo "PostgreSQL container state and health-check history:"
+              for container_id in $("${compose[@]}" ps -aq postgres); do
+                docker inspect --format 'Container={{.Name}} State={{.State.Status}} ExitCode={{.State.ExitCode}} Error={{.State.Error}} Health={{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}' "$container_id" || true
+                docker inspect --format '{{json .State.Health}}' "$container_id" || true
+              done
+              echo
+              echo "PostgreSQL logs (last 300 lines):"
+              "${compose[@]}" logs --no-color --timestamps --tail=300 postgres || true
+              echo "::endgroup::"
+            fi
+            cleanup
+            exit "$status"
+          }
+          trap on_exit EXIT
+          rm -rf backups
+          mkdir -p backups
+          # Wait for first-time PostgreSQL initialization and its healthcheck before running psql.
+          "${compose[@]}" up -d --wait --wait-timeout 90 postgres
+          summarize_wal="$("${compose[@]}" exec -T postgres psql -U build -d visionhub -v ON_ERROR_STOP=1 -Atc 'SHOW summarize_wal')"
+          test "$summarize_wal" = "on"
+          "${compose[@]}" run --rm db-tools init
+          "${compose[@]}" run --rm db-tools logical-backup
+          logical_dump="$(find backups/logical -maxdepth 1 -type f -name '*.dump' | sort | tail -n 1)"
+          test -n "$logical_dump"
+          "${compose[@]}" run --rm db-tools logical-restore-test "/backups/logical/$(basename "$logical_dump")"
+          "${compose[@]}" run --rm db-tools physical-init
+          "${compose[@]}" run --rm db-tools physical-backup-full
+          "${compose[@]}" exec -T postgres psql -U build -d visionhub -v ON_ERROR_STOP=1 -c "CREATE TABLE public.backup_incremental_probe(id integer PRIMARY KEY); INSERT INTO public.backup_incremental_probe VALUES (1);"
+          "${compose[@]}" run --rm db-tools physical-backup-incr
+          full_id="$(find backups/physical -mindepth 1 -maxdepth 1 -type d -name 'full-*' | sort | tail -n 1 | xargs basename)"
+          incr_id="$(find backups/physical -mindepth 1 -maxdepth 1 -type d -name 'incr-*' | sort | tail -n 1 | xargs basename)"
+          test -n "$full_id"
+          test -n "$incr_id"
+          "${compose[@]}" run --rm db-tools physical-list
+          "${compose[@]}" run --rm db-tools physical-restore-test "$full_id"
+          "${compose[@]}" run --rm db-tools physical-restore-test "$incr_id"
+          # Generate an ephemeral age identity in the test container. The private key never leaves this disposable CI job.
+          "${compose[@]}" --profile backup run --rm --entrypoint /bin/sh backup -c '
+            set -eu
+            age-keygen -o /tmp/visionhub-test-identity.txt 2>/dev/null
+            recipient="$(age-keygen -y /tmp/visionhub-test-identity.txt)"
+            BACKUP_DATABASE_MODE=managed BACKUP_AGE_RECIPIENTS="$recipient" BACKUP_REMOTE=/backups/offsite-test node scripts/backup-scheduler.mjs --once
+            logical_archive="$(find /backups/offsite-test/encrypted/logical -maxdepth 1 -type f -name "*.tar.age" | sort | head -n 1)"
+            physical_archive="$(find /backups/offsite-test/encrypted/physical -maxdepth 1 -type f -name "*.tar.age" | sort | head -n 1)"
+            test -n "$logical_archive"
+            test -n "$physical_archive"
+            age --decrypt --identity /tmp/visionhub-test-identity.txt --output /tmp/logical-backup.tar "$logical_archive"
+            tar -tf /tmp/logical-backup.tar | grep -q "\\.dump$"
+            age --decrypt --identity /tmp/visionhub-test-identity.txt --output /tmp/physical-backup.tar "$physical_archive"
+            tar -tf /tmp/physical-backup.tar | grep -q "pgdata/backup_manifest"
+            echo "Asymmetric-encryption upload test passed: logical and physical archives decrypted and inspected."
+          '
+          echo "Database backup/restore integration tests passed: logical, standalone full, and full+incremental chain."
+          echo "Containerized scheduler and age-encrypted off-site upload integration tests passed."
       - name: Build Web Docker image
         uses: docker/build-push-action@v6
         with:

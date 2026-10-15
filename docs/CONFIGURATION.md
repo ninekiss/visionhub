@@ -30,13 +30,17 @@ Nested objects merge recursively. Arrays replace the prior array as a whole. Unk
 | `CORS_ORIGINS` | `server.corsOrigins` | Comma-separated HTTP(S) origins without path/query |
 | `WEB_TITLE` / `WEB_API_BASE_URL` | `web.title` / `web.apiBaseUrl` | Web metadata/configuration |
 | `CATALOG_PAGE_SIZE` | `catalog.pageSize` | Integer between 1 and 50 |
-| `DATABASE_URL` | `database.url` | Required PostgreSQL URL; Compose points it at the existing DB network |
+| `DATABASE_URL` | `database.url` | Required PostgreSQL URL for the API process and Prisma CLI; the host or container must be able to reach the configured address |
 | `ADMIN_USERNAME` | `admin.username` | All three admin variables blank means admin access is not configured |
 | `ADMIN_PASSWORD` | `admin.password` | Required when admin authentication is configured |
 | `ADMIN_SESSION_SECRET` | `admin.sessionSecret` | At least 32 characters when admin authentication is configured |
 | `ADMIN_COOKIE_SECURE` | `admin.cookieSecure` | Strict `true`/`false`; use true behind HTTPS |
 | `DESKTOP_API_BASE_URL` | `desktop.apiBaseUrl` | Electron-only override; leaves Web/API settings untouched |
 | `PLAYBACK_SOURCES_CONFIG_PATH` | — | Selects provider URLs, exact HTTPS origin allowlists, player selectors and startup timeout; selected file must exist |
+| `DATABASE_URL_DOCKER` | Compose override for `DATABASE_URL` | Optional connection URL used by the API container; it can point to a direct DNS/IP address or a service alias on a Docker network |
+| `EXISTING_DB_NETWORK` | Compose network overlay | Used only with `infra/compose.existing-db-network.yaml` to attach the API to a pre-existing database network |
+| `POSTGRES_*` | Optional Compose PostgreSQL service | Used only with `infra/compose.database.yaml`; that file is not included by default |
+| `API_PORT` | Optional host port mapping | Used only with `infra/compose.api-published.yaml`; the API is not published to the host by default |
 
 The development launcher loads a workspace-local `.env` first and then the repository-root `.env`, without replacing values already set by the process/container.
 
@@ -89,7 +93,9 @@ Set `PLAYBACK_SOURCES_CONFIG_PATH` to select a non-default file. When that varia
 
 - Never commit `.env`, `configs/app.yaml`, or `configs/secrets.yaml`.
 - Do not put credentials in committed defaults or production YAML.
-- Compose continues to run application services only and joins the already-existing PostgreSQL network. It does not create a database service.
+- `infra/compose.yaml` starts only the Web and API services. It uses `DATABASE_URL_DOCKER` when set, otherwise `DATABASE_URL`; the chosen address must be reachable from inside the API container. A direct hostname/IP does not require joining an external Docker network.
+- To resolve a PostgreSQL container by its network alias, include `infra/compose.existing-db-network.yaml` and set `EXISTING_DB_NETWORK`. To start an optional local PostgreSQL container, explicitly include `infra/compose.database.yaml`; it persists data in a named volume and is not started by default.
+- The API host port is internal by default. Include `infra/compose.api-published.yaml` only when direct host access is needed.
 - Configuration loading does not run migrations. Database schema changes remain explicit deployment steps.
 
 ## Validation matrix
