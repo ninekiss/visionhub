@@ -21,6 +21,15 @@ After editing .env, recreate the service so it receives the new environment:
     docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml up -d --force-recreate backup
     docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml logs --tail=100 backup
 
+Then send a test notification without contacting PostgreSQL or running a backup:
+
+    docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml run --rm --no-deps backup --test-alert
+
+The command must print BACKUP_ALERT_TEST_OK and the configured endpoint must receive a backup_alert_test event. It fails clearly when the URL is missing or the endpoint returns an error. It does not modify backup state.
+
+    docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml up -d --force-recreate backup
+    docker compose --env-file .env --profile backup -f infra/compose.yaml -f infra/compose.database.yaml logs --tail=100 backup
+
 Use the same Compose file list/overlays as the deployment. For an existing database network, use infra/compose.existing-db-network.yaml instead of the managed PostgreSQL overlay. Check that the service starts and the logs show "Backup alerts: webhook configured." The URL and token must not appear in logs.
 
 ## 2. Routine monitoring
