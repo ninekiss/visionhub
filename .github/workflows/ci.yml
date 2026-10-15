@@ -35,6 +35,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Test backup webhook notifications
+        run: node --test scripts/backup-alerts.test.mjs
+
       - run: pnpm --filter @visionhub/api exec prisma validate
       - run: pnpm typecheck
       - run: pnpm test
