@@ -4,7 +4,7 @@
   // Runs in MAIN world, but activates only after the isolated extension script
   // has accepted a trusted VisionHub player session.
   const CHANNEL = "visionhub-source-progress-v1";
-  const FOCUS_RESUME_WINDOW_MS = 45000;
+  const FOCUS_PAUSE_DETECTION_WINDOW_MS = 8000;
   const states = new Map();
   let enabled = false;
   let lastBlurAt = 0;
@@ -44,10 +44,14 @@
   function playVideo(video) {
     const player = playerFor(video);
     let result;
+    let invokedPlayer = false;
     try {
-      if (player && typeof player.play === "function") result = player.play();
+      if (player && typeof player.play === "function") {
+        result = player.play();
+        invokedPlayer = true;
+      }
     } catch {}
-    if (!result) {
+    if (!invokedPlayer) {
       try { result = video.play(); } catch { result = null; }
     }
     if (result && typeof result.catch === "function") {
@@ -86,7 +90,7 @@
 
     video.addEventListener("pause", () => {
       const age = Date.now() - lastBlurAt;
-      const lostFocusRecently = lastBlurAt > 0 && age <= FOCUS_RESUME_WINDOW_MS &&
+      const lostFocusRecently = lastBlurAt > 0 && age <= FOCUS_PAUSE_DETECTION_WINDOW_MS &&
         (document.hidden || !document.hasFocus() || age < 1200);
       if (state.wasPlayingAtBlur && lostFocusRecently && !video.ended) {
         state.pausedByFocusLoss = true;
@@ -143,7 +147,7 @@
       }
       state.pausedByFocusLoss = false;
       state.wasPlayingAtBlur = false;
-      if (Date.now() - lastBlurAt > FOCUS_RESUME_WINDOW_MS || !video.isConnected || video.ended) continue;
+      if (!video.isConnected || video.ended) continue;
 
       const target = state.lastTime > 0 ? state.lastTime : state.timeAtBlur;
       const now = readTime(video);
