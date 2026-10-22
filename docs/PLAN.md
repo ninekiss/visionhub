@@ -450,6 +450,20 @@ Implementation and safety record:
 - [x] Keep Web independently buildable and preserve the existing Plyr path; typecheck, tests, production builds and API/Web Docker image builds passed in CI for PR #46.
 - [ ] Configure at least one authorized test provider, then verify player readiness, timeout/fallback, progress reporting, source switching, navigation restrictions and player-only layout in Web and Windows Electron. Record the tested origin/provider config and observed limitations; do not generalize beyond the tested site.
 
+#### Desktop source-player focus, resume and UI parity — PRs #54 and #56
+
+**Implementation and documentation are merged through the desktop external-player work, while provider-specific visual acceptance remains open.** See [`docs/DESKTOP-EXTERNAL-PLAYER.md`](./DESKTOP-EXTERNAL-PLAYER.md) for the behavior contract, security boundaries, test commands, and known limitations.
+
+- [x] Align desktop resume with Web extension behavior: wait for valid metadata/duration; choose the largest visible video with metadata-ready tie-breaker; retry seeking at roughly 400 ms intervals, bounded by 24 attempts / 15 seconds; require a 2.5-second stable match within about 3 seconds of the target; protect saved progress until restoration succeeds or the user seeks manually. Merged in [PR #54](https://github.com/ninekiss/visionhub/pull/54).
+- [x] For configured cross-origin iframe players, run media restore/progress logic in the child frame through the DOM-only bridge; restrict injection to exact configured HTTPS origins and validate session/token messages.
+- [x] Preserve focus behavior: prevent source-page blur/visibility handlers from interrupting playback that was active on focus loss, while preserving deliberate in-player pause intent.
+- [x] Port extension player-only mode into desktop: select the primary visible player, retain the player ancestor path, mark unrelated sibling subtrees instead of deleting DOM or mutating each sibling's inline display style, and re-check after page mutations.
+- [x] Port control-bar auto-hide/reveal (1.8-second idle timeout), keep open menus visible, and suppress only positively identified fast-forward/rewind controls.
+- [x] Port the Plyr dark menu / lime-green accent / light control-glyph theme and add build syntax checking plus generated-script/UI/security regression tests. Implemented by [PR #56](https://github.com/ninekiss/visionhub/pull/56).
+- [ ] Verify the completed behavior manually against at least one authorized real provider, including strict-CSP styling, settings menus, skip controls, source switching, progress restoration, and native fullscreen. Record the exact provider/origin and observed limitations; automated CI success alone is not source-provider acceptance.
+- [ ] Perform the packaged macOS ARM64 acceptance when P4.5 is explicitly reactivated; Windows Electron checks do not prove packaged macOS/CSP behavior.
+
+
 #### P5.4 — Media compatibility acceptance
 
 Status: user acceptance completed in Web and Windows Electron (2026-10-14). See [`docs/MEDIA_COMPATIBILITY.md`](./MEDIA_COMPATIBILITY.md) for fixture observations and limitations. Playback behavior is accepted, but an acceptance does not imply support for codec/container combinations whose exact metadata has not been recorded.
