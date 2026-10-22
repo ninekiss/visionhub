@@ -40,6 +40,10 @@ function scriptIdFor(origin) {
   return "vh-source-progress-" + origin.replace(/[^a-zA-Z0-9]/g, "-");
 }
 
+function bridgeScriptIdFor(origin) {
+  return scriptIdFor(origin) + "-main";
+}
+
 function setStatus(message, isError = false) {
   const element = document.getElementById("status");
   element.textContent = message;
@@ -157,19 +161,33 @@ document.getElementById("enable-domains").addEventListener("click", async () => 
     }
 
     const existing = await chrome.scripting.getRegisteredContentScripts();
-    const ids = chosen.map(scriptIdFor);
+    const ids = chosen.flatMap((origin) => [scriptIdFor(origin), bridgeScriptIdFor(origin)]);
     const oldIds = existing.filter((script) => ids.includes(script.id)).map((script) => script.id);
     if (oldIds.length) await chrome.scripting.unregisterContentScripts({ ids: oldIds });
 
-    await chrome.scripting.registerContentScripts(chosen.map((origin) => ({
-      id: scriptIdFor(origin),
-      matches: [patternFor(origin)],
-      css: ["player-only.css"],
-      js: ["content.js"],
-      allFrames: true,
-      runAt: "document_idle",
-      persistAcrossSessions: true,
-    })));
+    const registrations = [];
+    for (const origin of chosen) {
+      const matches = [patternFor(origin)];
+      registrations.push({
+        id: scriptIdFor(origin),
+        matches,
+        css: ["player-only.css"],
+        js: ["content.js"],
+        allFrames: true,
+        runAt: "document_idle",
+        persistAcrossSessions: true,
+      });
+      registrations.push({
+        id: bridgeScriptIdFor(origin),
+        matches,
+        js: ["player-bridge.js"],
+        allFrames: true,
+        runAt: "document_start",
+        world: "MAIN",
+        persistAcrossSessions: true,
+      });
+    }
+    await chrome.scripting.registerContentScripts(registrations);
 
     enabledOrigins = [...new Set([...enabledOrigins, ...chosen])];
     await chrome.storage.local.set({ [ENABLED_KEY]: enabledOrigins });

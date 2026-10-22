@@ -39,8 +39,30 @@
   const attachedVideos = new WeakSet();
   const relayedFrames = new WeakMap();
   const observedFrames = new WeakSet();
-  let restoreAttempted = false;
+  let restoreTarget = 0;
+  let restoreStartedAt = 0;
+  let restoreLastSetAt = 0;
+  let restoreMatchedSince = 0;
+  let restoreAttempts = 0;
+  let restoreComplete = false;
+  let restoreFailed = false;
+  let restoreUserInterrupted = false;
+  let restoreTimer = null;
   let playerReadyReported = false;
+
+  const RESTORE_MAX_DURATION_MS = 15000;
+  const RESTORE_RETRY_INTERVAL_MS = 400;
+  const RESTORE_MAX_ATTEMPTS = 24;
+  const RESTORE_CONFIRMATION_MS = 2500;
+  const SEEK_BAR_SELECTOR = [
+    ".plyr__progress", "[data-plyr='seek']",
+    ".vjs-progress-control", ".jw-slider-time", ".dplayer-bar-wrap",
+    ".dplayer-bar", ".art-progress", ".xgplayer-progress",
+    ".bpx-player-progress", ".prism-progress",
+    "[role='slider'][aria-label*='seek' i]",
+    "[role='slider'][aria-label*='progress' i]",
+    "[role='slider'][aria-label*='time' i]"
+  ].join(", ");
 
   function validAppOrigin(value) {
     try {
@@ -377,6 +399,9 @@
   function reportProgress(video, force = false) {
     if (!session || primaryVideo() !== video || video.duration <= 0 ||
         !Number.isFinite(video.duration) || !Number.isFinite(video.currentTime)) return;
+    // Keep a source startup reset from overwriting the previously saved position.
+    if (restoreTarget > 0 && !restoreComplete && !restoreUserInterrupted) return;
+    if (restoreFailed && !restoreUserInterrupted && video.currentTime < restoreTarget - 3) return;
     const now = Date.now();
     if (!force && now - (session.lastReportAt ?? 0) < 2000) return;
     session.lastReportAt = now;
@@ -398,23 +423,127 @@
     postToParent({ type: "ready" });
   }
 
+  function clearRestoreTimer() {
+    if (restoreTimer !== null) {
+      window.clearTimeout(restoreTimer);
+      restoreTimer = null;
+    }
+  }
+
+  function resetRestoreState() {
+    clearRestoreTimer();
+    restoreTarget = 0;
+    restoreStartedAt = 0;
+    restoreLastSetAt = 0;
+    restoreMatchedSince = 0;
+    restoreAttempts = 0;
+    restoreComplete = false;
+    restoreFailed = false;
+    restoreUserInterrupted = false;
+  }
+
+  function finishRestore(video, failed = false) {
+    restoreComplete = true;
+    restoreFailed = failed;
+    clearRestoreTimer();
+    if (!failed && session && video && primaryVideo() === video) reportProgress(video, true);
+  }
+
+  function scheduleRestoreRetry(video) {
+    if (restoreTimer !== null || restoreComplete || restoreUserInterrupted) return;
+    restoreTimer = window.setTimeout(() => {
+      restoreTimer = null;
+      if (!session || primaryVideo() !== video || restoreComplete || restoreUserInterrupted) return;
+      tryRestore(video);
+    }, RESTORE_RETRY_INTERVAL_MS);
+  }
+
   function tryRestore(video) {
-    if (!session || restoreAttempted || primaryVideo() !== video) return;
+    if (!session || primaryVideo() !== video || restoreComplete || restoreUserInterrupted) return;
     if (video.readyState < HTMLMediaElement.HAVE_METADATA ||
         !Number.isFinite(video.duration) || video.duration <= 0) return;
 
-    restoreAttempted = true;
-    const initialTime = Number(session.initialTime);
-    if (Number.isFinite(initialTime) && initialTime >= 5 && initialTime < video.duration - 2) {
-      try {
-        if (Math.abs(video.currentTime - initialTime) > 3) video.currentTime = initialTime;
-      } catch {
-        // The provider's player may not yet permit seeking; continue watching without breaking playback.
+    if (restoreTarget <= 0) {
+      const initialTime = Number(session.initialTime);
+      if (!Number.isFinite(initialTime) || initialTime < 5 || initialTime >= video.duration - 2) {
+        finishRestore(video, false);
+        return;
+      }
+      restoreTarget = initialTime;
+      restoreStartedAt = Date.now();
+    }
+
+    const now = Date.now();
+    const distance = Math.abs(video.currentTime - restoreTarget);
+
+    // Never jump a source player backwards if it already restored a later position.
+    // Once our seek has advanced naturally beyond the requested time, regard it as stable.
+    if (!video.seeking && restoreAttempts === 0 && video.currentTime >= restoreTarget + 3) {
+      finishRestore(video, false);
+      return;
+    }
+    if (!video.seeking && restoreAttempts > 0 && !video.paused &&
+        video.currentTime > restoreTarget + 3) {
+      finishRestore(video, false);
+      return;
+    }
+
+    if (distance <= 3 && !video.seeking) {
+      if (restoreMatchedSince === 0) restoreMatchedSince = now;
+      if (now - restoreMatchedSince >= RESTORE_CONFIRMATION_MS) {
+        finishRestore(video, false);
+        return;
+      }
+    } else {
+      restoreMatchedSince = 0;
+      if (now - restoreStartedAt >= RESTORE_MAX_DURATION_MS ||
+          restoreAttempts >= RESTORE_MAX_ATTEMPTS) {
+        finishRestore(video, true);
+        return;
+      }
+      if (!video.seeking && now - restoreLastSetAt >= RESTORE_RETRY_INTERVAL_MS - 50) {
+        try {
+          video.currentTime = restoreTarget;
+          restoreAttempts += 1;
+          restoreLastSetAt = now;
+        } catch {
+          // Some providers temporarily reject seeks while their player initializes.
+        }
       }
     }
-    window.setTimeout(() => {
-      if (session && primaryVideo() === video) reportProgress(video, true);
-    }, 400);
+
+    if (now - restoreStartedAt >= RESTORE_MAX_DURATION_MS) {
+      finishRestore(video, Math.abs(video.currentTime - restoreTarget) > 3);
+      return;
+    }
+    scheduleRestoreRetry(video);
+  }
+
+  function noteManualSeek(event) {
+    if (!session || restoreTarget <= 0 || restoreUserInterrupted ||
+        (restoreComplete && !restoreFailed)) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest(SEEK_BAR_SELECTOR)) return;
+    restoreUserInterrupted = true;
+    restoreComplete = true;
+    restoreFailed = false;
+    clearRestoreTimer();
+  }
+
+  document.addEventListener("pointerdown", noteManualSeek, true);
+  document.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key)) return;
+    noteManualSeek(event);
+  }, true);
+  document.addEventListener("input", noteManualSeek, true);
+
+  function enableMainWorldBridge() {
+    if (!session) return;
+    try {
+      window.postMessage({ channel: CHANNEL, type: "bridge-enable" }, location.origin);
+    } catch {
+      // The optional main-world bridge may be unavailable on older browsers.
+    }
   }
 
   function attachVideo(video) {
@@ -550,6 +679,7 @@
       if (typeof message.token !== "string" || message.token.length < 16 || message.token.length > 200) return;
 
       if (session?.token === message.token) {
+        enableMainWorldBridge();
         postToParent({ type: "connected" });
         relayInitializationToChildren();
         return;
@@ -562,8 +692,9 @@
         initialTime: Number.isFinite(message.initialTime) ? message.initialTime : 0,
         lastReportAt: 0,
       };
-      restoreAttempted = false;
+      resetRestoreState();
       playerReadyReported = false;
+      enableMainWorldBridge();
       postToParent({ type: "connected" });
       for (const video of Array.from(document.querySelectorAll("video"))) {
         attachVideo(video);
