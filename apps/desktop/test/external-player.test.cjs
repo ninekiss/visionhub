@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   canShowExternalPlayer,
   createPlayerIsolationScript,
+  createSubframePlayerBridgeScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
@@ -85,4 +86,114 @@ test("desktop player setup does not call unsupported WebContents background APIs
   const { readFileSync } = require("node:fs");
   const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
   assert.doesNotMatch(mainSource, /view\.webContents\.setBackgroundColor\s*\(/);
+});
+
+test("external source WebContentsView uses a restricted focus-guard preload", () => {
+  const { readFileSync } = require("node:fs");
+  const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
+  const preloadSource = readFileSync(require.resolve("../src/external-player-preload.cjs"), "utf8");
+  const packageSource = JSON.parse(readFileSync(require.resolve("../package.json"), "utf8"));
+
+  assert.ok(mainSource.includes('preload: path.join(__dirname, "external-player-preload.cjs")'));
+  assert.match(mainSource, /sandbox: true/);
+  assert.match(mainSource, /nodeIntegration: false/);
+  assert.ok(preloadSource.includes("HTMLMediaElement.prototype"));
+  assert.ok(preloadSource.includes("shouldSuppressPause"));
+  assert.ok(preloadSource.includes("manualPauseUntil"));
+  assert.ok(preloadSource.includes("RETRY_DELAYS"));
+  assert.doesNotMatch(preloadSource, /contextBridge\.exposeInMainWorld/);
+  assert.ok(preloadSource.includes('ipcRenderer.on("external-player:initialize"'));
+  assert.ok(preloadSource.includes('ipcRenderer.send("external-player:progress"'));
+  assert.ok(preloadSource.includes("configuredReadinessSelector"));
+  assert.ok(preloadSource.includes("restoreMatchedSince"));
+  assert.ok(preloadSource.includes("seekVideoInPageWorld"));
+  assert.ok(preloadSource.includes("func: seekVideoInPageWorld"));
+  assert.ok(preloadSource.includes("restoreSeekPending"));
+  assert.ok(preloadSource.includes("RESTORE_CONFIRMATION_MS = 2500"));
+  assert.ok(preloadSource.includes("RESTORE_MAX_DURATION_MS = 15000"));
+  assert.ok(preloadSource.includes("RESTORE_MAX_ATTEMPTS = 24"));
+  assert.ok(preloadSource.includes("restoreStartedAt = 0"));
+  assert.ok(preloadSource.includes("video.plyr"));
+  assert.ok(mainSource.includes("playerSelector: session.provider.playerSelector"));
+  assert.ok(mainSource.includes("readinessSelector: session.provider.readinessSelector || session.provider.playerSelector"));
+  const readinessBlock = mainSource.slice(
+    mainSource.indexOf("function startExternalPlayerReadinessCheck"),
+    mainSource.indexOf("async function loadExternalPlaybackProviders"),
+  );
+  assert.ok(readinessBlock.indexOf('view.webContents.send("external-player:initialize"') >
+    readinessBlock.indexOf("Date.now() - session.readySince < 2500"));
+  const loadFinishedBlock = mainSource.slice(
+    mainSource.indexOf('view.webContents.on("did-finish-load"'),
+    mainSource.indexOf('view.webContents.on("enter-html-full-screen"'),
+  );
+  assert.doesNotMatch(loadFinishedBlock, /external-player:initialize/);
+  assert.ok(mainSource.includes('event.sender !== session.view.webContents'));
+  assert.ok(mainSource.includes('payload.requestId !== session.requestId'));
+  assert.ok(packageSource.scripts.build.includes("node --check src/external-player-preload.cjs"));
+});
+
+
+test("builds a DOM-only subframe resume bridge for allowlisted source origins", () => {
+  const script = createSubframePlayerBridgeScript({
+    requestId: "resume:frame-test",
+    token: "per-session-token",
+    initialTime: 324,
+    restoreTimeoutMs: 60000,
+    playerSelector: ".player-container",
+    readinessSelector: ".player-container video",
+  });
+
+  assert.match(script, /window === window\.top/);
+  assert.match(script, /video\.currentTime = restoreTarget/);
+  assert.match(script, /video\.addEventListener\("seeked"/);
+  assert.match(script, /const CONFIRM_MS = 2500/);
+  assert.match(script, /const MAX_ATTEMPTS = 24/);
+  assert.match(script, /"restoreTimeoutMs":15000/);
+  assert.match(script, /let restoreStartedAt = 0/);
+  assert.doesNotMatch(script, /restoreSeekConfirmed/);
+  assert.match(script, /window\.top\.postMessage/);
+  assert.match(script, /visionhub-desktop-source-frame-v1/);
+  assert.doesNotMatch(script, /require\(|ipcRenderer|contextBridge/);
+  assert.throws(() => createSubframePlayerBridgeScript({
+    requestId: "invalid id with spaces",
+    token: "token",
+    initialTime: 10,
+    playerSelector: ".player",
+  }), /session identifiers/);
+
+  // The generated source must parse independently before Electron evaluates it in the frame.
+  assert.doesNotThrow(() => new Function(script));
+});
+
+test("readiness detection supports a configured player backed by an iframe", () => {
+  const script = createPlayerIsolationScript(".player-container", ".player-container video");
+  assert.match(script, /target\.querySelector\("video, iframe"\)/);
+  assert.match(script, /readinessTarget instanceof HTMLIFrameElement/);
+  assert.doesNotThrow(() => new Function(script));
+});
+
+test("only instruments configured HTTPS frames and validates subframe progress", () => {
+  const { readFileSync } = require("node:fs");
+  const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
+  const preloadSource = readFileSync(require.resolve("../src/external-player-preload.cjs"), "utf8");
+
+  assert.ok(mainSource.includes("webFrameMain.fromId(processId, routingId)"));
+  assert.ok(mainSource.includes("frame.executeJavaScript(script)"));
+  assert.ok(mainSource.includes("framesInSubtree"));
+  assert.ok(mainSource.includes("providerOriginAllowed(frame.url, session.provider)"));
+  assert.ok(mainSource.includes("progressToken: randomUUID()"));
+  assert.ok(preloadSource.includes("message.token !== frameBridgeToken"));
+  assert.ok(preloadSource.includes("!allowedFrameOrigins.includes(event.origin)"));
+  assert.ok(preloadSource.includes('window.addEventListener("message", handleSubframeProgressMessage, true)'));
+  assert.ok(preloadSource.includes("message.requestId !== externalPlayerRequestId"));
+});
+
+
+test("resume bridge selects the largest visible video like the Web extension", () => {
+  const { readFileSync } = require("node:fs");
+  const preloadSource = readFileSync(require.resolve("../src/external-player-preload.cjs"), "utf8");
+  const helperSource = readFileSync(require.resolve("../src/external-player.cjs"), "utf8");
+  assert.match(preloadSource, /function primaryVideo\(\)[\s\S]*?return largestVisibleVideo\(allVideos\);/);
+  assert.match(helperSource, /function primaryVideo\(\)[\s\S]*?\.filter\(isVisible\)[\s\S]*?right\.readyState >= HTMLMediaElement\.HAVE_METADATA/);
+  assert.match(helperSource, /rect\.bottom > 0 && rect\.right > 0 && rect\.top < innerHeight && rect\.left < innerWidth/);
 });

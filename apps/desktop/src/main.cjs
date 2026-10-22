@@ -1,4 +1,5 @@
-const { app, BrowserWindow, WebContentsView, dialog, ipcMain, Menu, protocol, screen, shell } = require("electron");
+const { app, BrowserWindow, WebContentsView, dialog, ipcMain, Menu, protocol, screen, shell, webFrameMain } = require("electron");
+const { randomUUID } = require("node:crypto");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const {
@@ -11,6 +12,7 @@ const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
 const {
   canShowExternalPlayer,
   createPlayerIsolationScript,
+  createSubframePlayerBridgeScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
@@ -129,6 +131,17 @@ function sendExternalPlayerStatus(status, providerId, requestId, code) {
   });
 }
 
+function sendExternalPlayerProgress(session, currentTime, duration) {
+  if (!mainWindow || mainWindow.isDestroyed() || externalPlayerSession !== session) return;
+  mainWindow.webContents.send("external-player:status", {
+    status: "progress",
+    providerId: session.providerId,
+    requestId: session.requestId,
+    currentTime,
+    duration,
+  });
+}
+
 function clearExternalPlayerTimers(session) {
   if (!session) return;
   if (session.readinessInterval) clearInterval(session.readinessInterval);
@@ -169,6 +182,62 @@ function failExternalPlayer(session, code) {
   closeExternalPlayer({ notify: true, status: "error", code });
 }
 
+function injectExternalPlayerSubframeBridge(session, frame) {
+  if (!session || externalPlayerSession !== session || !session.progressInitialized ||
+      !frame || frame === session.view.webContents.mainFrame) return;
+  try {
+    if (frame.isDestroyed() || frame.detached ||
+        !providerOriginAllowed(frame.url, session.provider)) return;
+    const script = createSubframePlayerBridgeScript({
+      requestId: session.requestId,
+      token: session.progressToken,
+      initialTime: session.initialTime,
+      restoreTimeoutMs: 15000,
+      playerSelector: session.provider.playerSelector,
+      readinessSelector: session.provider.readinessSelector || session.provider.playerSelector,
+    });
+    void frame.executeJavaScript(script).catch(() => {
+      // Frames can navigate or detach while the bridge is being installed.
+    });
+  } catch {
+    // The top-frame player remains usable if a child frame cannot be instrumented.
+  }
+}
+
+function injectExistingExternalPlayerSubframes(session) {
+  if (!session || externalPlayerSession !== session || !session.progressInitialized) return;
+  try {
+    for (const frame of session.view.webContents.mainFrame.framesInSubtree) {
+      injectExternalPlayerSubframeBridge(session, frame);
+    }
+  } catch {
+    // The frame tree may change during enumeration.
+  }
+}
+
+function attachExternalPlayerSubframeLifecycle(session) {
+  const injectById = (eventUrl, processId, routingId) => {
+    if (externalPlayerSession !== session || !session.progressInitialized) return;
+    let frame;
+    try {
+      frame = webFrameMain.fromId(processId, routingId);
+    } catch {
+      return;
+    }
+    if (!frame || !providerOriginAllowed(frame.url || eventUrl, session.provider)) return;
+    setImmediate(() => injectExternalPlayerSubframeBridge(session, frame));
+  };
+
+  session.view.webContents.on("did-frame-navigate", (
+    _event, url, _httpResponseCode, _httpStatusText, isMainFrame, processId, routingId,
+  ) => {
+    if (!isMainFrame) injectById(url, processId, routingId);
+  });
+  session.view.webContents.on("did-frame-finish-load", (_event, isMainFrame, processId, routingId) => {
+    if (!isMainFrame) injectById("", processId, routingId);
+  });
+}
+
 function startExternalPlayerReadinessCheck(session) {
   if (externalPlayerSession !== session || session.readinessInterval) return;
   let running = false;
@@ -195,6 +264,20 @@ function startExternalPlayerReadinessCheck(session) {
       // the first valid frame is detected. Source players often still show a white
       // transition/loading surface for a moment after their DOM/video becomes ready.
       if (Date.now() - session.readySince < 2500) return;
+
+      if (!session.progressInitialized) {
+        session.progressInitialized = true;
+        session.view.webContents.send("external-player:initialize", {
+          requestId: session.requestId,
+          initialTime: session.initialTime,
+          playerSelector: session.provider.playerSelector,
+          readinessSelector: session.provider.readinessSelector || session.provider.playerSelector,
+          restoreTimeoutMs: 15000,
+          progressToken: session.progressToken,
+          allowedFrameOrigins: session.provider.allowedOrigins,
+        });
+        setImmediate(() => injectExistingExternalPlayerSubframes(session));
+      }
 
       session.ready = true;
       clearExternalPlayerTimers(session);
@@ -260,10 +343,14 @@ function fillExternalPlayerFullscreen(session) {
   }));
 }
 
-function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
+function openExternalPlayer(providerId, contentId, boundsValue, requestId, initialTime = 0) {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error("VisionHub 播放窗口不可用。");
   if (!isValidExternalPlayerRequestId(requestId)) {
     throw new Error("外部播放请求 ID 无效。");
+  }
+  if (typeof initialTime !== "number" || !Number.isFinite(initialTime) ||
+      initialTime < 0 || initialTime > 1_000_000_000) {
+    throw new Error("外部播放续播位置无效。");
   }
   const provider = playbackProviders.find((candidate) => candidate.id === providerId);
   if (!provider) throw new Error("这个源站尚未配置，请检查 configs/playback-sources.yaml。");
@@ -273,6 +360,8 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
 
   const view = new WebContentsView({
     webPreferences: {
+      // Dedicated preload guards source-player focus behavior without exposing IPC or Node APIs.
+      preload: path.join(__dirname, "external-player-preload.cjs"),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -293,6 +382,10 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     provider,
     providerId,
     requestId,
+    initialTime,
+    progressToken: randomUUID(),
+    lastProgressAt: 0,
+    progressInitialized: false,
     bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, visible: bounds.visible },
     htmlFullscreen: false,
     changedWindowFullscreen: false,
@@ -302,6 +395,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     readySince: null,
   };
   externalPlayerSession = session;
+  attachExternalPlayerSubframeLifecycle(session);
 
   const rejectNavigation = (event, targetOrDetails, _isInPlace, deprecatedIsMainFrame) => {
     // Electron introduced a details object for navigation events; accept the older
@@ -324,6 +418,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     if (isMainFrame && errorCode !== -3) failExternalPlayer(session, "load-failed");
   });
   view.webContents.on("did-finish-load", () => {
+    // Do not start seek retries until the configured source player has a valid frame.
     startExternalPlayerReadinessCheck(session);
   });
   view.webContents.on("enter-html-full-screen", () => {
@@ -529,8 +624,28 @@ app.whenReady().then(async () => {
         typeof request.requestId !== "string") {
       throw new Error("外部播放源参数无效。");
     }
-    openExternalPlayer(request.providerId, request.contentId, request.bounds, request.requestId);
+    const initialTime = request.initialTime === undefined ? 0 : request.initialTime;
+    openExternalPlayer(request.providerId, request.contentId, request.bounds, request.requestId, initialTime);
     return true;
+  });
+
+  ipcMain.on("external-player:progress", (event, payload) => {
+    const session = externalPlayerSession;
+    if (!session || !session.view || session.view.webContents.isDestroyed() ||
+        event.sender !== session.view.webContents || !payload ||
+        typeof payload !== "object" || payload.requestId !== session.requestId) return;
+
+    const currentTime = payload.currentTime;
+    const duration = payload.duration;
+    if (typeof currentTime !== "number" || !Number.isFinite(currentTime) || currentTime < 0 ||
+        typeof duration !== "number" || !Number.isFinite(duration) || duration <= 0 ||
+        duration > 1_000_000_000 || currentTime > duration + 5) return;
+
+    const now = Date.now();
+    const force = payload.force === true;
+    if (!force && now - session.lastProgressAt < 1800) return;
+    session.lastProgressAt = now;
+    sendExternalPlayerProgress(session, Math.max(0, Math.min(currentTime, duration)), duration);
   });
 
   ipcMain.handle("external-player:resize", (event, request) => {
