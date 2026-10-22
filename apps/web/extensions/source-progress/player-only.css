@@ -158,6 +158,37 @@ html[data-vh-sp-active="true"] body {
   outline-color: #c7f36b !important;
 }
 
+/* Match Plyr's own explicit theme selectors, not only the CSS variables. */
+.plyr--full-ui input[type="range"] {
+  color: #c7f36b !important;
+}
+
+.plyr--full-ui input[type="range"].plyr__tab-focus::-webkit-slider-runnable-track {
+  outline-color: #c7f36b !important;
+}
+
+.plyr--full-ui input[type="range"].plyr__tab-focus::-moz-range-track {
+  outline-color: #c7f36b !important;
+}
+
+.plyr--full-ui input[type="range"].plyr__tab-focus::-ms-track {
+  outline-color: #c7f36b !important;
+}
+
+.plyr--video .plyr__control.plyr__tab-focus,
+.plyr--video .plyr__control:hover,
+.plyr--video .plyr__control[aria-expanded="true"],
+.plyr--audio .plyr__control.plyr__tab-focus,
+.plyr--audio .plyr__control:hover,
+.plyr--audio .plyr__control[aria-expanded="true"] {
+  background: #c7f36b !important;
+  color: #fff !important;
+}
+
+.plyr__menu__container .plyr__control[role="menuitemradio"][aria-checked="true"]::before {
+  background: #c7f36b !important;
+}
+
 /* Explicit paint rules cover Plyr builds that do not consume menu CSS tokens consistently. */
 .plyr .plyr__menu__container,
 .plyr .plyr__menu__container [role="menu"],
