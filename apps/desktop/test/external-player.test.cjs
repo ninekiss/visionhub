@@ -57,11 +57,16 @@ test("bounds reject malformed and absurd coordinates and preserve explicit visib
   assert.throws(() => validateExternalPlayerBounds({ x: 0, y: 0, width: NaN, height: 1 }), /finite numbers/);
 });
 
-test("player isolation logic is selector-based and does not evaluate metadata as code", () => {
+test("player-only UI uses validated selectors and marker-based styles", () => {
   const script = createPlayerIsolationScript(".vp-player", ".vp-player video");
-  assert.match(script, /document\.querySelector\("\.vp-player video"\)/);
-  assert.match(script, /setProperty\("display", "none", "important"\)/);
-  assert.doesNotMatch(script, /eval\(|Function\(/);
+  assert.match(script, /"playerSelector":"\\.vp-player"/);
+  assert.match(script, /"readinessSelector":"\\.vp-player video"/);
+  assert.match(script, /data-vh-sp-hidden/);
+  assert.match(script, /data-vh-sp-root/);
+  assert.match(script, /MutationObserver/);
+  assert.doesNotMatch(script, /eval\\(|Function\\(/);
+  assert.doesNotMatch(script, /sibling\\.style\\.setProperty\\("display"/);
+  assert.doesNotThrow(() => new Function(script));
 });
 
 test("native player remains hidden through loading, resize, and fullscreen until ready", () => {
@@ -196,4 +201,36 @@ test("resume bridge selects the largest visible video like the Web extension", (
   assert.match(preloadSource, /function primaryVideo\(\)[\s\S]*?return largestVisibleVideo\(allVideos\);/);
   assert.match(helperSource, /function primaryVideo\(\)[\s\S]*?\.filter\(isVisible\)[\s\S]*?right\.readyState >= HTMLMediaElement\.HAVE_METADATA/);
   assert.match(helperSource, /rect\.bottom > 0 && rect\.right > 0 && rect\.top < innerHeight && rect\.left < innerWidth/);
+});
+
+
+test("desktop source-player UI matches extension isolation, controls, and Plyr theme", () => {
+  const { createSourcePlayerUiScript, PLAYER_ONLY_CSS } = require("../src/source-player-ui.cjs");
+  const script = createSourcePlayerUiScript({
+    playerSelector: ".video-player",
+    readinessSelector: ".video-player video",
+  });
+
+  assert.ok(PLAYER_ONLY_CSS.includes("data-vh-sp-controls-idle"));
+  assert.ok(PLAYER_ONLY_CSS.includes("data-vh-sp-suppressed"));
+  assert.ok(PLAYER_ONLY_CSS.includes("--plyr-color-main: #c7f36b"));
+  assert.match(script, /CONTROL_AUTO_HIDE_DELAY_MS = 1800/);
+  assert.match(script, /function removeSeekShortcutButtons/);
+  assert.match(script, /function playerRootFor/);
+  assert.match(script, /function isolatePageToPlayer/);
+  assert.match(script, /MutationObserver/);
+  assert.doesNotMatch(script, /ipcRenderer|contextBridge|require\\(/);
+  assert.doesNotThrow(() => new Function(script));
+
+  const frameScript = createSubframePlayerBridgeScript({
+    requestId: "resume:ui-frame",
+    token: "ui-test-token",
+    initialTime: 120,
+    playerSelector: ".player-container",
+    readinessSelector: ".player-container video",
+  });
+  assert.match(frameScript, /visionhub-desktop-player-ui-style/);
+  assert.match(frameScript, /--plyr-color-main: #c7f36b/);
+  assert.match(frameScript, /function runSubframePlayerBridge/);
+  assert.doesNotThrow(() => new Function(frameScript));
 });
