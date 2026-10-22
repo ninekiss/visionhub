@@ -520,7 +520,8 @@
   }
 
   function noteManualSeek(event) {
-    if (!session || restoreComplete || restoreTarget <= 0 || restoreUserInterrupted) return;
+    if (!session || restoreTarget <= 0 || restoreUserInterrupted ||
+        (restoreComplete && !restoreFailed)) return;
     const target = event.target instanceof Element ? event.target : null;
     if (!target?.closest(SEEK_BAR_SELECTOR)) return;
     restoreUserInterrupted = true;
