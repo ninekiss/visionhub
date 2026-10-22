@@ -157,6 +157,13 @@ test("builds a DOM-only subframe resume bridge for allowlisted source origins", 
   assert.doesNotThrow(() => new Function(script));
 });
 
+test("readiness detection supports a configured player backed by an iframe", () => {
+  const script = createPlayerIsolationScript(".player-container", ".player-container video");
+  assert.match(script, /target\.querySelector\("video, iframe"\)/);
+  assert.match(script, /readinessTarget instanceof HTMLIFrameElement/);
+  assert.doesNotThrow(() => new Function(script));
+});
+
 test("only instruments configured HTTPS frames and validates subframe progress", () => {
   const { readFileSync } = require("node:fs");
   const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
