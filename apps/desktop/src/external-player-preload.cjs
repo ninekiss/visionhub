@@ -478,6 +478,7 @@ function reportProgress(video, force = false) {
       requestId: externalPlayerRequestId,
       currentTime: Math.max(0, Math.min(video.currentTime, video.duration)),
       duration: video.duration,
+      force: force === true,
     });
   } catch {
     // Progress is a convenience feature and must never interrupt source playback.
