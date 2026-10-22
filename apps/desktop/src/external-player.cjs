@@ -195,6 +195,12 @@ function runSubframePlayerBridge(config) {
     "button[aria-label^='play' i]", "button[aria-label*='pause' i]",
     "button[title^='play' i]", "button[title*='pause' i]"
   ].join(", ");
+  const SEEK_CONTROL_SELECTOR = [
+    ".plyr__progress", "[data-plyr='seek']", ".vjs-progress-control", ".jw-slider-time",
+    ".dplayer-bar-wrap", ".dplayer-bar", ".art-progress", ".xgplayer-progress",
+    ".bpx-player-progress", ".prism-progress",
+    "[role='slider'][aria-label*='seek' i]", "[role='slider'][aria-label*='progress' i]"
+  ].join(", ");
 
   const states = new Map();
   const trackedVideos = new WeakSet();
@@ -409,9 +415,13 @@ function runSubframePlayerBridge(config) {
       }
       update(true);
     }, true);
-    for (const eventName of ["pause", "ended"]) {
-      video.addEventListener(eventName, () => update(true), true);
-    }
+    video.addEventListener("pause", () => {
+      if (state.manualPauseUntil >= Date.now()) {
+        cancelAsManualPause(state);
+      }
+      update(true);
+    }, true);
+    video.addEventListener("ended", () => update(true), true);
   }
 
   function scan() {
@@ -482,6 +492,17 @@ function runSubframePlayerBridge(config) {
   function markManualPause(event) {
     if (event.type !== "pointerdown" || !(event.target instanceof Element)) return;
     const target = event.target;
+
+    if (restoreTarget > 0 && !restoreComplete && !restoreUserInterrupted &&
+        target.closest(SEEK_CONTROL_SELECTOR)) {
+      // A deliberate drag/seek must take precedence over automatic restoration.
+      restoreUserInterrupted = true;
+      restoreComplete = true;
+      restoreFailed = false;
+      if (restoreTimer !== null) clearTimeout(restoreTimer);
+      restoreTimer = null;
+    }
+
     for (const state of states.values()) {
       const video = state.video;
       if (video.paused || video.ended) continue;
