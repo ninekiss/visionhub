@@ -23,17 +23,31 @@ async function refreshRegisteredSourceScripts() {
     if (!allowed) continue;
 
     const id = sourceScriptIdFor(origin);
-    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [id] });
-    if (existing.length) await chrome.scripting.unregisterContentScripts({ ids: [id] });
-    await chrome.scripting.registerContentScripts([{
-      id,
-      matches: [pattern],
-      css: ["player-only.css"],
-      js: ["content.js"],
-      allFrames: true,
-      runAt: "document_idle",
-      persistAcrossSessions: true,
-    }]);
+    const bridgeId = id + "-main";
+    const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [id, bridgeId] });
+    if (existing.length) {
+      await chrome.scripting.unregisterContentScripts({ ids: existing.map((script) => script.id) });
+    }
+    await chrome.scripting.registerContentScripts([
+      {
+        id,
+        matches: [pattern],
+        css: ["player-only.css"],
+        js: ["content.js"],
+        allFrames: true,
+        runAt: "document_idle",
+        persistAcrossSessions: true,
+      },
+      {
+        id: bridgeId,
+        matches: [pattern],
+        js: ["player-bridge.js"],
+        allFrames: true,
+        runAt: "document_start",
+        world: "MAIN",
+        persistAcrossSessions: true,
+      },
+    ]);
   }
 }
 
