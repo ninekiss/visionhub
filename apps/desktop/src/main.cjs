@@ -476,7 +476,13 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  Menu.setApplicationMenu(Menu.buildFromTemplate(createApplicationMenuTemplate(process.platform)));
+  Menu.setApplicationMenu(Menu.buildFromTemplate(createApplicationMenuTemplate(process.platform, {
+    isDevelopment: !app.isPackaged,
+    onToggleDevTools: () => {
+      if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
+      mainWindow.webContents.toggleDevTools();
+    },
+  })));
 
   try {
     playbackProviders = await loadExternalPlaybackProviders();
