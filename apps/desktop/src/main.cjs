@@ -129,6 +129,17 @@ function sendExternalPlayerStatus(status, providerId, requestId, code) {
   });
 }
 
+function sendExternalPlayerProgress(session, currentTime, duration) {
+  if (!mainWindow || mainWindow.isDestroyed() || externalPlayerSession !== session) return;
+  mainWindow.webContents.send("external-player:status", {
+    status: "progress",
+    providerId: session.providerId,
+    requestId: session.requestId,
+    currentTime,
+    duration,
+  });
+}
+
 function clearExternalPlayerTimers(session) {
   if (!session) return;
   if (session.readinessInterval) clearInterval(session.readinessInterval);
@@ -260,10 +271,14 @@ function fillExternalPlayerFullscreen(session) {
   }));
 }
 
-function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
+function openExternalPlayer(providerId, contentId, boundsValue, requestId, initialTime = 0) {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error("VisionHub 播放窗口不可用。");
   if (!isValidExternalPlayerRequestId(requestId)) {
     throw new Error("外部播放请求 ID 无效。");
+  }
+  if (typeof initialTime !== "number" || !Number.isFinite(initialTime) ||
+      initialTime < 0 || initialTime > 1_000_000_000) {
+    throw new Error("外部播放续播位置无效。");
   }
   const provider = playbackProviders.find((candidate) => candidate.id === providerId);
   if (!provider) throw new Error("这个源站尚未配置，请检查 configs/playback-sources.yaml。");
@@ -295,6 +310,8 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     provider,
     providerId,
     requestId,
+    initialTime,
+    lastProgressAt: 0,
     bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, visible: bounds.visible },
     htmlFullscreen: false,
     changedWindowFullscreen: false,
@@ -326,6 +343,11 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
     if (isMainFrame && errorCode !== -3) failExternalPlayer(session, "load-failed");
   });
   view.webContents.on("did-finish-load", () => {
+    // Private IPC to the isolated preload; no API is exposed to source-page JavaScript.
+    view.webContents.send("external-player:initialize", {
+      requestId: session.requestId,
+      initialTime: session.initialTime,
+    });
     startExternalPlayerReadinessCheck(session);
   });
   view.webContents.on("enter-html-full-screen", () => {
@@ -525,8 +547,28 @@ app.whenReady().then(async () => {
         typeof request.requestId !== "string") {
       throw new Error("外部播放源参数无效。");
     }
-    openExternalPlayer(request.providerId, request.contentId, request.bounds, request.requestId);
+    const initialTime = request.initialTime === undefined ? 0 : request.initialTime;
+    openExternalPlayer(request.providerId, request.contentId, request.bounds, request.requestId, initialTime);
     return true;
+  });
+
+  ipcMain.on("external-player:progress", (event, payload) => {
+    const session = externalPlayerSession;
+    if (!session || !session.view || session.view.webContents.isDestroyed() ||
+        event.sender !== session.view.webContents || !payload ||
+        typeof payload !== "object" || payload.requestId !== session.requestId) return;
+
+    const currentTime = payload.currentTime;
+    const duration = payload.duration;
+    if (typeof currentTime !== "number" || !Number.isFinite(currentTime) || currentTime < 0 ||
+        typeof duration !== "number" || !Number.isFinite(duration) || duration <= 0 ||
+        duration > 1_000_000_000 || currentTime > duration + 5) return;
+
+    const now = Date.now();
+    const force = payload.force === true;
+    if (!force && now - session.lastProgressAt < 1800) return;
+    session.lastProgressAt = now;
+    sendExternalPlayerProgress(session, Math.max(0, Math.min(currentTime, duration)), duration);
   });
 
   ipcMain.handle("external-player:resize", (event, request) => {
