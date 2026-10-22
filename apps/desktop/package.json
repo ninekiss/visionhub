@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "start": "electron .",
-    "build": "pnpm --filter @visionhub/web exec vite build --base=/ --outDir ../../apps/desktop/renderer-dist --emptyOutDir && node --check src/main.cjs && node --check src/preload.cjs && node --check src/security.cjs && node --check src/external-player.cjs && node --check src/renderer-protocol.cjs && node --check src/application-menu.cjs && node --check src/window-state.cjs && node --check scripts/dev.mjs && node scripts/verify-renderer-build.mjs",
+    "build": "pnpm --filter @visionhub/web exec vite build --base=/ --outDir ../../apps/desktop/renderer-dist --emptyOutDir && node --check src/main.cjs && node --check src/preload.cjs && node --check src/external-player-preload.cjs && node --check src/security.cjs && node --check src/external-player.cjs && node --check src/renderer-protocol.cjs && node --check src/application-menu.cjs && node --check src/window-state.cjs && node --check scripts/dev.mjs && node scripts/verify-renderer-build.mjs",
     "lint": "pnpm build",
     "typecheck": "pnpm build",
     "test": "node --test test/*.test.cjs"
