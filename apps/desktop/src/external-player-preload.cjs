@@ -364,7 +364,7 @@ const trackedVideos = new WeakSet();
 const RESTORE_MAX_DURATION_MS = 15000;
 const RESTORE_RETRY_INTERVAL_MS = 400;
 const RESTORE_MAX_ATTEMPTS = 24;
-const RESTORE_CONFIRMATION_MS = 1800;
+const RESTORE_CONFIRMATION_MS = 2500;
 const SEEK_CONTROL_SELECTOR = [
   ".plyr__progress", "[data-plyr='seek']", ".vjs-progress-control",
   ".jw-slider-time", ".dplayer-bar-wrap", ".dplayer-bar",
@@ -500,7 +500,12 @@ function reportProgress(video, force = false) {
 function interruptRestoreForManualSeek(event) {
   if (!sessionInitialized || restoreComplete || restoreTarget <= 0 || restoreUserInterrupted) return;
   const target = event.target instanceof Element ? event.target : null;
-  if (!target || !target.closest(SEEK_CONTROL_SELECTOR)) return;
+  if (!target) return;
+  const seekControl = Boolean(target.closest(SEEK_CONTROL_SELECTOR));
+  const keyboardSeek = event.type === "keydown" &&
+    ["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key) &&
+    Boolean(target.closest(PLAYER_ROOT_SELECTOR_FOR_KEYS));
+  if (!seekControl && !keyboardSeek) return;
   restoreUserInterrupted = true;
   restoreComplete = true;
   restoreFailed = false;
