@@ -105,11 +105,14 @@ test("external source WebContentsView uses a restricted focus-guard preload", ()
   assert.ok(preloadSource.includes('ipcRenderer.on("external-player:initialize"'));
   assert.ok(preloadSource.includes('ipcRenderer.send("external-player:progress"'));
   assert.ok(preloadSource.includes("configuredReadinessSelector"));
-  assert.ok(preloadSource.includes("restoreSeekConfirmed"));
+  assert.ok(preloadSource.includes("restoreMatchedSince"));
   assert.ok(preloadSource.includes("seekVideoInPageWorld"));
   assert.ok(preloadSource.includes("func: seekVideoInPageWorld"));
   assert.ok(preloadSource.includes("restoreSeekPending"));
-  assert.ok(preloadSource.includes("RESTORE_CONFIRMATION_MS = 1000"));
+  assert.ok(preloadSource.includes("RESTORE_CONFIRMATION_MS = 2500"));
+  assert.ok(preloadSource.includes("RESTORE_MAX_DURATION_MS = 15000"));
+  assert.ok(preloadSource.includes("RESTORE_MAX_ATTEMPTS = 24"));
+  assert.ok(preloadSource.includes("restoreStartedAt = 0"));
   assert.ok(preloadSource.includes("video.plyr"));
   assert.ok(mainSource.includes("playerSelector: session.provider.playerSelector"));
   assert.ok(mainSource.includes("readinessSelector: session.provider.readinessSelector || session.provider.playerSelector"));
@@ -143,6 +146,10 @@ test("builds a DOM-only subframe resume bridge for allowlisted source origins", 
   assert.match(script, /window === window\.top/);
   assert.match(script, /video\.currentTime = restoreTarget/);
   assert.match(script, /video\.addEventListener\("seeked"/);
+  assert.match(script, /const CONFIRM_MS = 2500/);
+  assert.match(script, /const MAX_ATTEMPTS = 24/);
+  assert.match(script, /let restoreStartedAt = 0/);
+  assert.doesNotMatch(script, /restoreSeekConfirmed/);
   assert.match(script, /window\.top\.postMessage/);
   assert.match(script, /visionhub-desktop-source-frame-v1/);
   assert.doesNotMatch(script, /require\(|ipcRenderer|contextBridge/);
