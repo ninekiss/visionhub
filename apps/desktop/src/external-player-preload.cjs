@@ -1,4 +1,4 @@
-const { contextBridge, webFrame } = require("electron");
+const { contextBridge, ipcRenderer, webFrame } = require("electron");
 
 function installExternalPlayerFocusGuard() {
   "use strict";
@@ -339,3 +339,224 @@ if (!installed) {
     // Do not interrupt source loading if page execution is unavailable.
   }
 }
+
+
+/*
+ * Progress/session bridge runs only in the isolated preload world. The source
+ * page cannot access ipcRenderer; every progress payload is also verified in
+ * the main process against the active WebContentsView and request ID.
+ */
+let externalPlayerRequestId = "";
+let initialResumeTime = 0;
+let restoreTarget = 0;
+let restoreStartedAt = 0;
+let restoreLastSetAt = 0;
+let restoreMatchedSince = 0;
+let restoreAttempts = 0;
+let restoreComplete = false;
+let restoreFailed = false;
+let restoreUserInterrupted = false;
+let restoreTimer = null;
+let lastProgressReportAt = 0;
+let sessionInitialized = false;
+const trackedVideos = new WeakSet();
+
+const RESTORE_MAX_DURATION_MS = 15000;
+const RESTORE_RETRY_INTERVAL_MS = 400;
+const RESTORE_MAX_ATTEMPTS = 24;
+const RESTORE_CONFIRMATION_MS = 1800;
+const SEEK_CONTROL_SELECTOR = [
+  ".plyr__progress", "[data-plyr='seek']", ".vjs-progress-control",
+  ".jw-slider-time", ".dplayer-bar-wrap", ".dplayer-bar",
+  ".art-progress", ".xgplayer-progress", ".bpx-player-progress", ".prism-progress",
+  "[role='slider'][aria-label*='seek' i]", "[role='slider'][aria-label*='progress' i]",
+  "[role='slider'][aria-label*='time' i]"
+].join(", ");
+
+function visibleVideo(video) {
+  if (!(video instanceof HTMLVideoElement) || !video.isConnected) return false;
+  const style = getComputedStyle(video);
+  if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) <= 0) return false;
+  const rect = video.getBoundingClientRect();
+  return rect.width >= 100 && rect.height >= 56 &&
+    rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
+}
+
+function primaryVideo() {
+  return Array.from(document.querySelectorAll("video"))
+    .filter(visibleVideo)
+    .sort((left, right) => {
+      const a = left.getBoundingClientRect();
+      const b = right.getBoundingClientRect();
+      const area = b.width * b.height - a.width * a.height;
+      if (area !== 0) return area;
+      return Number(right.readyState >= HTMLMediaElement.HAVE_METADATA) -
+        Number(left.readyState >= HTMLMediaElement.HAVE_METADATA);
+    })[0] ?? null;
+}
+
+function clearRestoreTimer() {
+  if (restoreTimer !== null) {
+    clearTimeout(restoreTimer);
+    restoreTimer = null;
+  }
+}
+
+function finishRestore(video, failed = false) {
+  restoreComplete = true;
+  restoreFailed = failed;
+  clearRestoreTimer();
+  if (!failed && video && primaryVideo() === video) reportProgress(video, true);
+}
+
+function scheduleRestoreRetry() {
+  if (restoreTimer !== null || restoreComplete || restoreUserInterrupted) return;
+  restoreTimer = setTimeout(() => {
+    restoreTimer = null;
+    tryRestore(primaryVideo());
+  }, RESTORE_RETRY_INTERVAL_MS);
+}
+
+function tryRestore(video) {
+  if (!sessionInitialized || restoreComplete || restoreUserInterrupted) return;
+  const now = Date.now();
+  if (restoreTarget <= 0) {
+    finishRestore(video, false);
+    return;
+  }
+  if (now - restoreStartedAt >= RESTORE_MAX_DURATION_MS ||
+      restoreAttempts >= RESTORE_MAX_ATTEMPTS) {
+    finishRestore(video, true);
+    return;
+  }
+  if (!video || primaryVideo() !== video ||
+      video.readyState < HTMLMediaElement.HAVE_METADATA ||
+      !Number.isFinite(video.duration) || video.duration <= 0) {
+    scheduleRestoreRetry();
+    return;
+  }
+
+  const distance = Math.abs(video.currentTime - restoreTarget);
+  if (!video.seeking && restoreAttempts === 0 && video.currentTime >= restoreTarget + 3) {
+    // The source has already selected a later position. Never seek it backwards.
+    finishRestore(video, false);
+    return;
+  }
+  if (distance <= 3 && !video.seeking) {
+    if (restoreMatchedSince === 0) restoreMatchedSince = now;
+    if (now - restoreMatchedSince >= RESTORE_CONFIRMATION_MS) {
+      finishRestore(video, false);
+      return;
+    }
+  } else {
+    restoreMatchedSince = 0;
+    if (!video.seeking && now - restoreLastSetAt >= RESTORE_RETRY_INTERVAL_MS - 50) {
+      try {
+        video.currentTime = restoreTarget;
+        restoreAttempts += 1;
+        restoreLastSetAt = now;
+      } catch {
+        // Providers can reject seeking until their internal player is ready.
+      }
+    }
+  }
+  scheduleRestoreRetry();
+}
+
+function reportProgress(video, force = false) {
+  if (!sessionInitialized || !externalPlayerRequestId || !video ||
+      primaryVideo() !== video ||
+      !Number.isFinite(video.currentTime) ||
+      !Number.isFinite(video.duration) || video.duration <= 0) return;
+  if (restoreTarget > 0 && !restoreComplete && !restoreUserInterrupted) return;
+  if (restoreFailed && !restoreUserInterrupted && video.currentTime < restoreTarget - 3) return;
+  const now = Date.now();
+  if (!force && now - lastProgressReportAt < 2000) return;
+  lastProgressReportAt = now;
+  try {
+    ipcRenderer.send("external-player:progress", {
+      requestId: externalPlayerRequestId,
+      currentTime: Math.max(0, Math.min(video.currentTime, video.duration)),
+      duration: video.duration,
+    });
+  } catch {
+    // Progress is a convenience feature and must never interrupt source playback.
+  }
+}
+
+function interruptRestoreForManualSeek(event) {
+  if (!sessionInitialized || restoreComplete || restoreTarget <= 0 || restoreUserInterrupted) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || !target.closest(SEEK_CONTROL_SELECTOR)) return;
+  restoreUserInterrupted = true;
+  restoreComplete = true;
+  restoreFailed = false;
+  clearRestoreTimer();
+  const video = primaryVideo();
+  if (video) reportProgress(video, true);
+}
+
+function attachProgressVideo(video) {
+  if (!(video instanceof HTMLVideoElement) || trackedVideos.has(video)) return;
+  trackedVideos.add(video);
+  const update = (force = false) => {
+    if (!sessionInitialized) return;
+    tryRestore(primaryVideo());
+    reportProgress(video, force);
+  };
+  for (const eventName of ["loadedmetadata", "durationchange", "canplay", "playing", "timeupdate"]) {
+    video.addEventListener(eventName, () => update(false));
+  }
+  for (const eventName of ["pause", "seeked", "ended"]) {
+    video.addEventListener(eventName, () => update(true));
+  }
+}
+
+function scanProgressVideos() {
+  for (const video of document.querySelectorAll("video")) attachProgressVideo(video);
+  if (sessionInitialized) tryRestore(primaryVideo());
+}
+
+function resetProgressSession(payload) {
+  if (!payload || typeof payload.requestId !== "string" ||
+      !/^[a-zA-Z0-9:._-]{1,160}$/.test(payload.requestId)) return;
+  externalPlayerRequestId = payload.requestId;
+  initialResumeTime = typeof payload.initialTime === "number" &&
+    Number.isFinite(payload.initialTime) && payload.initialTime >= 0
+    ? payload.initialTime
+    : 0;
+  restoreTarget = initialResumeTime >= 5 ? initialResumeTime : 0;
+  restoreStartedAt = Date.now();
+  restoreLastSetAt = 0;
+  restoreMatchedSince = 0;
+  restoreAttempts = 0;
+  restoreComplete = restoreTarget <= 0;
+  restoreFailed = false;
+  restoreUserInterrupted = false;
+  lastProgressReportAt = 0;
+  sessionInitialized = true;
+  clearRestoreTimer();
+  scanProgressVideos();
+  tryRestore(primaryVideo());
+}
+
+ipcRenderer.on("external-player:initialize", (_event, payload) => {
+  resetProgressSession(payload);
+});
+document.addEventListener("pointerdown", interruptRestoreForManualSeek, true);
+document.addEventListener("input", interruptRestoreForManualSeek, true);
+document.addEventListener("keydown", (event) => {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(event.key)) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target?.closest(PLAYER_ROOT_SELECTOR_FOR_KEYS)) return;
+  interruptRestoreForManualSeek(event);
+}, true);
+
+const PLAYER_ROOT_SELECTOR_FOR_KEYS = [
+  ".plyr", ".dplayer", ".video-js", ".jwplayer", ".artplayer-app",
+  ".xgplayer", ".bpx-player-container", ".prism-player"
+].join(", ");
+
+const progressObserver = new MutationObserver(scanProgressVideos);
+progressObserver.observe(document, { childList: true, subtree: true });
+scanProgressVideos();
