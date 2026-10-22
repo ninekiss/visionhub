@@ -359,12 +359,15 @@ let restoreUserInterrupted = false;
 let restoreTimer = null;
 let lastProgressReportAt = 0;
 let sessionInitialized = false;
+let configuredPlayerSelector = "";
+let configuredReadinessSelector = "";
+let restoreSeekConfirmed = false;
 const trackedVideos = new WeakSet();
 
-const RESTORE_MAX_DURATION_MS = 15000;
+let RESTORE_MAX_DURATION_MS = 60000;
 const RESTORE_RETRY_INTERVAL_MS = 400;
-const RESTORE_MAX_ATTEMPTS = 24;
-const RESTORE_CONFIRMATION_MS = 2500;
+let RESTORE_MAX_ATTEMPTS = 156;
+const RESTORE_CONFIRMATION_MS = 1000;
 const SEEK_CONTROL_SELECTOR = [
   ".plyr__progress", "[data-plyr='seek']", ".vjs-progress-control",
   ".jw-slider-time", ".dplayer-bar-wrap", ".dplayer-bar",
@@ -382,17 +385,43 @@ function visibleVideo(video) {
     rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
 }
 
+function videosMatchingSelector(selector) {
+  if (typeof selector !== "string" || !selector.trim() || selector.length > 300) return [];
+  try {
+    const element = document.querySelector(selector);
+    if (!element) return [];
+    if (element instanceof HTMLVideoElement) return [element];
+    if (typeof element.querySelectorAll !== "function") return [];
+    return Array.from(element.querySelectorAll("video"));
+  } catch {
+    // Invalid/stale selector: fall back to visible native video discovery.
+    return [];
+  }
+}
+
+function largestVisibleVideo(videos) {
+  return videos.filter(visibleVideo).sort((left, right) => {
+    const a = left.getBoundingClientRect();
+    const b = right.getBoundingClientRect();
+    const area = b.width * b.height - a.width * a.height;
+    if (area !== 0) return area;
+    return Number(right.readyState >= HTMLMediaElement.HAVE_METADATA) -
+      Number(left.readyState >= HTMLMediaElement.HAVE_METADATA);
+  })[0] ?? null;
+}
+
 function primaryVideo() {
-  return Array.from(document.querySelectorAll("video"))
-    .filter(visibleVideo)
-    .sort((left, right) => {
-      const a = left.getBoundingClientRect();
-      const b = right.getBoundingClientRect();
-      const area = b.width * b.height - a.width * a.height;
-      if (area !== 0) return area;
-      return Number(right.readyState >= HTMLMediaElement.HAVE_METADATA) -
-        Number(left.readyState >= HTMLMediaElement.HAVE_METADATA);
-    })[0] ?? null;
+  // Prefer the source-specific readiness/player selector to avoid hidden previews or ads.
+  const preferred = [
+    ...videosMatchingSelector(configuredReadinessSelector),
+    ...videosMatchingSelector(configuredPlayerSelector),
+  ].filter((video, index, all) => video instanceof HTMLVideoElement &&
+    video.isConnected && all.indexOf(video) === index);
+  if (preferred.length > 0) return largestVisibleVideo(preferred) ?? preferred[0];
+
+  const allVideos = Array.from(document.querySelectorAll("video"));
+  return largestVisibleVideo(allVideos) ??
+    allVideos.find((video) => video instanceof HTMLVideoElement && video.isConnected) ?? null;
 }
 
 function clearRestoreTimer() {
@@ -444,29 +473,27 @@ function tryRestore(video) {
 
   const distance = Math.abs(video.currentTime - restoreTarget);
   if (!video.seeking && restoreAttempts === 0 && video.currentTime >= restoreTarget + 3) {
-    // The source has already selected a later position. Never seek it backwards.
+    // The source already starts beyond the saved point; don't rewind newer progress.
     finishRestore(video, false);
     return;
   }
-  if (!video.seeking && restoreAttempts > 0 && !video.paused &&
-      video.currentTime > restoreTarget + 3) {
-    // Playback has already advanced beyond the target, so the seek succeeded.
-    finishRestore(video, false);
-    return;
-  }
-  if (distance <= 3 && !video.seeking) {
+
+  if (distance <= 3 && !video.seeking && restoreSeekConfirmed) {
     if (restoreMatchedSince === 0) restoreMatchedSince = now;
     if (now - restoreMatchedSince >= RESTORE_CONFIRMATION_MS) {
       finishRestore(video, false);
       return;
     }
   } else {
+    // Merely passing the saved timestamp during normal playback must not count
+    // as a successful seek. Require the media element's seeked event instead.
     restoreMatchedSince = 0;
     if (!video.seeking && now - restoreLastSetAt >= RESTORE_RETRY_INTERVAL_MS - 50) {
       try {
-        video.currentTime = restoreTarget;
-        restoreAttempts += 1;
+        restoreSeekConfirmed = false;
         restoreLastSetAt = now;
+        restoreAttempts += 1;
+        video.currentTime = restoreTarget;
       } catch {
         // Providers can reject seeking until their internal player is ready.
       }
@@ -522,10 +549,20 @@ function attachProgressVideo(video) {
     tryRestore(primaryVideo());
     reportProgress(video, force);
   };
+
   for (const eventName of ["loadedmetadata", "durationchange", "canplay", "playing", "timeupdate"]) {
     video.addEventListener(eventName, () => update(false));
   }
-  for (const eventName of ["pause", "seeked", "ended"]) {
+  video.addEventListener("seeked", () => {
+    if (restoreTarget > 0 && !restoreComplete && !restoreUserInterrupted &&
+        restoreLastSetAt > 0 && Date.now() - restoreLastSetAt < 10000 &&
+        Math.abs(video.currentTime - restoreTarget) <= 3) {
+      restoreSeekConfirmed = true;
+      if (restoreMatchedSince === 0) restoreMatchedSince = Date.now();
+    }
+    update(true);
+  });
+  for (const eventName of ["pause", "ended"]) {
     video.addEventListener(eventName, () => update(true));
   }
 }
@@ -543,10 +580,22 @@ function resetProgressSession(payload) {
     Number.isFinite(payload.initialTime) && payload.initialTime >= 0
     ? payload.initialTime
     : 0;
+  configuredPlayerSelector = typeof payload.playerSelector === "string" &&
+    payload.playerSelector.length <= 300 ? payload.playerSelector : "";
+  configuredReadinessSelector = typeof payload.readinessSelector === "string" &&
+    payload.readinessSelector.length <= 300 ? payload.readinessSelector : configuredPlayerSelector;
+
+  const requestedTimeout = typeof payload.restoreTimeoutMs === "number" &&
+    Number.isFinite(payload.restoreTimeoutMs) ? payload.restoreTimeoutMs : 60000;
+  // Start this bounded window after player readiness has been verified.
+  RESTORE_MAX_DURATION_MS = Math.min(Math.max(requestedTimeout, 30000), 120000);
+  RESTORE_MAX_ATTEMPTS = Math.ceil(RESTORE_MAX_DURATION_MS / RESTORE_RETRY_INTERVAL_MS) + 6;
+
   restoreTarget = initialResumeTime >= 5 ? initialResumeTime : 0;
   restoreStartedAt = Date.now();
   restoreLastSetAt = 0;
   restoreMatchedSince = 0;
+  restoreSeekConfirmed = false;
   restoreAttempts = 0;
   restoreComplete = restoreTarget <= 0;
   restoreFailed = false;
