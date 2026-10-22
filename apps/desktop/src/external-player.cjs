@@ -368,6 +368,7 @@ function runSubframePlayerBridge(config) {
     state.suppressBlurPause = false;
     state.focusGraceUntil = 0;
     state.manualPauseUntil = 0;
+    state.lastKnownPlaying = false;
   }
 
   function attach(video) {
