@@ -1,6 +1,7 @@
 const DISCOVERED_KEY = "visionHubDiscoveredOriginsByApp";
 const TRUSTED_KEY = "visionHubTrustedAppOrigins";
 const ENABLED_KEY = "visionHubEnabledSourceOrigins";
+const IGNORE_FRAME_RESTRICTIONS_KEY = "visionHubIgnoreFrameRestrictionsEnabled";
 
 let activeTab = null;
 let currentOrigin = null;
@@ -55,9 +56,10 @@ async function getActiveTab() {
   document.getElementById("current-origin").textContent = currentOrigin ?? "当前页面不是 HTTPS 站点";
   document.getElementById("trust-site").disabled = !currentOrigin;
 
-  const stored = await chrome.storage.local.get([TRUSTED_KEY, ENABLED_KEY, DISCOVERED_KEY]);
+  const stored = await chrome.storage.local.get([TRUSTED_KEY, ENABLED_KEY, DISCOVERED_KEY, IGNORE_FRAME_RESTRICTIONS_KEY]);
   trustedOrigins = Array.isArray(stored[TRUSTED_KEY]) ? stored[TRUSTED_KEY] : [];
   enabledOrigins = Array.isArray(stored[ENABLED_KEY]) ? stored[ENABLED_KEY] : [];
+  document.getElementById("ignore-frame-restrictions").checked = stored[IGNORE_FRAME_RESTRICTIONS_KEY] === true;
   const state = document.getElementById("trust-state");
   state.textContent = currentOrigin && trustedOrigins.includes(currentOrigin) ? "已信任" : "尚未信任";
 
@@ -122,10 +124,19 @@ function renderOrigins() {
 
 document.getElementById("trust-site").addEventListener("click", async () => {
   if (!currentOrigin) return;
-  trustedOrigins = [...new Set([...trustedOrigins, currentOrigin])];
-  await chrome.storage.local.set({ [TRUSTED_KEY]: trustedOrigins });
-  document.getElementById("trust-state").textContent = "已信任";
-  setStatus("已信任 " + currentOrigin + "。只有该站点能初始化进度同步。");
+  try {
+    const granted = await chrome.permissions.request({ origins: [patternFor(currentOrigin)] });
+    if (!granted) {
+      setStatus("浏览器未授予该站点权限，未添加信任。", true);
+      return;
+    }
+    trustedOrigins = [...new Set([...trustedOrigins, currentOrigin])];
+    await chrome.storage.local.set({ [TRUSTED_KEY]: trustedOrigins });
+    document.getElementById("trust-state").textContent = "已信任";
+    setStatus("已信任 " + currentOrigin + "。只有该站点能初始化进度同步。");
+  } catch (error) {
+    setStatus("信任失败：" + (error instanceof Error ? error.message : String(error)), true);
+  }
 });
 
 document.getElementById("enable-domains").addEventListener("click", async () => {
@@ -180,6 +191,35 @@ document.getElementById("refresh-scan").addEventListener("click", async () => {
     setStatus("扫描完成。");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), true);
+  }
+});
+
+
+document.getElementById("ignore-frame-restrictions").addEventListener("change", async (event) => {
+  const enabled = event.currentTarget.checked;
+  if (enabled && !currentOrigin) {
+    event.currentTarget.checked = false;
+    setStatus("当前页面不是可支持的 VisionHub Web 站点。", true);
+    return;
+  }
+  if (enabled && !trustedOrigins.includes(currentOrigin)) {
+    event.currentTarget.checked = false;
+    setStatus("请先点击“信任此 Web 站点”，再启用此功能。", true);
+    return;
+  }
+  if (enabled && enabledOrigins.length === 0) {
+    event.currentTarget.checked = false;
+    setStatus("请先选择并启用至少一个源站域名。", true);
+    return;
+  }
+  try {
+    await chrome.storage.local.set({ [IGNORE_FRAME_RESTRICTIONS_KEY]: enabled });
+    setStatus(enabled
+      ? "已为已启用源站打开 iframe 嵌入兼容模式。请刷新播放页；仅影响 VisionHub 发起的子 iframe。"
+      : "已关闭 iframe 嵌入兼容模式，响应头规则已撤销。");
+  } catch (error) {
+    event.currentTarget.checked = !enabled;
+    setStatus("设置失败：" + (error instanceof Error ? error.message : String(error)), true);
   }
 });
 

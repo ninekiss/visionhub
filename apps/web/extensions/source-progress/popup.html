@@ -49,6 +49,17 @@
     <p class="muted" style="margin-top:8px">启用后请刷新 VisionHub Web 播放页。嵌套 iframe 的域名可能需要播放一次后，再回来启用。</p>
   </div>
 
+
+  <div class="section">
+    <h2>允许源站在 iframe 中播放（实验功能）</h2>
+    <p>仅对上方已启用的源站、由已信任的 VisionHub 站点发起的子 iframe 生效。开启后会移除这些响应中的 X-Frame-Options 与 Content-Security-Policy 响应头。</p>
+    <label class="domain" style="align-items:flex-start">
+      <input id="ignore-frame-restrictions" type="checkbox">
+      <span>允许已启用源站被 iframe 嵌入</span>
+    </label>
+    <p class="muted" style="color:#ffbd7a">安全提示：这会降低所选源站 iframe 的安全保护，可能增加点击劫持或脚本策略失效风险。仅对你信任且有权嵌入的源站启用；关闭后立即移除规则。</p>
+  </div>
+
   <div id="status" role="status" aria-live="polite"></div>
   <script src="popup.js"></script>
 </body>

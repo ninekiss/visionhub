@@ -2,7 +2,7 @@
 
 VisionHub Source Progress 是给 **Chrome / Edge Web 浏览器**使用的 Manifest V3 扩展。它在真实源站 iframe 中检测原生 HTML5 video 元素的播放位置和总时长，将进度通过受校验的 postMessage 通道交回 VisionHub Web，并接受 VisionHub Web 发送的恢复位置。
 
-它不运行在 Electron 桌面端，不读取浏览器 Cookie，不绕过 DRM、登录要求或源站反嵌入限制，也不修改源站网络请求。
+它不运行在 Electron 桌面端，也不读取浏览器 Cookie。默认不会修改源站响应头；可选的“允许源站在 iframe 中播放”实验功能仅对用户已启用的源站、由已信任的 VisionHub Web 站点发起的子 iframe 移除 `X-Frame-Options` 与 `Content-Security-Policy` 响应头。该模式会降低 iframe 安全性，可能增加点击劫持风险或改变源站脚本策略，只应对自己信任且有权嵌入的源站临时启用；它不绕过 DRM、登录限制或付费限制。
 
 ## 安装（开发版）
 
@@ -16,6 +16,12 @@ VisionHub Source Progress 是给 **Chrome / Edge Web 浏览器**使用的 Manife
 8. 刷新 VisionHub Web 播放页面后播放视频。扩展可以继续检测源站内部的嵌套 iframe；如发现新域名，再打开扩展并授权该域名。
 
 该扩展使用按需申请的 HTTPS 主机权限。只有用户明确选中的源站域名会被注册为 content script 运行范围。安装扩展不代表所有网站都被自动授权。
+
+## iframe 嵌入兼容模式（默认关闭）
+
+在扩展弹窗中先信任当前 VisionHub Web 站点、启用所需源站域名，再勾选“允许已启用源站被 iframe 嵌入”。扩展通过 Manifest V3 `declarativeNetRequest` 仅为已启用源站的 `sub_frame` 响应移除 `X-Frame-Options` 和 `Content-Security-Policy`，并仅匹配由已信任 VisionHub 站点发起的请求；不会对所有网站或顶层导航全局生效。关闭选项会删除这组动态规则。
+
+**安全注意：** 移除完整 CSP 响应头不只是允许嵌入，还会移除其他 CSP 限制。只在确实需要、理解风险并信任源站时启用；不建议长期或全局开启。浏览器本身、扩展权限、源站脚本和其他响应策略仍可能影响最终结果。
 
 ## 当前支持与边界
 

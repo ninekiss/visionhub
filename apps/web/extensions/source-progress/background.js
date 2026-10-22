@@ -1,6 +1,10 @@
 const STORAGE_KEY = "visionHubDiscoveredOriginsByApp";
 
 const ENABLED_SOURCE_ORIGINS_KEY = "visionHubEnabledSourceOrigins";
+const TRUSTED_APP_ORIGINS_KEY = "visionHubTrustedAppOrigins";
+const IGNORE_FRAME_RESTRICTIONS_KEY = "visionHubIgnoreFrameRestrictionsEnabled";
+const FRAME_RULE_ID_BASE = 20000;
+const FRAME_RULE_LIMIT = 100;
 
 function sourceScriptIdFor(origin) {
   return "vh-source-progress-" + origin.replace(/[^a-zA-Z0-9]/g, "-");
@@ -33,10 +37,79 @@ async function refreshRegisteredSourceScripts() {
   }
 }
 
+
+async function refreshFrameRestrictionRules() {
+  const stored = await chrome.storage.local.get([
+    ENABLED_SOURCE_ORIGINS_KEY,
+    TRUSTED_APP_ORIGINS_KEY,
+    IGNORE_FRAME_RESTRICTIONS_KEY,
+  ]);
+  const enabled = stored[IGNORE_FRAME_RESTRICTIONS_KEY] === true;
+  const sourceOrigins = Array.isArray(stored[ENABLED_SOURCE_ORIGINS_KEY])
+    ? [...new Set(stored[ENABLED_SOURCE_ORIGINS_KEY].map(normalizedSourceOrigin).filter(Boolean))].slice(0, FRAME_RULE_LIMIT)
+    : [];
+  const appOrigins = Array.isArray(stored[TRUSTED_APP_ORIGINS_KEY])
+    ? [...new Set(stored[TRUSTED_APP_ORIGINS_KEY].map(normalizedAppOrigin).filter(Boolean))]
+    : [];
+
+  const oldRules = await chrome.declarativeNetRequest.getDynamicRules();
+  const removeRuleIds = oldRules
+    .filter((rule) => rule.id >= FRAME_RULE_ID_BASE && rule.id < FRAME_RULE_ID_BASE + FRAME_RULE_LIMIT)
+    .map((rule) => rule.id);
+
+  const permittedSources = [];
+  for (const origin of sourceOrigins) {
+    const allowed = await chrome.permissions.contains({ origins: [origin + "/*"] }).catch(() => false);
+    if (allowed) permittedSources.push(origin);
+  }
+
+  const initiatorDomains = [...new Set(appOrigins.map((origin) => {
+    try { return new URL(origin).hostname; } catch { return null; }
+  }).filter(Boolean))];
+
+  const addRules = enabled && initiatorDomains.length
+    ? permittedSources.map((origin, index) => ({
+        id: FRAME_RULE_ID_BASE + index,
+        priority: 1,
+        action: {
+          type: "modifyHeaders",
+          responseHeaders: [
+            { header: "x-frame-options", operation: "remove" },
+            { header: "content-security-policy", operation: "remove" },
+          ],
+        },
+        condition: {
+          requestDomains: [new URL(origin).hostname],
+          initiatorDomains,
+          resourceTypes: ["sub_frame"],
+        },
+      }))
+    : [];
+
+  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules });
+}
+
+// Refresh the opt-in, source-scoped header rules whenever settings change.
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "local" && [
+    ENABLED_SOURCE_ORIGINS_KEY,
+    TRUSTED_APP_ORIGINS_KEY,
+    IGNORE_FRAME_RESTRICTIONS_KEY,
+  ].some((key) => Object.hasOwn(changes, key))) {
+    void refreshFrameRestrictionRules().catch(() => {});
+  }
+});
+
 // Upgrade registrations after unpacked-extension reloads or extension updates,
 // so existing grants pick up the player-only stylesheet without reauthorization.
 chrome.runtime.onInstalled.addListener(() => {
   void refreshRegisteredSourceScripts().catch(() => {});
+  void refreshFrameRestrictionRules().catch(() => {});
+});
+
+chrome.permissions.onRemoved.addListener(() => {
+  void refreshRegisteredSourceScripts().catch(() => {});
+  void refreshFrameRestrictionRules().catch(() => {});
 });
 
 
