@@ -70,19 +70,49 @@ html[data-vh-sp-active="true"] body {
 }
 
 
-/* Match the primary VisionHub Plyr theme used by apps/web/src/styles.css. */
-.plyr {
+/* Keep the same core Plyr theme tokens as the VisionHub main player. */
+.plyr,
+.plyr .plyr__controls,
+.plyr .plyr__menu__container,
+.plyr .plyr__menu__container *,
+.plyr__menu__container,
+.plyr__menu__container * {
   --plyr-color-main: #c7f36b !important;
+  --plyr-focus-visible-color: #c7f36b !important;
+  --plyr-control-toggle-checked-background: #c7f36b !important;
   --plyr-video-control-color: #f5f6f8 !important;
+  --plyr-video-control-color-hover: #f5f6f8 !important;
+  --plyr-video-control-background-hover: #c7f36b !important;
   --plyr-menu-background: #151820 !important;
   --plyr-menu-color: #f5f6f8 !important;
+  --plyr-menu-item-arrow-color: #c7f36b !important;
   --plyr-video-background: #000 !important;
 }
 
-/* Do not let the extension conceal a source Plyr settings menu with its control bar. */
+/* Explicit paint rules cover Plyr builds that do not consume menu CSS tokens consistently. */
+.plyr .plyr__menu__container,
+.plyr .plyr__menu__container [role="menu"],
 .plyr__menu__container,
-.plyr__menu__container *,
-.plyr__menu,
-.plyr__menu * {
-  --plyr-color-main: #c7f36b;
+.plyr__menu__container [role="menu"] {
+  background-color: #151820 !important;
+  color: #f5f6f8 !important;
+}
+
+.plyr .plyr__menu__container button,
+.plyr .plyr__menu__container [role="menuitem"],
+.plyr .plyr__menu__container [role="menuitemradio"],
+.plyr .plyr__menu__container [role="menuitemcheckbox"],
+.plyr__menu__container button,
+.plyr__menu__container [role="menuitem"],
+.plyr__menu__container [role="menuitemradio"],
+.plyr__menu__container [role="menuitemcheckbox"] {
+  color: #f5f6f8 !important;
+}
+
+.plyr .plyr__menu__container [aria-checked="true"],
+.plyr .plyr__menu__container [aria-pressed="true"],
+.plyr__menu__container [aria-checked="true"],
+.plyr__menu__container [aria-pressed="true"] {
+  background-color: #c7f36b !important;
+  color: #10150a !important;
 }
