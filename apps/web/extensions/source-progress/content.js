@@ -191,7 +191,7 @@
     });
   }
 
-  function scheduleControlBarsHide(video, root, delay = CONTROL_AUTO_HIDE_DELAY_MS) {
+  function scheduleControlBarsHide(video, root, delay = CONTROL_AUTO_HIDE_DELAY_MS, waitingForMenuClose = false) {
     clearControlHideTimer(video);
     if (!(root instanceof HTMLElement) || video.paused || video.ended) {
       setControlBarsIdle(root, false);
@@ -205,7 +205,13 @@
         // Settings, quality, captions and speed menus live inside the control bar.
         // Keep their parent visible for as long as the menu is open.
         setControlBarsIdle(root, false);
-        scheduleControlBarsHide(video, root, 300);
+        scheduleControlBarsHide(video, root, 300, true);
+        return;
+      }
+      if (waitingForMenuClose) {
+        // Start a fresh idle period after a menu closes, even when the menu
+        // closed without a pointer or keyboard event reaching the player root.
+        scheduleControlBarsHide(video, root);
         return;
       }
       setControlBarsIdle(root, true);
