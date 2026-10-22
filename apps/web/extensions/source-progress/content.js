@@ -5,6 +5,31 @@
   const TRUSTED_KEY = "visionHubTrustedAppOrigins";
   const ENABLED_KEY = "visionHubEnabledSourceOrigins";
   const DISCOVERED_MESSAGE = "VH_SOURCE_PROGRESS_DISCOVERED_FRAMES";
+  const CONTROL_AUTO_HIDE_DELAY_MS = 1800;
+  const CONTROL_BAR_SELECTOR = [
+    ".plyr__controls",
+    ".dplayer-controller",
+    ".jw-controlbar",
+    ".jw-controls",
+    ".art-controls",
+    ".xgplayer-controls",
+    ".xgplayer-controls-inner",
+    ".vjs-control-bar",
+    ".bpx-player-control-wrap",
+    ".prism-controlbar",
+    "[class*=\\"control-bar\\"]",
+    "[class*=\\"ControlBar\\"]",
+    "[class*=\\"controlBar\\"]",
+    "[class*=\\"controller\\"]",
+  ].join(", ");
+  const SEEK_ACTION_SELECTOR = [
+    "button", "[role=\\"button\\"]", "a", "[tabindex]", "[onclick]", "[data-plyr]",
+    "[aria-label]", "[title]", "[data-action]", "[data-title]", "[data-tooltip]",
+    ".dplayer-icon-back", ".dplayer-icon-forward", ".jw-icon-rewind", ".jw-icon-forward",
+    "[class*=\\"forward\\"]", "[class*=\\"Forward\\"]", "[class*=\\"rewind\\"]",
+    "[class*=\\"Rewind\\"]", "[class*=\\"backward\\"]", "[class*=\\"Backward\\"]",
+  ].join(", ");
+  const SEEK_ACTION_PATTERN = /快进|快退|向前跳|向后跳|前进|后退|fast[\\s_-]*forward|rewind|seek[\\s_-]*(?:forward|backward|ahead|back)|skip[\\s_-]*(?:forward|backward|ahead|back)|(?:^|[\\s_-])forward(?:$|[\\s_-])|(?:^|[\\s_-])backward(?:$|[\\s_-])|(?:\\d+\\s*(?:s|sec|secs|second|seconds|秒).{0,12}(?:forward|backward|快进|快退))/i;
 
   if (window.top === window || window.location.protocol !== "https:") return;
 
@@ -61,6 +86,11 @@
   const PLAYER_ONLY_HIDDEN = "data-vh-sp-hidden";
   const PLAYER_ONLY_PATH = "data-vh-sp-path";
   const PLAYER_ONLY_ROOT = "data-vh-sp-root";
+  const PLAYER_CONTROLS_IDLE = "data-vh-sp-controls-idle";
+  const SUPPRESSED_SEEK_CONTROL = "data-vh-sp-suppressed";
+  const controlHideTimers = new WeakMap();
+  const controlBehaviorAttached = new WeakSet();
+  const controlRootsBound = new WeakSet();
   const playerOnlyHiddenNodes = new Set();
   const playerOnlyPathNodes = new Set();
   let isolatedPlayerRoot = null;
@@ -119,6 +149,133 @@
       depth += 1;
     }
     return best instanceof HTMLElement ? best : video.parentElement;
+  }
+
+  function controlBarsIn(root) {
+    if (!(root instanceof HTMLElement)) return [];
+    const bars = [];
+    if (root.matches(CONTROL_BAR_SELECTOR)) bars.push(root);
+    bars.push(...root.querySelectorAll(CONTROL_BAR_SELECTOR));
+    return [...new Set(bars)];
+  }
+
+  function setControlBarsIdle(root, idle) {
+    for (const bar of controlBarsIn(root)) {
+      if (idle) bar.setAttribute(PLAYER_CONTROLS_IDLE, "true");
+      else bar.removeAttribute(PLAYER_CONTROLS_IDLE);
+    }
+  }
+
+  function clearControlHideTimer(video) {
+    const timer = controlHideTimers.get(video);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      controlHideTimers.delete(video);
+    }
+  }
+
+  function scheduleControlBarsHide(video, root) {
+    clearControlHideTimer(video);
+    if (!(root instanceof HTMLElement) || video.paused || video.ended) {
+      setControlBarsIdle(root, false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      controlHideTimers.delete(video);
+      if (video.isConnected && !video.paused && !video.ended) {
+        setControlBarsIdle(root, true);
+      }
+    }, CONTROL_AUTO_HIDE_DELAY_MS);
+    controlHideTimers.set(video, timer);
+  }
+
+  function seekControlDescription(element) {
+    const nestedLabel = element.querySelector(
+      "[aria-label], [title], [data-action], [data-plyr], [data-title], [data-tooltip], svg title, img[alt]"
+    );
+    const nestedText = nestedLabel
+      ? [
+          nestedLabel.getAttribute("aria-label"),
+          nestedLabel.getAttribute("title"),
+          nestedLabel.getAttribute("data-action"),
+          nestedLabel.getAttribute("data-plyr"),
+          nestedLabel.getAttribute("data-title"),
+          nestedLabel.getAttribute("data-tooltip"),
+          nestedLabel.getAttribute("alt"),
+          nestedLabel.textContent,
+        ].filter(Boolean).join(" ")
+      : "";
+    return [
+      element.id,
+      typeof element.className === "string" ? element.className : element.getAttribute("class"),
+      element.getAttribute("aria-label"),
+      element.getAttribute("title"),
+      element.getAttribute("data-action"),
+      element.getAttribute("data-plyr"),
+      element.getAttribute("data-title"),
+      element.getAttribute("data-tooltip"),
+      element.textContent,
+      nestedText,
+    ].filter(Boolean).join(" ");
+  }
+
+  function removeSeekShortcutButtons(root) {
+    if (!(root instanceof HTMLElement)) return;
+    for (const candidate of root.querySelectorAll(SEEK_ACTION_SELECTOR)) {
+      if (candidate.hasAttribute(SUPPRESSED_SEEK_CONTROL)) continue;
+      if (!SEEK_ACTION_PATTERN.test(seekControlDescription(candidate))) continue;
+
+      const control = candidate.closest(
+        "button, [role='button'], a, [tabindex], [onclick], [data-plyr]"
+      ) ?? candidate;
+      control.setAttribute(SUPPRESSED_SEEK_CONTROL, "true");
+    }
+  }
+
+  function refreshSourcePlayerControls(video) {
+    const root = playerRootFor(video);
+    if (!(root instanceof HTMLElement)) return null;
+
+    removeSeekShortcutButtons(root);
+
+    if (!controlRootsBound.has(root)) {
+      controlRootsBound.add(root);
+      const reveal = () => {
+        setControlBarsIdle(root, false);
+        if (!video.paused && !video.ended) scheduleControlBarsHide(video, root);
+      };
+      for (const eventName of ["pointermove", "mousemove", "pointerdown", "touchstart", "keydown"]) {
+        root.addEventListener(eventName, reveal, { passive: true });
+      }
+      if (!video.paused && !video.ended) scheduleControlBarsHide(video, root);
+    }
+
+    if (video.paused || video.ended) {
+      clearControlHideTimer(video);
+      setControlBarsIdle(root, false);
+    }
+    return root;
+  }
+
+  function attachSourceControlBehavior(video) {
+    if (controlBehaviorAttached.has(video)) return;
+    controlBehaviorAttached.add(video);
+
+    video.addEventListener("playing", () => {
+      const root = refreshSourcePlayerControls(video);
+      if (root) {
+        setControlBarsIdle(root, false);
+        scheduleControlBarsHide(video, root);
+      }
+    });
+    for (const eventName of ["pause", "ended", "waiting", "seeking"]) {
+      video.addEventListener(eventName, () => {
+        clearControlHideTimer(video);
+        const root = refreshSourcePlayerControls(video);
+        if (root) setControlBarsIdle(root, false);
+      });
+    }
   }
 
   function isolatePageToPlayer(element, force = false) {
@@ -224,8 +381,11 @@
   function attachVideo(video) {
     if (attachedVideos.has(video)) return;
     attachedVideos.add(video);
+    attachSourceControlBehavior(video);
+    refreshSourcePlayerControls(video);
 
     const update = (force = false) => {
+      refreshSourcePlayerControls(video);
       if (!session) return;
       reportPlayerReady(video);
       tryRestore(video);
@@ -399,6 +559,7 @@
           if (video) {
             const playerRoot = playerRootFor(video);
             if (playerRoot) isolatePageToPlayer(playerRoot, true);
+            refreshSourcePlayerControls(video);
             reportPlayerReady(video);
             tryRestore(video);
           } else if (isolatedPlayerRoot?.isConnected) {
