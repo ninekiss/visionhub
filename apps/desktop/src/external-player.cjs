@@ -158,9 +158,11 @@ function createSubframePlayerBridgeScript(options) {
     initialTime: typeof options.initialTime === "number" && Number.isFinite(options.initialTime)
       ? options.initialTime
       : 0,
+    // Match the Web extension's bounded resume window instead of inheriting the
+    // provider's page-load timeout, which may begin before media metadata exists.
     restoreTimeoutMs: typeof options.restoreTimeoutMs === "number" && Number.isFinite(options.restoreTimeoutMs)
-      ? Math.min(Math.max(options.restoreTimeoutMs, 30000), 120000)
-      : 60000,
+      ? Math.min(Math.max(options.restoreTimeoutMs, 5000), 15000)
+      : 15000,
     playerSelector: typeof options.playerSelector === "string" && options.playerSelector.length <= 300
       ? options.playerSelector
       : "",
@@ -190,8 +192,8 @@ function runSubframePlayerBridge(config) {
 
   const CHANNEL = "visionhub-desktop-source-frame-v1";
   const SEEK_RETRY_MS = 400;
-  const CONFIRM_MS = 1000;
-  const MAX_ATTEMPTS = Math.ceil(config.restoreTimeoutMs / SEEK_RETRY_MS) + 6;
+  const CONFIRM_MS = 2500;
+  const MAX_ATTEMPTS = 24;
   const PLAYER_ROOTS = [
     ".plyr", ".dplayer", ".video-js", ".jwplayer", ".artplayer-app",
     ".xgplayer", ".bpx-player-container", ".prism-player",
@@ -218,11 +220,11 @@ function runSubframePlayerBridge(config) {
   const states = new Map();
   const trackedVideos = new WeakSet();
   const restoreTarget = config.initialTime >= 5 ? config.initialTime : 0;
-  const restoreStartedAt = Date.now();
+  // Do not spend the resume window while the source is creating its media element.
+  let restoreStartedAt = 0;
   let restoreAttempts = 0;
   let restoreLastSetAt = 0;
   let restoreMatchedSince = 0;
-  let restoreSeekConfirmed = false;
   let restoreComplete = restoreTarget <= 0;
   let restoreFailed = false;
   let restoreUserInterrupted = false;
@@ -324,22 +326,26 @@ function runSubframePlayerBridge(config) {
 
   function tryRestore(video) {
     if (restoreComplete || restoreUserInterrupted) return;
-    const now = Date.now();
-    if (now - restoreStartedAt >= config.restoreTimeoutMs || restoreAttempts >= MAX_ATTEMPTS) {
-      finishRestore(video, true);
-      return;
-    }
-    if (!video || primaryVideo() !== video ||
-        video.readyState < HTMLMediaElement.HAVE_METADATA ||
-        !Number.isFinite(video.duration) || video.duration <= 0) {
-      scheduleRestore();
-      return;
-    }
     if (restoreTarget <= 0) {
       finishRestore(video, false);
       return;
     }
+    // A frame may load well before its player creates a media element.
+    if (!video || primaryVideo() !== video) return;
+    if (video.readyState < HTMLMediaElement.HAVE_METADATA ||
+        !Number.isFinite(video.duration) || video.duration <= 0) {
+      scheduleRestore();
+      return;
+    }
     if (restoreTarget >= video.duration - 2) {
+      // The saved point is beyond this source's timeline; do not block valid progress.
+      finishRestore(video, false);
+      return;
+    }
+
+    const now = Date.now();
+    if (restoreStartedAt === 0) restoreStartedAt = now;
+    if (now - restoreStartedAt >= config.restoreTimeoutMs || restoreAttempts >= MAX_ATTEMPTS) {
       finishRestore(video, true);
       return;
     }
@@ -349,7 +355,7 @@ function runSubframePlayerBridge(config) {
       finishRestore(video, false);
       return;
     }
-    if (distance <= 3 && !video.seeking && restoreSeekConfirmed) {
+    if (distance <= 3 && !video.seeking) {
       if (restoreMatchedSince === 0) restoreMatchedSince = now;
       if (now - restoreMatchedSince >= CONFIRM_MS) {
         finishRestore(video, false);
@@ -360,7 +366,6 @@ function runSubframePlayerBridge(config) {
       if (!video.seeking && now - restoreLastSetAt >= SEEK_RETRY_MS - 50) {
         try {
           const player = sourcePlayer(video);
-          restoreSeekConfirmed = false;
           restoreLastSetAt = now;
           restoreAttempts += 1;
           if (player && Number.isFinite(Number(player.currentTime))) player.currentTime = restoreTarget;
@@ -424,7 +429,6 @@ function runSubframePlayerBridge(config) {
           !restoreUserInterrupted && restoreLastSetAt > 0 &&
           Date.now() - restoreLastSetAt < 10000 &&
           Math.abs(video.currentTime - restoreTarget) <= 3) {
-        restoreSeekConfirmed = true;
         if (restoreMatchedSince === 0) restoreMatchedSince = Date.now();
       }
       update(true);
