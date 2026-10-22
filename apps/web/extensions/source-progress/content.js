@@ -29,7 +29,7 @@
     "[class*='forward']", "[class*='Forward']", "[class*='rewind']",
     "[class*='Rewind']", "[class*='backward']", "[class*='Backward']",
   ].join(", ");
-  const SEEK_ACTION_PATTERN = /快进|快退|向前跳|向后跳|前进|后退|fast[\s_-]*forward|rewind|seek[\s_-]*(?:forward|backward|ahead|back)|skip[\s_-]*(?:forward|backward|ahead|back)|(?:^|[\s_-])forward(?:$|[\s_-])|(?:^|[\s_-])back(?:$|[\s_-])|(?:^|[\s_-])backward(?:$|[\s_-])|(?:\d+\s*(?:s|sec|secs|second|seconds|秒).{0,12}(?:forward|backward|快进|快退))/i;
+  const SEEK_ACTION_PATTERN = /快进|快退|向前跳|向后跳|前进|后退|dplayer[-_]icon[-_]back|fast[\s_-]*forward|rewind|seek[\s_-]*(?:forward|backward|ahead|back)|skip[\s_-]*(?:forward|backward|ahead|back)|(?:^|[\s_-])forward(?:$|[\s_-])|(?:^|[\s_-])back\s*\d+\s*(?:s|sec|secs|second|seconds|秒)|(?:^|[\s_-])backward(?:$|[\s_-])|(?:\d+\s*(?:s|sec|secs|second|seconds|秒).{0,12}(?:forward|backward|快进|快退))/i;
 
   if (window.top === window || window.location.protocol !== "https:") return;
 
