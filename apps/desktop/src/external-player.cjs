@@ -1,3 +1,5 @@
+const { createSourcePlayerUiScript } = require("./source-player-ui.cjs");
+
 function isRecord(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -62,87 +64,7 @@ function validateExternalPlayerBounds(value) {
 
 /** Build a fixed script that only queries CSS selectors supplied by validated local configuration. */
 function createPlayerIsolationScript(playerSelector, readinessSelector) {
-  const player = JSON.stringify(playerSelector);
-  const ready = JSON.stringify(readinessSelector || playerSelector);
-  return `(() => {
-    let target;
-    let readinessTarget;
-    try {
-      target = document.querySelector(${player});
-      if (!target) return false;
-      readinessTarget = document.querySelector(${ready});
-      // CSS selectors in the top frame cannot find a video inside a cross-origin iframe.
-      // Use the configured player's visible video/iframe as a coarse signal when needed;
-      // the per-frame bridge performs the actual media-readiness and seek confirmation.
-      if (!readinessTarget) {
-        if (target instanceof HTMLVideoElement || target instanceof HTMLIFrameElement) {
-          readinessTarget = target;
-        } else {
-          readinessTarget = target.querySelector("video, iframe");
-        }
-      }
-      if (!readinessTarget) return false;
-    } catch {
-      return false;
-    }
-    if (!target || target === document.documentElement || target === document.body) return false;
-
-    const isVisibleWithBounds = (element) => {
-      if (!(element instanceof Element) || !element.isConnected) return false;
-      const style = window.getComputedStyle(element);
-      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) <= 0) return false;
-      const rect = element.getBoundingClientRect();
-      return rect.width > 1 && rect.height > 1;
-    };
-    // Do not start the display grace period for a selector that merely exists
-    // in the DOM but is hidden, collapsed, or has not been laid out yet.
-    if (!isVisibleWithBounds(target) || !isVisibleWithBounds(readinessTarget)) return false;
-
-    // A matched <video> element is not necessarily displaying a frame yet.
-    const video = readinessTarget instanceof HTMLVideoElement
-      ? readinessTarget
-      : readinessTarget instanceof HTMLIFrameElement
-        ? null
-        : readinessTarget.querySelector?.("video");
-    if (video && (
-      !isVisibleWithBounds(video) ||
-      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
-      video.videoWidth <= 0 ||
-      video.videoHeight <= 0
-    )) return false;
-
-    let branch = target;
-    while (branch && branch.parentElement) {
-      const parent = branch.parentElement;
-      for (const sibling of Array.from(parent.children)) {
-        if (sibling !== branch) sibling.style.setProperty("display", "none", "important");
-      }
-      if (parent === document.body) break;
-      branch = parent;
-    }
-
-    const root = document.documentElement;
-    const body = document.body;
-    for (const element of [root, body]) {
-      element.style.setProperty("width", "100%", "important");
-      element.style.setProperty("height", "100%", "important");
-      element.style.setProperty("min-width", "0", "important");
-      element.style.setProperty("min-height", "0", "important");
-      element.style.setProperty("margin", "0", "important");
-      element.style.setProperty("padding", "0", "important");
-      element.style.setProperty("overflow", "hidden", "important");
-      element.style.setProperty("background", "#000", "important");
-    }
-    target.style.setProperty("position", "fixed", "important");
-    target.style.setProperty("inset", "0", "important");
-    target.style.setProperty("width", "100vw", "important");
-    target.style.setProperty("height", "100vh", "important");
-    target.style.setProperty("max-width", "none", "important");
-    target.style.setProperty("max-height", "none", "important");
-    target.style.setProperty("margin", "0", "important");
-    target.style.setProperty("z-index", "2147483647", "important");
-    return true;
-  })()`;
+  return createSourcePlayerUiScript({ playerSelector, readinessSelector });
 }
 
 /**
@@ -170,7 +92,13 @@ function createSubframePlayerBridgeScript(options) {
   if (!isValidExternalPlayerRequestId(config.requestId) || !config.token || config.token.length > 200) {
     throw new TypeError("Subframe bridge session identifiers are invalid.");
   }
-  return "(" + runSubframePlayerBridge.toString() + ")(" + JSON.stringify(config) + ")";
+  const uiScript = createSourcePlayerUiScript({
+    playerSelector: config.playerSelector,
+    readinessSelector: config.readinessSelector,
+  });
+  // Each allowlisted child frame gets the same player-only styling and controls
+  // behavior as the browser extension before its isolated progress/focus bridge.
+  return uiScript + ";\\n(" + runSubframePlayerBridge.toString() + ")(" + JSON.stringify(config) + ");";
 }
 
 function runSubframePlayerBridge(config) {
