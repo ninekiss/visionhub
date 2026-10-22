@@ -475,6 +475,19 @@
 
     const now = Date.now();
     const distance = Math.abs(video.currentTime - restoreTarget);
+
+    // Never jump a source player backwards if it already restored a later position.
+    // Once our seek has advanced naturally beyond the requested time, regard it as stable.
+    if (!video.seeking && restoreAttempts === 0 && video.currentTime >= restoreTarget + 3) {
+      finishRestore(video, false);
+      return;
+    }
+    if (!video.seeking && restoreAttempts > 0 && !video.paused &&
+        video.currentTime > restoreTarget + 3) {
+      finishRestore(video, false);
+      return;
+    }
+
     if (distance <= 3 && !video.seeking) {
       if (restoreMatchedSince === 0) restoreMatchedSince = now;
       if (now - restoreMatchedSince >= RESTORE_CONFIRMATION_MS) {
