@@ -362,6 +362,8 @@ let sessionInitialized = false;
 let configuredPlayerSelector = "";
 let configuredReadinessSelector = "";
 let restoreSeekConfirmed = false;
+let restoreSeekPending = false;
+let restoreGeneration = 0;
 const trackedVideos = new WeakSet();
 
 let RESTORE_MAX_DURATION_MS = 60000;
@@ -424,6 +426,122 @@ function primaryVideo() {
     allVideos.find((video) => video instanceof HTMLVideoElement && video.isConnected) ?? null;
 }
 
+function seekVideoInPageWorld(targetTime, readinessSelector, playerSelector) {
+  function videosWithin(selector) {
+    if (typeof selector !== "string" || !selector.trim() || selector.length > 300) return [];
+    try {
+      const node = document.querySelector(selector);
+      if (!node) return [];
+      if (node instanceof HTMLVideoElement) return [node];
+      return typeof node.querySelectorAll === "function"
+        ? Array.from(node.querySelectorAll("video"))
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  const candidates = [
+    ...videosWithin(readinessSelector),
+    ...videosWithin(playerSelector),
+    ...Array.from(document.querySelectorAll("video")),
+  ].filter((video, index, all) => video instanceof HTMLVideoElement &&
+    video.isConnected && all.indexOf(video) === index);
+  const video = candidates.find((candidate) => {
+    const rect = candidate.getBoundingClientRect();
+    const style = window.getComputedStyle(candidate);
+    return style.display !== "none" && style.visibility !== "hidden" &&
+      Number(style.opacity) > 0 && rect.width >= 100 && rect.height >= 56;
+  }) || candidates[0];
+  if (!video) return { found: false, requested: false };
+
+  if (video.readyState < HTMLMediaElement.HAVE_METADATA ||
+      !Number.isFinite(video.duration) || video.duration <= 0 ||
+      targetTime < 0 || targetTime >= video.duration - 2) {
+    return {
+      found: true,
+      ready: false,
+      currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+      duration: Number.isFinite(video.duration) ? video.duration : 0,
+      seeking: video.seeking,
+    };
+  }
+
+  let requested = false;
+  try {
+    const player = video.plyr && typeof video.plyr === "object"
+      ? video.plyr
+      : video.closest(".plyr")?.plyr;
+    if (player && typeof player === "object" && Number.isFinite(Number(player.currentTime))) {
+      player.currentTime = targetTime;
+      requested = true;
+    }
+  } catch {
+    // Fall through to the native media element.
+  }
+
+  try {
+    const current = Number(video.currentTime);
+    if (!requested || (!video.seeking && (!Number.isFinite(current) || Math.abs(current - targetTime) > 3))) {
+      video.currentTime = targetTime;
+      requested = true;
+    }
+  } catch {
+    // The source can still be initializing its timeline.
+  }
+
+  return {
+    found: true,
+    ready: true,
+    requested,
+    currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+    duration: video.duration,
+    seeking: video.seeking,
+  };
+}
+
+function requestRestoreSeek(video, targetTime, now) {
+  restoreLastSetAt = now;
+  restoreAttempts += 1;
+  restoreSeekConfirmed = false;
+  restoreSeekPending = true;
+  const generation = restoreGeneration;
+
+  if (typeof contextBridge.executeInMainWorld === "function") {
+    try {
+      const result = contextBridge.executeInMainWorld({
+        func: seekVideoInPageWorld,
+        args: [targetTime, configuredReadinessSelector, configuredPlayerSelector],
+      });
+      Promise.resolve(result).then((outcome) => {
+        if (generation !== restoreGeneration || !sessionInitialized) return;
+        restoreSeekPending = false;
+        if (restoreComplete || restoreUserInterrupted) return;
+        if (outcome && outcome.requested &&
+            (outcome.seeking === true ||
+             (Number.isFinite(outcome.currentTime) && Math.abs(outcome.currentTime - targetTime) <= 3))) {
+          restoreSeekConfirmed = true;
+          if (restoreMatchedSince === 0) restoreMatchedSince = Date.now();
+        } else {
+          try { video.currentTime = targetTime; } catch {}
+        }
+        tryRestore(primaryVideo());
+      }).catch(() => {
+        if (generation !== restoreGeneration || !sessionInitialized) return;
+        restoreSeekPending = false;
+        try { video.currentTime = targetTime; } catch {}
+        tryRestore(primaryVideo());
+      });
+      return;
+    } catch {
+      // Fallback to the shared HTMLMediaElement wrapper if page-world execution is unavailable.
+    }
+  }
+
+  restoreSeekPending = false;
+  try { video.currentTime = targetTime; } catch {}
+}
+
 function clearRestoreTimer() {
   if (restoreTimer !== null) {
     clearTimeout(restoreTimer);
@@ -455,6 +573,7 @@ function tryRestore(video) {
   }
   if (now - restoreStartedAt >= RESTORE_MAX_DURATION_MS ||
       restoreAttempts >= RESTORE_MAX_ATTEMPTS) {
+    restoreSeekPending = false;
     finishRestore(video, true);
     return;
   }
@@ -485,18 +604,11 @@ function tryRestore(video) {
       return;
     }
   } else {
-    // Merely passing the saved timestamp during normal playback must not count
-    // as a successful seek. Require the media element's seeked event instead.
+    // A natural pass through the saved timestamp is not evidence of a successful seek.
     restoreMatchedSince = 0;
-    if (!video.seeking && now - restoreLastSetAt >= RESTORE_RETRY_INTERVAL_MS - 50) {
-      try {
-        restoreSeekConfirmed = false;
-        restoreLastSetAt = now;
-        restoreAttempts += 1;
-        video.currentTime = restoreTarget;
-      } catch {
-        // Providers can reject seeking until their internal player is ready.
-      }
+    if (!video.seeking && !restoreSeekPending &&
+        now - restoreLastSetAt >= RESTORE_RETRY_INTERVAL_MS - 50) {
+      requestRestoreSeek(video, restoreTarget, now);
     }
   }
   scheduleRestoreRetry();
@@ -554,7 +666,8 @@ function attachProgressVideo(video) {
     video.addEventListener(eventName, () => update(false));
   }
   video.addEventListener("seeked", () => {
-    if (restoreTarget > 0 && !restoreComplete && !restoreUserInterrupted &&
+    if (video === primaryVideo() &&
+        restoreTarget > 0 && !restoreComplete && !restoreUserInterrupted &&
         restoreLastSetAt > 0 && Date.now() - restoreLastSetAt < 10000 &&
         Math.abs(video.currentTime - restoreTarget) <= 3) {
       restoreSeekConfirmed = true;
@@ -596,6 +709,8 @@ function resetProgressSession(payload) {
   restoreLastSetAt = 0;
   restoreMatchedSince = 0;
   restoreSeekConfirmed = false;
+  restoreSeekPending = false;
+  restoreGeneration += 1;
   restoreAttempts = 0;
   restoreComplete = restoreTarget <= 0;
   restoreFailed = false;
