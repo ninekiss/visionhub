@@ -1,4 +1,5 @@
-const { app, BrowserWindow, WebContentsView, dialog, ipcMain, Menu, protocol, screen, shell } = require("electron");
+const { app, BrowserWindow, WebContentsView, dialog, ipcMain, Menu, protocol, screen, shell, webFrameMain } = require("electron");
+const { randomUUID } = require("node:crypto");
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const {
@@ -11,6 +12,7 @@ const { createPackagedRendererHandler } = require("./renderer-protocol.cjs");
 const {
   canShowExternalPlayer,
   createPlayerIsolationScript,
+  createSubframePlayerBridgeScript,
   isValidExternalPlayerRequestId,
   providerOriginAllowed,
   resolveProviderUrl,
@@ -180,6 +182,62 @@ function failExternalPlayer(session, code) {
   closeExternalPlayer({ notify: true, status: "error", code });
 }
 
+function injectExternalPlayerSubframeBridge(session, frame) {
+  if (!session || externalPlayerSession !== session || !session.progressInitialized ||
+      !frame || frame === session.view.webContents.mainFrame) return;
+  try {
+    if (frame.isDestroyed() || frame.detached ||
+        !providerOriginAllowed(frame.url, session.provider)) return;
+    const script = createSubframePlayerBridgeScript({
+      requestId: session.requestId,
+      token: session.progressToken,
+      initialTime: session.initialTime,
+      restoreTimeoutMs: session.provider.timeoutMs,
+      playerSelector: session.provider.playerSelector,
+      readinessSelector: session.provider.readinessSelector || session.provider.playerSelector,
+    });
+    void frame.executeJavaScript(script).catch(() => {
+      // Frames can navigate or detach while the bridge is being installed.
+    });
+  } catch {
+    // The top-frame player remains usable if a child frame cannot be instrumented.
+  }
+}
+
+function injectExistingExternalPlayerSubframes(session) {
+  if (!session || externalPlayerSession !== session || !session.progressInitialized) return;
+  try {
+    for (const frame of session.view.webContents.mainFrame.framesInSubtree) {
+      injectExternalPlayerSubframeBridge(session, frame);
+    }
+  } catch {
+    // The frame tree may change during enumeration.
+  }
+}
+
+function attachExternalPlayerSubframeLifecycle(session) {
+  const injectById = (eventUrl, processId, routingId) => {
+    if (externalPlayerSession !== session || !session.progressInitialized) return;
+    let frame;
+    try {
+      frame = webFrameMain.fromId(processId, routingId);
+    } catch {
+      return;
+    }
+    if (!frame || !providerOriginAllowed(frame.url || eventUrl, session.provider)) return;
+    setImmediate(() => injectExternalPlayerSubframeBridge(session, frame));
+  };
+
+  session.view.webContents.on("did-frame-navigate", (
+    _event, url, _httpResponseCode, _httpStatusText, isMainFrame, processId, routingId,
+  ) => {
+    if (!isMainFrame) injectById(url, processId, routingId);
+  });
+  session.view.webContents.on("did-frame-finish-load", (_event, isMainFrame, processId, routingId) => {
+    if (!isMainFrame) injectById("", processId, routingId);
+  });
+}
+
 function startExternalPlayerReadinessCheck(session) {
   if (externalPlayerSession !== session || session.readinessInterval) return;
   let running = false;
@@ -215,7 +273,10 @@ function startExternalPlayerReadinessCheck(session) {
           playerSelector: session.provider.playerSelector,
           readinessSelector: session.provider.readinessSelector || session.provider.playerSelector,
           restoreTimeoutMs: session.provider.timeoutMs,
+          progressToken: session.progressToken,
+          allowedFrameOrigins: session.provider.allowedOrigins,
         });
+        setImmediate(() => injectExistingExternalPlayerSubframes(session));
       }
 
       session.ready = true;
@@ -322,6 +383,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId, initi
     providerId,
     requestId,
     initialTime,
+    progressToken: randomUUID(),
     lastProgressAt: 0,
     progressInitialized: false,
     bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, visible: bounds.visible },
@@ -333,6 +395,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId, initi
     readySince: null,
   };
   externalPlayerSession = session;
+  attachExternalPlayerSubframeLifecycle(session);
 
   const rejectNavigation = (event, targetOrDetails, _isInPlace, deprecatedIsMainFrame) => {
     // Electron introduced a details object for navigation events; accept the older
