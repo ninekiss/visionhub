@@ -148,6 +148,7 @@ test("builds a DOM-only subframe resume bridge for allowlisted source origins", 
   assert.match(script, /video\.addEventListener\("seeked"/);
   assert.match(script, /const CONFIRM_MS = 2500/);
   assert.match(script, /const MAX_ATTEMPTS = 24/);
+  assert.match(script, /restoreTimeoutMs: 15000/);
   assert.match(script, /let restoreStartedAt = 0/);
   assert.doesNotMatch(script, /restoreSeekConfirmed/);
   assert.match(script, /window\.top\.postMessage/);
