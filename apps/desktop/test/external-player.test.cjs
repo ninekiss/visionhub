@@ -86,3 +86,20 @@ test("desktop player setup does not call unsupported WebContents background APIs
   const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
   assert.doesNotMatch(mainSource, /view\.webContents\.setBackgroundColor\s*\(/);
 });
+
+test("external source WebContentsView uses a restricted focus-guard preload", () => {
+  const { readFileSync } = require("node:fs");
+  const mainSource = readFileSync(require.resolve("../src/main.cjs"), "utf8");
+  const preloadSource = readFileSync(require.resolve("../src/external-player-preload.cjs"), "utf8");
+  const packageSource = JSON.parse(readFileSync(require.resolve("../package.json"), "utf8"));
+
+  assert.ok(mainSource.includes('preload: path.join(__dirname, "external-player-preload.cjs")'));
+  assert.match(mainSource, /sandbox: true/);
+  assert.match(mainSource, /nodeIntegration: false/);
+  assert.ok(preloadSource.includes("HTMLMediaElement.prototype"));
+  assert.ok(preloadSource.includes("shouldSuppressPause"));
+  assert.ok(preloadSource.includes("manualPauseUntil"));
+  assert.ok(preloadSource.includes("RETRY_DELAYS"));
+  assert.doesNotMatch(preloadSource, /ipcRenderer|exposeInMainWorld/);
+  assert.ok(packageSource.scripts.build.includes("node --check src/external-player-preload.cjs"));
+});
