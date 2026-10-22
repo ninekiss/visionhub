@@ -68,3 +68,21 @@ html[data-vh-sp-active="true"] body {
   visibility: hidden !important;
   pointer-events: none !important;
 }
+
+
+/* Match the primary VisionHub Plyr theme used by apps/web/src/styles.css. */
+.plyr {
+  --plyr-color-main: #c7f36b !important;
+  --plyr-video-control-color: #f5f6f8 !important;
+  --plyr-menu-background: #151820 !important;
+  --plyr-menu-color: #f5f6f8 !important;
+  --plyr-video-background: #000 !important;
+}
+
+/* Do not let the extension conceal a source Plyr settings menu with its control bar. */
+.plyr__menu__container,
+.plyr__menu__container *,
+.plyr__menu,
+.plyr__menu * {
+  --plyr-color-main: #c7f36b;
+}
