@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VisionHub Source Progress",
-  "version": "0.3.0",
-  "description": "Save playback progress in VisionHub source iframes and optionally allow explicitly selected sources to be embedded.",
+  "version": "0.4.0",
+  "description": "Save playback progress in VisionHub source iframes, retry resume seeks while source players initialize, and resume focus-loss pauses.",
   "permissions": [
     "activeTab",
     "storage",
