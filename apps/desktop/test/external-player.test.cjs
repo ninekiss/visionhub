@@ -187,3 +187,13 @@ test("only instruments configured HTTPS frames and validates subframe progress",
   assert.ok(preloadSource.includes('window.addEventListener("message", handleSubframeProgressMessage, true)'));
   assert.ok(preloadSource.includes("message.requestId !== externalPlayerRequestId"));
 });
+
+
+test("resume bridge selects the largest visible video like the Web extension", () => {
+  const { readFileSync } = require("node:fs");
+  const preloadSource = readFileSync(require.resolve("../src/external-player-preload.cjs"), "utf8");
+  const helperSource = readFileSync(require.resolve("../src/external-player.cjs"), "utf8");
+  assert.match(preloadSource, /function primaryVideo\(\)[\s\S]*?return largestVisibleVideo\(allVideos\);/);
+  assert.match(helperSource, /function primaryVideo\(\)[\s\S]*?\.filter\(isVisible\)[\s\S]*?right\.readyState >= HTMLMediaElement\.HAVE_METADATA/);
+  assert.match(helperSource, /rect\.bottom > 0 && rect\.right > 0 && rect\.top < innerHeight && rect\.left < innerWidth/);
+});
