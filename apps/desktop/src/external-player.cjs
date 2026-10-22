@@ -252,7 +252,8 @@ function runSubframePlayerBridge(config) {
     const style = window.getComputedStyle(video);
     if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) <= 0) return false;
     const rect = video.getBoundingClientRect();
-    return rect.width >= 100 && rect.height >= 56;
+    return rect.width >= 100 && rect.height >= 56 &&
+      rect.bottom > 0 && rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
   }
 
   function videosWithin(selector) {
@@ -268,20 +269,18 @@ function runSubframePlayerBridge(config) {
   }
 
   function primaryVideo() {
-    const preferred = [
-      ...videosWithin(config.readinessSelector),
-      ...videosWithin(config.playerSelector),
-    ].filter((video, index, all) => video instanceof HTMLVideoElement &&
-      video.isConnected && all.indexOf(video) === index);
-    if (preferred.length) return preferred.find(isVisible) || preferred[0];
-    const all = Array.from(document.querySelectorAll("video"))
-      .filter((video) => video instanceof HTMLVideoElement && video.isConnected)
-      .sort((a, b) => {
-        const ar = a.getBoundingClientRect();
-        const br = b.getBoundingClientRect();
-        return (br.width * br.height) - (ar.width * ar.height);
-      });
-    return all.find(isVisible) || all[0] || null;
+    // Same selection rule as the Web extension: largest visible video, using
+    // metadata readiness as a tie-breaker when two candidates have equal area.
+    return Array.from(document.querySelectorAll("video"))
+      .filter(isVisible)
+      .sort((left, right) => {
+        const a = left.getBoundingClientRect();
+        const b = right.getBoundingClientRect();
+        const area = b.width * b.height - a.width * a.height;
+        if (area !== 0) return area;
+        return Number(right.readyState >= HTMLMediaElement.HAVE_METADATA) -
+          Number(left.readyState >= HTMLMediaElement.HAVE_METADATA);
+      })[0] ?? null;
   }
 
   function postProgress(video, force) {
