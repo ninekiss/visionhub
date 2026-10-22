@@ -1,5 +1,6 @@
-function createApplicationMenuTemplate(platform) {
+function createApplicationMenuTemplate(platform, options = {}) {
   const isMac = platform === "darwin";
+  const isDevelopment = options.isDevelopment === true;
   const template = [];
 
   if (isMac) {
@@ -53,6 +54,13 @@ function createApplicationMenuTemplate(platform) {
       { role: "zoomIn" },
       { role: "zoomOut" },
       { type: "separator" },
+      ...(isDevelopment
+        ? [{
+            label: "Developer Tools / Console",
+            accelerator: "CmdOrCtrl+Shift+I",
+            click: options.onToggleDevTools,
+          }, { type: "separator" }]
+        : []),
       { role: "togglefullscreen" },
     ],
   });
