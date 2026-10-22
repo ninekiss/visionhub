@@ -68,9 +68,6 @@ async function refreshFrameRestrictionRules() {
   }).filter(Boolean))];
 
   const addRules = enabled && initiatorDomains.length
-    ? permittedSources.map((origin, index) => {
-        const sourceUrl = new URL(origin);
-        const escapedHostname = sourceUrl.hostname.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\  const addRules = enabled && initiatorDomains.length
     ? permittedSources.map((origin, index) => ({
         id: FRAME_RULE_ID_BASE + index,
         priority: 1,
@@ -87,25 +84,6 @@ async function refreshFrameRestrictionRules() {
           resourceTypes: ["sub_frame"],
         },
       }))
-    : [];");
-        const portPattern = sourceUrl.port ? ":" + sourceUrl.port : "(?::443)?";
-        return {
-          id: FRAME_RULE_ID_BASE + index,
-          priority: 1,
-          action: {
-            type: "modifyHeaders",
-            responseHeaders: [
-              { header: "x-frame-options", operation: "remove" },
-              { header: "content-security-policy", operation: "remove" },
-            ],
-          },
-          condition: {
-            regexFilter: "^https://" + escapedHostname + portPattern + "/",
-            initiatorDomains,
-            resourceTypes: ["sub_frame"],
-          },
-        };
-      })
     : [];
 
   await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules });
