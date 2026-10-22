@@ -158,11 +158,8 @@ function createSubframePlayerBridgeScript(options) {
     initialTime: typeof options.initialTime === "number" && Number.isFinite(options.initialTime)
       ? options.initialTime
       : 0,
-    // Match the Web extension's bounded resume window instead of inheriting the
-    // provider's page-load timeout, which may begin before media metadata exists.
-    restoreTimeoutMs: typeof options.restoreTimeoutMs === "number" && Number.isFinite(options.restoreTimeoutMs)
-      ? Math.min(Math.max(options.restoreTimeoutMs, 5000), 15000)
-      : 15000,
+    // Keep resume timing independent from the provider's page-load timeout.
+    restoreTimeoutMs: 15000,
     playerSelector: typeof options.playerSelector === "string" && options.playerSelector.length <= 300
       ? options.playerSelector
       : "",
