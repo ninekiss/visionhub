@@ -87,6 +87,21 @@ html[data-vh-sp-active="true"] body {
   --plyr-menu-color: #f5f6f8 !important;
   --plyr-menu-item-arrow-color: #c7f36b !important;
   --plyr-video-background: #000 !important;
+
+  /* Plyr scrubber and volume range tokens. */
+  --plyr-range-fill-background: #c7f36b !important;
+  --plyr-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-video-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-audio-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-video-progress-buffered-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-audio-progress-buffered-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+  --plyr-video-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+  --plyr-audio-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+
+  /* Scrubber hover tooltip and the settings menu use the same dark theme. */
+  --plyr-tooltip-background: #151820 !important;
+  --plyr-tooltip-color: #f5f6f8 !important;
 }
 
 /* Match the main player's control glyph color even if a source stylesheet overrides its token. */
@@ -104,6 +119,43 @@ html[data-vh-sp-active="true"] body {
 .plyr__controls .plyr__control:focus-visible {
   color: #f5f6f8 !important;
   background-color: #c7f36b !important;
+}
+
+/* The large centered play button is separate from .plyr__controls. */
+.plyr .plyr__control--overlaid {
+  background: #c7f36b !important;
+  color: #fff !important;
+}
+
+.plyr .plyr__control--overlaid:hover,
+.plyr .plyr__control--overlaid:focus,
+.plyr .plyr__control--overlaid:focus-visible {
+  background: #c7f36b !important;
+  color: #fff !important;
+}
+
+/* Explicitly scope range tokens to the progress scrubber and volume slider.
+   The variable applies to the fill; avoid setting the whole input background,
+   which would overwrite Plyr's own progress-gradient rendering. */
+.plyr .plyr__progress,
+.plyr .plyr__volume,
+.plyr .plyr__progress input[type="range"],
+.plyr .plyr__volume input[type="range"] {
+  --plyr-color-main: #c7f36b !important;
+  --plyr-range-fill-background: #c7f36b !important;
+  --plyr-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-video-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-audio-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-video-progress-buffered-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-audio-progress-buffered-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+  --plyr-video-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+  --plyr-audio-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+}
+
+.plyr .plyr__progress input[type="range"]:focus-visible,
+.plyr .plyr__volume input[type="range"]:focus-visible {
+  outline-color: #c7f36b !important;
 }
 
 /* Explicit paint rules cover Plyr builds that do not consume menu CSS tokens consistently. */
