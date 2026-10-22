@@ -273,6 +273,8 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId) {
 
   const view = new WebContentsView({
     webPreferences: {
+      // Dedicated preload guards source-player focus behavior without exposing IPC or Node APIs.
+      preload: path.join(__dirname, "external-player-preload.cjs"),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
