@@ -192,7 +192,7 @@ function injectExternalPlayerSubframeBridge(session, frame) {
       requestId: session.requestId,
       token: session.progressToken,
       initialTime: session.initialTime,
-      restoreTimeoutMs: session.provider.timeoutMs,
+      restoreTimeoutMs: 15000,
       playerSelector: session.provider.playerSelector,
       readinessSelector: session.provider.readinessSelector || session.provider.playerSelector,
     });
