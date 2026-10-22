@@ -52,3 +52,19 @@ html[data-vh-sp-active="true"] body {
   max-width: 100% !important;
   max-height: 100% !important;
 }
+
+
+/* Let source players auto-hide their control bars while playback is running. */
+[data-vh-sp-controls-idle="true"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: opacity 180ms ease, visibility 180ms linear !important;
+}
+
+/* Hide only source-player fast-forward / rewind controls identified by content.js. */
+[data-vh-sp-suppressed="true"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
