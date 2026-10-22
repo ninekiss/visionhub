@@ -363,15 +363,14 @@ let configuredPlayerSelector = "";
 let configuredReadinessSelector = "";
 let frameBridgeToken = "";
 let allowedFrameOrigins = [];
-let restoreSeekConfirmed = false;
 let restoreSeekPending = false;
 let restoreGeneration = 0;
 const trackedVideos = new WeakSet();
 
-let RESTORE_MAX_DURATION_MS = 60000;
+let RESTORE_MAX_DURATION_MS = 15000;
 const RESTORE_RETRY_INTERVAL_MS = 400;
-let RESTORE_MAX_ATTEMPTS = 156;
-const RESTORE_CONFIRMATION_MS = 1000;
+let RESTORE_MAX_ATTEMPTS = 24;
+const RESTORE_CONFIRMATION_MS = 2500;
 const SEEK_CONTROL_SELECTOR = [
   ".plyr__progress", "[data-plyr='seek']", ".vjs-progress-control",
   ".jw-slider-time", ".dplayer-bar-wrap", ".dplayer-bar",
@@ -505,7 +504,6 @@ function seekVideoInPageWorld(targetTime, readinessSelector, playerSelector) {
 function requestRestoreSeek(video, targetTime, now) {
   restoreLastSetAt = now;
   restoreAttempts += 1;
-  restoreSeekConfirmed = false;
   restoreSeekPending = true;
   const generation = restoreGeneration;
 
@@ -519,12 +517,9 @@ function requestRestoreSeek(video, targetTime, now) {
         if (generation !== restoreGeneration || !sessionInitialized) return;
         restoreSeekPending = false;
         if (restoreComplete || restoreUserInterrupted) return;
-        if (outcome && outcome.requested &&
+        if (!(outcome && outcome.requested &&
             (outcome.seeking === true ||
-             (Number.isFinite(outcome.currentTime) && Math.abs(outcome.currentTime - targetTime) <= 3))) {
-          restoreSeekConfirmed = true;
-          if (restoreMatchedSince === 0) restoreMatchedSince = Date.now();
-        } else {
+             (Number.isFinite(outcome.currentTime) && Math.abs(outcome.currentTime - targetTime) <= 3)))) {
           try { video.currentTime = targetTime; } catch {}
         }
         tryRestore(primaryVideo());
@@ -568,27 +563,32 @@ function scheduleRestoreRetry() {
 
 function tryRestore(video) {
   if (!sessionInitialized || restoreComplete || restoreUserInterrupted) return;
-  const now = Date.now();
   if (restoreTarget <= 0) {
     finishRestore(video, false);
     return;
   }
-  if (now - restoreStartedAt >= RESTORE_MAX_DURATION_MS ||
-      restoreAttempts >= RESTORE_MAX_ATTEMPTS) {
-    restoreSeekPending = false;
-    finishRestore(video, true);
-    return;
-  }
-  if (!video || primaryVideo() !== video ||
-      video.readyState < HTMLMediaElement.HAVE_METADATA ||
+  // A top-frame preload cannot see video elements inside cross-origin iframes.
+  // In that case the isolated bridge in the actual media frame owns restoration.
+  if (!video || primaryVideo() !== video) return;
+  if (video.readyState < HTMLMediaElement.HAVE_METADATA ||
       !Number.isFinite(video.duration) || video.duration <= 0) {
     scheduleRestoreRetry();
     return;
   }
 
-  if (video.duration > 0 && restoreTarget >= video.duration - 2) {
-    // The saved position is beyond this version of the source; do not loop on an impossible seek.
+  if (restoreTarget >= video.duration - 2) {
+    // The saved point is beyond this source's timeline; do not block valid progress.
     finishRestore(video, false);
+    return;
+  }
+
+  const now = Date.now();
+  // Match the extension: the retry deadline starts only after actual media metadata is ready.
+  if (restoreStartedAt === 0) restoreStartedAt = now;
+  if (now - restoreStartedAt >= RESTORE_MAX_DURATION_MS ||
+      restoreAttempts >= RESTORE_MAX_ATTEMPTS) {
+    restoreSeekPending = false;
+    finishRestore(video, true);
     return;
   }
 
@@ -599,7 +599,7 @@ function tryRestore(video) {
     return;
   }
 
-  if (distance <= 3 && !video.seeking && restoreSeekConfirmed) {
+  if (distance <= 3 && !video.seeking) {
     if (restoreMatchedSince === 0) restoreMatchedSince = now;
     if (now - restoreMatchedSince >= RESTORE_CONFIRMATION_MS) {
       finishRestore(video, false);
@@ -668,13 +668,8 @@ function attachProgressVideo(video) {
     video.addEventListener(eventName, () => update(false));
   }
   video.addEventListener("seeked", () => {
-    if (video === primaryVideo() &&
-        restoreTarget > 0 && !restoreComplete && !restoreUserInterrupted &&
-        restoreLastSetAt > 0 && Date.now() - restoreLastSetAt < 10000 &&
-        Math.abs(video.currentTime - restoreTarget) <= 3) {
-      restoreSeekConfirmed = true;
-      if (restoreMatchedSince === 0) restoreMatchedSince = Date.now();
-    }
+    // Confirm by observing stable currentTime, even if the source wrapper does
+    // not deliver a usable seeked signal.
     update(true);
   });
   for (const eventName of ["pause", "ended"]) {
@@ -714,17 +709,15 @@ function resetProgressSession(payload) {
       })
     : [];
 
-  const requestedTimeout = typeof payload.restoreTimeoutMs === "number" &&
-    Number.isFinite(payload.restoreTimeoutMs) ? payload.restoreTimeoutMs : 60000;
-  // Start this bounded window after player readiness has been verified.
-  RESTORE_MAX_DURATION_MS = Math.min(Math.max(requestedTimeout, 30000), 120000);
-  RESTORE_MAX_ATTEMPTS = Math.ceil(RESTORE_MAX_DURATION_MS / RESTORE_RETRY_INTERVAL_MS) + 6;
+  // Mirror the Web extension: 400 ms retries, at most 24 attempts, and a
+  // 2.5 second confirmation period after the media reaches the saved position.
+  RESTORE_MAX_DURATION_MS = 15000;
+  RESTORE_MAX_ATTEMPTS = 24;
 
   restoreTarget = initialResumeTime >= 5 ? initialResumeTime : 0;
-  restoreStartedAt = Date.now();
+  restoreStartedAt = 0;
   restoreLastSetAt = 0;
   restoreMatchedSince = 0;
-  restoreSeekConfirmed = false;
   restoreSeekPending = false;
   restoreGeneration += 1;
   restoreAttempts = 0;
