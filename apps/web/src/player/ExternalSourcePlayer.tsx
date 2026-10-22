@@ -239,6 +239,20 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
       let cancelled = false;
       const unsubscribe = desktop.onExternalPlayerStatus((event) => {
         if (cancelled || event.providerId !== source.providerId || event.requestId !== requestId) return;
+        if (event.status === 'progress') {
+          if (
+            typeof event.currentTime === 'number' && Number.isFinite(event.currentTime) &&
+            event.currentTime >= 0 &&
+            typeof event.duration === 'number' && Number.isFinite(event.duration) &&
+            event.duration > 0
+          ) {
+            progressCallbackRef.current?.({
+              currentTime: Math.min(event.currentTime, event.duration),
+              duration: event.duration,
+            });
+          }
+          return;
+        }
         if (event.status === 'ready') {
           setStatus('ready');
           setErrorMessage('');
@@ -272,6 +286,7 @@ export default function ExternalSourcePlayer({ source, provider, title, initialT
         providerId: source.providerId,
         contentId: source.contentId,
         requestId,
+        initialTime: initialTimeRef.current,
         bounds: getBounds(),
       }).catch((cause: unknown) => {
         if (cancelled) return;
