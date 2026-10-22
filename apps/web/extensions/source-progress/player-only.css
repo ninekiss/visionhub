@@ -89,6 +89,23 @@ html[data-vh-sp-active="true"] body {
   --plyr-video-background: #000 !important;
 }
 
+/* Match the main player's control glyph color even if a source stylesheet overrides its token. */
+.plyr .plyr__controls,
+.plyr .plyr__controls .plyr__control,
+.plyr__controls .plyr__control {
+  color: #f5f6f8 !important;
+}
+
+.plyr .plyr__controls .plyr__control:hover,
+.plyr .plyr__controls .plyr__control:focus,
+.plyr .plyr__controls .plyr__control:focus-visible,
+.plyr__controls .plyr__control:hover,
+.plyr__controls .plyr__control:focus,
+.plyr__controls .plyr__control:focus-visible {
+  color: #f5f6f8 !important;
+  background-color: #c7f36b !important;
+}
+
 /* Explicit paint rules cover Plyr builds that do not consume menu CSS tokens consistently. */
 .plyr .plyr__menu__container,
 .plyr .plyr__menu__container [role="menu"],
