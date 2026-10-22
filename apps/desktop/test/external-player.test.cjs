@@ -59,13 +59,13 @@ test("bounds reject malformed and absurd coordinates and preserve explicit visib
 
 test("player-only UI uses validated selectors and marker-based styles", () => {
   const script = createPlayerIsolationScript(".vp-player", ".vp-player video");
-  assert.match(script, /"playerSelector":"\\.vp-player"/);
-  assert.match(script, /"readinessSelector":"\\.vp-player video"/);
+  assert.match(script, /"playerSelector":"\.vp-player"/);
+  assert.match(script, /"readinessSelector":"\.vp-player video"/);
   assert.match(script, /data-vh-sp-hidden/);
   assert.match(script, /data-vh-sp-root/);
   assert.match(script, /MutationObserver/);
-  assert.doesNotMatch(script, /eval\\(|Function\\(/);
-  assert.doesNotMatch(script, /sibling\\.style\\.setProperty\\("display"/);
+  assert.doesNotMatch(script, /eval\(|Function\(/);
+  assert.doesNotMatch(script, /sibling\.style\.setProperty\("display"/);
   assert.doesNotThrow(() => new Function(script));
 });
 
@@ -219,7 +219,7 @@ test("desktop source-player UI matches extension isolation, controls, and Plyr t
   assert.match(script, /function playerRootFor/);
   assert.match(script, /function isolatePageToPlayer/);
   assert.match(script, /MutationObserver/);
-  assert.doesNotMatch(script, /ipcRenderer|contextBridge|require\\(/);
+  assert.doesNotMatch(script, /ipcRenderer|contextBridge|require\(/);
   assert.doesNotThrow(() => new Function(script));
 
   const frameScript = createSubframePlayerBridgeScript({
