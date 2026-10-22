@@ -207,6 +207,17 @@ function startExternalPlayerReadinessCheck(session) {
       // transition/loading surface for a moment after their DOM/video becomes ready.
       if (Date.now() - session.readySince < 2500) return;
 
+      if (!session.progressInitialized) {
+        session.progressInitialized = true;
+        session.view.webContents.send("external-player:initialize", {
+          requestId: session.requestId,
+          initialTime: session.initialTime,
+          playerSelector: session.provider.playerSelector,
+          readinessSelector: session.provider.readinessSelector || session.provider.playerSelector,
+          restoreTimeoutMs: session.provider.timeoutMs,
+        });
+      }
+
       session.ready = true;
       clearExternalPlayerTimers(session);
       session.view.setVisible(canShowExternalPlayer({
@@ -312,6 +323,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId, initi
     requestId,
     initialTime,
     lastProgressAt: 0,
+    progressInitialized: false,
     bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, visible: bounds.visible },
     htmlFullscreen: false,
     changedWindowFullscreen: false,
@@ -343,11 +355,7 @@ function openExternalPlayer(providerId, contentId, boundsValue, requestId, initi
     if (isMainFrame && errorCode !== -3) failExternalPlayer(session, "load-failed");
   });
   view.webContents.on("did-finish-load", () => {
-    // Private IPC to the isolated preload; no API is exposed to source-page JavaScript.
-    view.webContents.send("external-player:initialize", {
-      requestId: session.requestId,
-      initialTime: session.initialTime,
-    });
+    // Do not start seek retries until the configured source player has a valid frame.
     startExternalPlayerReadinessCheck(session);
   });
   view.webContents.on("enter-html-full-screen", () => {
