@@ -242,8 +242,9 @@
     if (!controlRootsBound.has(root)) {
       controlRootsBound.add(root);
       const reveal = () => {
+        const activeVideo = primaryVideo() ?? video;
         setControlBarsIdle(root, false);
-        if (!video.paused && !video.ended) scheduleControlBarsHide(video, root);
+        if (!activeVideo.paused && !activeVideo.ended) scheduleControlBarsHide(activeVideo, root);
       };
       for (const eventName of ["pointermove", "mousemove", "pointerdown", "touchstart", "keydown"]) {
         root.addEventListener(eventName, reveal, { passive: true });
@@ -276,6 +277,10 @@
         if (root) setControlBarsIdle(root, false);
       });
     }
+    video.addEventListener("seeked", () => {
+      const root = refreshSourcePlayerControls(video);
+      if (root && !video.paused && !video.ended) scheduleControlBarsHide(video, root);
+    });
   }
 
   function isolatePageToPlayer(element, force = false) {
