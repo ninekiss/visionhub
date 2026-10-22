@@ -372,7 +372,7 @@ function runSourcePlayerUi(config) {
     if (!actualVideo && readinessTarget && typeof readinessTarget.querySelector === "function") {
       try { actualVideo = readinessTarget.querySelector("video"); } catch {}
     }
-    if (!actualVideo && video) actualVideo = video;
+    if (!actualVideo && !(readinessTarget instanceof HTMLIFrameElement) && video) actualVideo = video;
 
     const targetVisible = isVisibleWithBounds(target);
     const readinessVisible = isVisibleWithBounds(readinessTarget);
@@ -394,7 +394,9 @@ function runSourcePlayerUi(config) {
     lastReady = candidate.ready;
     if (candidate.ready) {
       const video = primaryVideo();
-      const target = video ? playerRootFor(video) : candidate.readinessTarget;
+      const target = candidate.readinessTarget instanceof HTMLIFrameElement
+        ? candidate.readinessTarget
+        : video ? playerRootFor(video) : candidate.readinessTarget;
       isolatePageToPlayer(target || candidate.target);
       if (video) refreshControls(video);
     }
