@@ -68,9 +68,20 @@ function createPlayerIsolationScript(playerSelector, readinessSelector) {
     let target;
     let readinessTarget;
     try {
-      readinessTarget = document.querySelector(${ready});
-      if (!readinessTarget) return false;
       target = document.querySelector(${player});
+      if (!target) return false;
+      readinessTarget = document.querySelector(${ready});
+      // CSS selectors in the top frame cannot find a video inside a cross-origin iframe.
+      // Use the configured player's visible video/iframe as a coarse signal when needed;
+      // the per-frame bridge performs the actual media-readiness and seek confirmation.
+      if (!readinessTarget) {
+        if (target instanceof HTMLVideoElement || target instanceof HTMLIFrameElement) {
+          readinessTarget = target;
+        } else {
+          readinessTarget = target.querySelector("video, iframe");
+        }
+      }
+      if (!readinessTarget) return false;
     } catch {
       return false;
     }
@@ -90,7 +101,9 @@ function createPlayerIsolationScript(playerSelector, readinessSelector) {
     // A matched <video> element is not necessarily displaying a frame yet.
     const video = readinessTarget instanceof HTMLVideoElement
       ? readinessTarget
-      : readinessTarget.querySelector?.("video");
+      : readinessTarget instanceof HTMLIFrameElement
+        ? null
+        : readinessTarget.querySelector?.("video");
     if (video && (
       !isVisibleWithBounds(video) ||
       video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA ||
