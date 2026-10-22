@@ -272,7 +272,7 @@ function startExternalPlayerReadinessCheck(session) {
           initialTime: session.initialTime,
           playerSelector: session.provider.playerSelector,
           readinessSelector: session.provider.readinessSelector || session.provider.playerSelector,
-          restoreTimeoutMs: session.provider.timeoutMs,
+          restoreTimeoutMs: 15000,
           progressToken: session.progressToken,
           allowedFrameOrigins: session.provider.allowedOrigins,
         });
