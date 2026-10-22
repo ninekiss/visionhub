@@ -52,3 +52,167 @@ html[data-vh-sp-active="true"] body {
   max-width: 100% !important;
   max-height: 100% !important;
 }
+
+
+/* Let source players auto-hide their control bars while playback is running. */
+[data-vh-sp-controls-idle="true"] {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: opacity 180ms ease, visibility 180ms linear !important;
+}
+
+/* Hide only source-player fast-forward / rewind controls identified by content.js. */
+[data-vh-sp-suppressed="true"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+
+/* Keep the same core Plyr theme tokens as the VisionHub main player. */
+.plyr,
+.plyr .plyr__controls,
+.plyr .plyr__menu__container,
+.plyr .plyr__menu__container *,
+.plyr__menu__container,
+.plyr__menu__container * {
+  --plyr-color-main: #c7f36b !important;
+  --plyr-focus-visible-color: #c7f36b !important;
+  --plyr-control-toggle-checked-background: #c7f36b !important;
+  --plyr-video-control-color: #f5f6f8 !important;
+  --plyr-video-control-color-hover: #f5f6f8 !important;
+  --plyr-video-control-background-hover: #c7f36b !important;
+  --plyr-menu-background: #151820 !important;
+  --plyr-menu-color: #f5f6f8 !important;
+  --plyr-menu-item-arrow-color: #c7f36b !important;
+  --plyr-video-background: #000 !important;
+
+  /* Plyr scrubber and volume range tokens. */
+  --plyr-range-fill-background: #c7f36b !important;
+  --plyr-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-video-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-audio-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-video-progress-buffered-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-audio-progress-buffered-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+  --plyr-video-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+  --plyr-audio-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+
+  /* Scrubber hover tooltip and the settings menu use the same dark theme. */
+  --plyr-tooltip-background: #151820 !important;
+  --plyr-tooltip-color: #f5f6f8 !important;
+}
+
+/* Match the main player's control glyph color even if a source stylesheet overrides its token. */
+.plyr .plyr__controls,
+.plyr .plyr__controls .plyr__control,
+.plyr__controls .plyr__control {
+  color: #f5f6f8 !important;
+}
+
+.plyr .plyr__controls .plyr__control:hover,
+.plyr .plyr__controls .plyr__control:focus,
+.plyr .plyr__controls .plyr__control:focus-visible,
+.plyr__controls .plyr__control:hover,
+.plyr__controls .plyr__control:focus,
+.plyr__controls .plyr__control:focus-visible {
+  color: #f5f6f8 !important;
+  background-color: #c7f36b !important;
+}
+
+/* The large centered play button is separate from .plyr__controls. */
+.plyr .plyr__control--overlaid {
+  background: #c7f36b !important;
+  color: #fff !important;
+}
+
+.plyr .plyr__control--overlaid:hover,
+.plyr .plyr__control--overlaid:focus,
+.plyr .plyr__control--overlaid:focus-visible {
+  background: #c7f36b !important;
+  color: #fff !important;
+}
+
+/* Explicitly scope range tokens to the progress scrubber and volume slider.
+   The variable applies to the fill; avoid setting the whole input background,
+   which would overwrite Plyr's own progress-gradient rendering. */
+.plyr .plyr__progress,
+.plyr .plyr__volume,
+.plyr .plyr__progress input[type="range"],
+.plyr .plyr__volume input[type="range"] {
+  --plyr-color-main: #c7f36b !important;
+  --plyr-range-fill-background: #c7f36b !important;
+  --plyr-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-video-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-audio-range-track-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-video-progress-buffered-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-audio-progress-buffered-background: rgba(255, 255, 255, 0.25) !important;
+  --plyr-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+  --plyr-video-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+  --plyr-audio-range-thumb-active-shadow-color: rgba(199, 243, 107, 0.45) !important;
+}
+
+.plyr .plyr__progress input[type="range"]:focus-visible,
+.plyr .plyr__volume input[type="range"]:focus-visible {
+  outline-color: #c7f36b !important;
+}
+
+/* Match Plyr's own explicit theme selectors, not only the CSS variables. */
+.plyr--full-ui input[type="range"] {
+  color: #c7f36b !important;
+}
+
+.plyr--full-ui input[type="range"].plyr__tab-focus::-webkit-slider-runnable-track {
+  outline-color: #c7f36b !important;
+}
+
+.plyr--full-ui input[type="range"].plyr__tab-focus::-moz-range-track {
+  outline-color: #c7f36b !important;
+}
+
+.plyr--full-ui input[type="range"].plyr__tab-focus::-ms-track {
+  outline-color: #c7f36b !important;
+}
+
+.plyr--video .plyr__control.plyr__tab-focus,
+.plyr--video .plyr__control:hover,
+.plyr--video .plyr__control[aria-expanded="true"],
+.plyr--audio .plyr__control.plyr__tab-focus,
+.plyr--audio .plyr__control:hover,
+.plyr--audio .plyr__control[aria-expanded="true"] {
+  background: #c7f36b !important;
+  color: #fff !important;
+}
+
+.plyr__menu__container .plyr__control[role="menuitemradio"][aria-checked="true"]::before {
+  background: #c7f36b !important;
+}
+
+/* Explicit paint rules cover Plyr builds that do not consume menu CSS tokens consistently. */
+.plyr .plyr__menu__container,
+.plyr .plyr__menu__container [role="menu"],
+.plyr__menu__container,
+.plyr__menu__container [role="menu"] {
+  background-color: #151820 !important;
+  color: #f5f6f8 !important;
+}
+
+.plyr .plyr__menu__container button,
+.plyr .plyr__menu__container [role="menuitem"],
+.plyr .plyr__menu__container [role="menuitemradio"],
+.plyr .plyr__menu__container [role="menuitemcheckbox"],
+.plyr__menu__container button,
+.plyr__menu__container [role="menuitem"],
+.plyr__menu__container [role="menuitemradio"],
+.plyr__menu__container [role="menuitemcheckbox"] {
+  color: #f5f6f8 !important;
+}
+
+.plyr .plyr__menu__container [aria-checked="true"],
+.plyr .plyr__menu__container [aria-pressed="true"],
+.plyr__menu__container [aria-checked="true"],
+.plyr__menu__container [aria-pressed="true"] {
+  background-color: #c7f36b !important;
+  color: #10150a !important;
+}

@@ -5,6 +5,30 @@
   const TRUSTED_KEY = "visionHubTrustedAppOrigins";
   const ENABLED_KEY = "visionHubEnabledSourceOrigins";
   const DISCOVERED_MESSAGE = "VH_SOURCE_PROGRESS_DISCOVERED_FRAMES";
+  const CONTROL_AUTO_HIDE_DELAY_MS = 1800;
+  const CONTROL_BAR_SELECTOR = [
+    ".plyr__controls",
+    ".dplayer-controller",
+    ".jw-controlbar",
+    ".jw-controls",
+    ".art-controls",
+    ".xgplayer-controls",
+    ".xgplayer-controls-inner",
+    ".vjs-control-bar",
+    ".bpx-player-control-wrap",
+    ".prism-controlbar",
+    "[class*='control-bar']",
+    "[class*='ControlBar']",
+    "[class*='controlBar']",
+    "[class*='controller']",
+  ].join(", ");
+  const SEEK_ACTION_SELECTOR = [
+    "button", "[role='button']", "a", "[tabindex]", "[onclick]", "[data-plyr]",
+    ".dplayer-icon-back", ".dplayer-icon-forward", ".jw-icon-rewind", ".jw-icon-forward",
+    "[class*='fast-forward']", "[class*='fastForward']", "[class*='rewind']",
+    "[class*='Rewind']", "[class*='backward']", "[class*='Backward']",
+  ].join(", ");
+  const SEEK_ACTION_PATTERN = /快进|快退|向前跳|向后跳|forward.{0,8}(?:\\d+\\s*(?:s|sec|seconds|秒)|jump|seek)|(?:\\d+\\s*(?:s|sec|secs|second|seconds|秒).{0,12})(?:rewind|backward|快退)|rewind|fast[\\s_-]*forward|seek[\\s_-]*(?:forward|backward|ahead|back)|skip[\\s_-]*(?:forward|backward|ahead)|dplayer[-_]icon[-_]back|jw-icon-rewind|jw-icon-forward|data-plyr.{0,12}(?:rewind|fastforward)/i;
 
   if (window.top === window || window.location.protocol !== "https:") return;
 
@@ -61,6 +85,11 @@
   const PLAYER_ONLY_HIDDEN = "data-vh-sp-hidden";
   const PLAYER_ONLY_PATH = "data-vh-sp-path";
   const PLAYER_ONLY_ROOT = "data-vh-sp-root";
+  const PLAYER_CONTROLS_IDLE = "data-vh-sp-controls-idle";
+  const SUPPRESSED_SEEK_CONTROL = "data-vh-sp-suppressed";
+  const controlHideTimers = new WeakMap();
+  const controlBehaviorAttached = new WeakSet();
+  const controlRootsBound = new WeakSet();
   const playerOnlyHiddenNodes = new Set();
   const playerOnlyPathNodes = new Set();
   let isolatedPlayerRoot = null;
@@ -119,6 +148,173 @@
       depth += 1;
     }
     return best instanceof HTMLElement ? best : video.parentElement;
+  }
+
+  function controlBarsIn(root) {
+    if (!(root instanceof HTMLElement)) return [];
+    const bars = [];
+    if (root.matches(CONTROL_BAR_SELECTOR)) bars.push(root);
+    bars.push(...root.querySelectorAll(CONTROL_BAR_SELECTOR));
+    return [...new Set(bars)];
+  }
+
+  function setControlBarsIdle(root, idle) {
+    for (const bar of controlBarsIn(root)) {
+      if (idle) bar.setAttribute(PLAYER_CONTROLS_IDLE, "true");
+      else bar.removeAttribute(PLAYER_CONTROLS_IDLE);
+    }
+  }
+
+  function clearControlHideTimer(video) {
+    const timer = controlHideTimers.get(video);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      controlHideTimers.delete(video);
+    }
+  }
+
+  function hasOpenPlayerMenu(root) {
+    if (!(root instanceof HTMLElement)) return false;
+    const menus = root.querySelectorAll(
+      ".plyr__menu__container, .plyr__menu, [role='menu'], [role='dialog'], [aria-modal='true']"
+    );
+    return Array.from(menus).some((menu) => {
+      if (!(menu instanceof HTMLElement) || menu.hidden || menu.getAttribute("aria-hidden") === "true") {
+        return false;
+      }
+      const style = getComputedStyle(menu);
+      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
+        return false;
+      }
+      const rect = menu.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+  }
+
+  function scheduleControlBarsHide(video, root, delay = CONTROL_AUTO_HIDE_DELAY_MS, waitingForMenuClose = false) {
+    clearControlHideTimer(video);
+    if (!(root instanceof HTMLElement) || video.paused || video.ended) {
+      setControlBarsIdle(root, false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      controlHideTimers.delete(video);
+      if (!video.isConnected || video.paused || video.ended) return;
+      if (hasOpenPlayerMenu(root)) {
+        // Settings, quality, captions and speed menus live inside the control bar.
+        // Keep their parent visible for as long as the menu is open.
+        setControlBarsIdle(root, false);
+        scheduleControlBarsHide(video, root, 300, true);
+        return;
+      }
+      if (waitingForMenuClose) {
+        // Start a fresh idle period after a menu closes, even when the menu
+        // closed without a pointer or keyboard event reaching the player root.
+        scheduleControlBarsHide(video, root);
+        return;
+      }
+      setControlBarsIdle(root, true);
+    }, delay);
+    controlHideTimers.set(video, timer);
+  }
+
+  function seekControlDescription(element) {
+    const nestedLabels = Array.from(element.querySelectorAll("svg title, img[alt], [data-plyr], [data-action]"))
+      .slice(0, 4)
+      .map((node) => [
+        node.getAttribute("aria-label"),
+        node.getAttribute("title"),
+        node.getAttribute("data-action"),
+        node.getAttribute("data-plyr"),
+        node.getAttribute("alt"),
+        node.textContent,
+      ].filter(Boolean).join(" "));
+    const ownText = element.children.length <= 1 && (element.textContent || "").trim().length <= 48
+      ? (element.textContent || "").trim()
+      : "";
+    return [
+      element.id,
+      typeof element.className === "string" ? element.className : element.getAttribute("class"),
+      element.getAttribute("aria-label"),
+      element.getAttribute("title"),
+      element.getAttribute("data-action"),
+      element.getAttribute("data-plyr"),
+      element.getAttribute("data-title"),
+      element.getAttribute("data-tooltip"),
+      ownText,
+      ...nestedLabels,
+    ].filter(Boolean).join(" ");
+  }
+
+  function removeSeekShortcutButtons(root) {
+    if (!(root instanceof HTMLElement)) return;
+    for (const candidate of root.querySelectorAll(SEEK_ACTION_SELECTOR)) {
+      if (!(candidate instanceof HTMLElement) || candidate.hasAttribute(SUPPRESSED_SEEK_CONTROL)) continue;
+      if (!SEEK_ACTION_PATTERN.test(seekControlDescription(candidate))) continue;
+
+      const control = candidate.matches("button, [role='button'], a, [tabindex], [onclick], [data-plyr]")
+        ? candidate
+        : candidate.closest("button, [role='button'], a, [tabindex], [onclick], [data-plyr]");
+      if (!(control instanceof HTMLElement)) continue;
+
+      // Never hide a settings/menu container or anything that owns one.
+      if (control.matches(".plyr__menu__container, .plyr__menu, [role='menu'], [role='dialog']") ||
+          control.querySelector(".plyr__menu__container, .plyr__menu, [role='menu'], [role='dialog']")) {
+        continue;
+      }
+      control.setAttribute(SUPPRESSED_SEEK_CONTROL, "true");
+    }
+  }
+
+  function refreshSourcePlayerControls(video) {
+    const root = playerRootFor(video);
+    if (!(root instanceof HTMLElement)) return null;
+
+    removeSeekShortcutButtons(root);
+
+    if (!controlRootsBound.has(root)) {
+      controlRootsBound.add(root);
+      const reveal = () => {
+        const activeVideo = primaryVideo() ?? video;
+        setControlBarsIdle(root, false);
+        if (!activeVideo.paused && !activeVideo.ended) scheduleControlBarsHide(activeVideo, root);
+      };
+      for (const eventName of ["pointermove", "mousemove", "pointerdown", "touchstart", "keydown", "focusin"]) {
+        root.addEventListener(eventName, reveal, { passive: true });
+      }
+      if (!video.paused && !video.ended) scheduleControlBarsHide(video, root);
+    }
+
+    if (video.paused || video.ended) {
+      clearControlHideTimer(video);
+      setControlBarsIdle(root, false);
+    }
+    return root;
+  }
+
+  function attachSourceControlBehavior(video) {
+    if (controlBehaviorAttached.has(video)) return;
+    controlBehaviorAttached.add(video);
+
+    video.addEventListener("playing", () => {
+      const root = refreshSourcePlayerControls(video);
+      if (root) {
+        setControlBarsIdle(root, false);
+        scheduleControlBarsHide(video, root);
+      }
+    });
+    for (const eventName of ["pause", "ended", "waiting", "seeking"]) {
+      video.addEventListener(eventName, () => {
+        clearControlHideTimer(video);
+        const root = refreshSourcePlayerControls(video);
+        if (root) setControlBarsIdle(root, false);
+      });
+    }
+    video.addEventListener("seeked", () => {
+      const root = refreshSourcePlayerControls(video);
+      if (root && !video.paused && !video.ended) scheduleControlBarsHide(video, root);
+    });
   }
 
   function isolatePageToPlayer(element, force = false) {
@@ -224,8 +420,11 @@
   function attachVideo(video) {
     if (attachedVideos.has(video)) return;
     attachedVideos.add(video);
+    attachSourceControlBehavior(video);
+    refreshSourcePlayerControls(video);
 
     const update = (force = false) => {
+      refreshSourcePlayerControls(video);
       if (!session) return;
       reportPlayerReady(video);
       tryRestore(video);
@@ -399,6 +598,7 @@
           if (video) {
             const playerRoot = playerRootFor(video);
             if (playerRoot) isolatePageToPlayer(playerRoot, true);
+            refreshSourcePlayerControls(video);
             reportPlayerReady(video);
             tryRestore(video);
           } else if (isolatedPlayerRoot?.isConnected) {
