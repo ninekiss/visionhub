@@ -105,7 +105,11 @@ test("external source WebContentsView uses a restricted focus-guard preload", ()
   assert.ok(preloadSource.includes('ipcRenderer.send("external-player:progress"'));
   assert.ok(preloadSource.includes("configuredReadinessSelector"));
   assert.ok(preloadSource.includes("restoreSeekConfirmed"));
+  assert.ok(preloadSource.includes("seekVideoInPageWorld"));
+  assert.ok(preloadSource.includes("func: seekVideoInPageWorld"));
+  assert.ok(preloadSource.includes("restoreSeekPending"));
   assert.ok(preloadSource.includes("RESTORE_CONFIRMATION_MS = 1000"));
+  assert.ok(preloadSource.includes("video.plyr"));
   assert.ok(mainSource.includes("playerSelector: session.provider.playerSelector"));
   assert.ok(mainSource.includes("readinessSelector: session.provider.readinessSelector || session.provider.playerSelector"));
   const readinessBlock = mainSource.slice(
