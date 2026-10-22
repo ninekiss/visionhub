@@ -1,6 +1,6 @@
 # VisionHub Development Plan
 
-> Status date: 2026-10-15  
+> Status date: 2026-10-22  
 > Repository: [ninekiss/visionhub](https://github.com/ninekiss/visionhub)  
 > Scope: retain the first-class Web client while evolving the shared foundation and adding an Electron desktop client  
 > This document is a roadmap and current-state assessment. It does not claim that future-phase work is already implemented.
@@ -38,7 +38,7 @@ The following status is based on the repository code and lockfile on 2026-10-14.
 | Secrets | Deployment credentials are passed through environment variables; no committed secret file | Partially aligned; clarify loading and validation |
 | Player | Plyr 3.8.5 wrapper, playback status/progress, client-local volume/speed preferences, hls.js multi-rendition quality selection, and configured external-source playback | Direct MP4/HLS and P5.3 behavior were accepted in Web and Windows Electron; external-source implementation across PRs #41, #43, #45 and #46 is merged with CI passing. Real-provider end-to-end acceptance remains pending because the example provider list is intentionally empty until an authorized source is configured |
 | HLS | hls.js 1.7.3 adapter with bounded network/media recovery and cleanup; playback and P5.3 quality switching manually accepted in Web and Windows Electron | Implemented for the tested source; do not infer support for untested media/container combinations |
-| Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | Windows Electron workflow acceptance reported passed on 2026-10-13; macOS-specific and packaged security acceptance remain open; P4.5 release packaging deferred until explicitly reactivated |
+| Desktop | `apps/desktop` provides the Electron main/preload shell and reuses the Web renderer | Windows Electron development workflow acceptance passed; Windows x64 installer packaging is now the P4.5 priority but is not implemented yet; macOS packaging remains deferred |
 | Shared packages | `packages/contracts`, `packages/config`, and `packages/ui` provide shared API contracts, validated config, tokens and React primitives | Shared UI foundation and planned Phase 3 migration slices implemented; Web remains first-class |
 | Worker/downloads | No background worker or download task pipeline | Not started; optional later phase |
 | CI | Frozen install, Prisma validation, type checks, config/catalog unit tests, production build and both Docker image builds | Passed on Node.js 24.21.0 |
@@ -61,7 +61,7 @@ The current implementation is useful and should be retained. It is a browser-bas
 | NestJS packages | 12.1.2 |
 | Prisma ORM / Prisma Client / PostgreSQL adapter | 7.10.0 |
 | Zod | 4.6.6 in `packages/config` |
-| Electron | 44.7.0 pinned in `apps/desktop`; macOS ARM64 development shell scaffold added; P4.5 release packaging intentionally deferred |
+| Electron | 44.7.0 pinned in `apps/desktop`; Windows x64 is the first planned packaged target; macOS ARM64 package work remains deferred |
 | hls.js | 1.7.3 pinned; HLS adapter manually accepted in Web and Windows Electron |
 
 ### 3.2 Target baseline
@@ -300,7 +300,7 @@ Exit criteria:
 
 ### Phase 4 — Electron desktop MVP
 
-Status: P4.0–P4.3 foundations are merged via [PR #31](https://github.com/ninekiss/visionhub/pull/31) and [PR #32](https://github.com/ninekiss/visionhub/pull/32); end-to-end P4.3 acceptance and actual packaged macOS security verification remain open. P4.4 native window behavior is being implemented on `phase-4/p44-native-window-behavior`. P4.5 release packaging is deliberately deferred until explicitly reactivated.
+Status: P4.0–P4.3 foundations are merged via [PR #31](https://github.com/ninekiss/visionhub/pull/31) and [PR #32](https://github.com/ninekiss/visionhub/pull/32); development-mode Windows workflow acceptance is recorded. P4.5 is now prioritized for a Windows x64 installer and packaged-runtime acceptance. macOS-specific native verification and macOS ARM64 packaging/signing/notarization remain deferred.
 
 #### Product goal
 
@@ -308,9 +308,9 @@ Deliver a small, secure desktop shell that reuses the existing React screens, sh
 
 #### P4.0 — Confirm scope and compatibility
 
-- [x] Set the first packaged target to macOS Apple Silicon (`arm64`); defer Intel/universal and other operating systems until explicitly requested.
+- [x] Set Windows x64 as the first packaged target; prioritize a Windows installer and packaged-runtime acceptance. Keep macOS Apple Silicon (`arm64`) packaging, signing and notarization deferred.
 - [x] Pin Electron 44.7.0, the official stable release verified on 2026-10-13; its embedded Node.js 24.21.0 matches the repository runtime baseline. Do not use a floating `latest`.
-- [x] Record the current public MP4 mock URL as a playback-test candidate and explicitly mark codec/container support unverified until tested on Electron/macOS ARM64; HLS remains a later adapter phase. See `docs/DESKTOP_MVP.md`.
+- [x] Record the current public MP4 mock URL as a playback-test candidate and explicitly mark codec/container support unverified until tested in the packaged Windows x64 Electron runtime; macOS ARM64 playback verification remains deferred. See `docs/DESKTOP_MVP.md`.
 - [x] Define the desktop endpoint contract and load it via `loadDesktopConfig()` in the Electron main process. `DESKTOP_API_BASE_URL` overrides the endpoint; `DESKTOP_CONFIG_PATH` selects a config file. Packaged `/api/v1` requests are proxied through the configured endpoint and stay same-origin in the renderer.
 
 Deliverable: target OS, exact Electron version, initial media-test candidate/known limitations, and the validated desktop configuration contract are recorded in `docs/DESKTOP_MVP.md`.
@@ -334,7 +334,7 @@ Deliverable: the development Electron window opens the existing Web renderer on 
 - [x] Validate the sender URL for the single IPC handler; the handler accepts no renderer payload arguments.
 - [x] Block unexpected navigation and all new windows; only validated HTTPS URLs may be handed to the operating system.
 - [x] Serve packaged renderer assets through `visionhub://app`; attach CSP to HTML, reject traversal/unknown hosts, and verify resource MIME types and that the built Plyr/player CSS asset exists.
-- [ ] Verify the CSP behavior in an actual packaged Electron build on macOS ARM64 before marking P4.2 complete.
+- [ ] Verify CSP behavior, API proxying, configuration-resource loading and navigation restrictions in the packaged Windows x64 application. macOS-specific packaged CSP verification remains deferred.
 - [x] Keep secrets out of renderer bundles and source; API endpoint configuration remains separate from credentials.
 
 Deliverable: a documented threat-boundary review and automated or repeatable checks for the chosen Electron security defaults.
@@ -360,20 +360,24 @@ Deliverable: the core browse → detail → play workflow works in a desktop bui
 
 Deliverable: predictable desktop window lifecycle and basic native integration, with no unrelated background features.
 
-#### P4.5 — Package and verify a release candidate (DEFERRED — reactivate on request)
+#### P4.5 — Windows-first packaging and packaged-runtime acceptance (ACTIVE)
 
-Decision recorded 2026-10-13: this phase is intentionally skipped for now. Do not build release artifacts, configure code signing/notarization, or add release-publishing automation until the user explicitly asks to reactivate P4.5. Keep the checklist below as the future plan; when reactivated, re-check current tool compatibility, runner availability, and signing/notarization credentials before starting.
+Decision updated 2026-10-22: prioritize a Windows x64 desktop installer. This activates the Windows packaging plan only; macOS Apple Silicon packaging, code signing, notarization, and macOS-specific release automation remain deferred. The current Electron shell is not yet a distributable installer, so these tasks must be completed before claiming a Windows package is available.
 
-- [x] Record electron-builder v26.17.0 as the planning baseline; revalidate the stable channel and compatibility when P4.5 is reactivated.
-- [ ] Build a macOS ARM64 DMG/ZIP.
-- [ ] Add reproducible package scripts and CI validation for desktop type checks/builds; run OS-specific packaging on supported runners when feasible.
-- [ ] Configure Developer ID signing, Apple notarization/stapling and GitHub Releases publishing for macOS ARM64 on the self-hosted Apple Silicon runner; reference credentials only through GitHub Actions secrets.
-- [ ] Set application name, version, product identity, icons and output locations through versioned project configuration.
-- [ ] Test a clean packaged install/launch, API configuration, core browse/detail/play workflow, external-link handling, shutdown and upgrade/reinstall behavior on each target OS.
-- [ ] Document build artifacts, configuration placement, log location, known media limitations and how to report a startup failure.
+- [x] Record Windows x64 as the first packaged target; retain macOS ARM64 as a later, explicitly deferred target.
+- [ ] Re-check the stable `electron-builder` release and compatibility with pinned Electron 44.7.0, then add an exact dependency version rather than a floating `latest`.
+- [ ] Add a reproducible Windows x64 packaging command and configure an NSIS `.exe` installer, application ID/name/version, icons, file inclusion, artifact output and install/uninstall behavior.
+- [ ] Ensure the packaged main process, `@visionhub/config`, YAML/Zod runtime dependencies, preloads and renderer assets are included and load correctly from the installed application.
+- [ ] Copy `configs/desktop.yaml` and `configs/playback-sources.yaml` to `resources/configs/` in the installer. Define how the production `desktop.apiBaseUrl` is supplied or edited; do not publish a distributable installer that silently points to `127.0.0.1:3001` by accident. Keep credentials out of the package.
+- [ ] Add a Windows GitHub Actions packaging job (or equivalent repeatable Windows runner process) and upload the installer as a build artifact. Keep packaging separate from the existing cross-platform typecheck/test/build checks.
+- [ ] Test install, launch, upgrade/reinstall and uninstall on a clean Windows environment; verify valid/invalid API config, remote API reachability, API-unavailable errors, catalog/search/detail/playback, source switching, progress restore, external-player focus behavior, fullscreen, external-link policy and CSP.
+- [ ] Verify that the installer uses only explicitly configured API/provider origins and that the default empty provider list does not imply a ready-to-use source site.
+- [ ] Document the installed config location, log/debug entry points, how to change the API endpoint, supported test media and known limitations.
+- [ ] Decide and configure Windows Authenticode signing before public distribution. For initial internal validation, an unsigned installer may be used if Windows SmartScreen warnings are documented; signing credentials must be stored only in CI secrets.
+- [ ] Keep macOS ARM64 DMG/ZIP, Apple Developer ID signing, notarization/stapling and a self-hosted Mac release runner out of this phase. Re-plan them separately when macOS is reactivated.
 - Keep automatic updates out of scope for the first MVP unless a separate product requirement is approved.
 
-Deliverable: a reproducible desktop release candidate and a short manual acceptance record.
+Deliverable: a reproducible installable Windows x64 package, successful clean-machine manual acceptance, and a documented API configuration path. This does not imply macOS readiness.
 
 #### Explicitly out of scope for P4
 
@@ -386,7 +390,7 @@ Deliverable: a reproducible desktop release candidate and a short manual accepta
 
 #### Phase 4 exit criteria
 
-P4.5 is deferred. Keep release/packaged-install exit criteria unchecked until the phase is explicitly reactivated and the relevant acceptance checks are completed.
+P4.5 is active for Windows x64 packaging. Keep the packaged-install exit criteria unchecked until the installer and clean-machine acceptance tasks above pass; macOS criteria remain deferred.
 
 - [x] Phase 3 browser regression sign-off is recorded in `docs/UI.md` before desktop implementation begins (2026-10-13).
 - [ ] Web and desktop have independent, documented development and production build paths.
@@ -461,7 +465,7 @@ Implementation and safety record:
 - [x] Port control-bar auto-hide/reveal (1.8-second idle timeout), keep open menus visible, and suppress only positively identified fast-forward/rewind controls.
 - [x] Port the Plyr dark menu / lime-green accent / light control-glyph theme and add build syntax checking plus generated-script/UI/security regression tests. Implemented by [PR #56](https://github.com/ninekiss/visionhub/pull/56).
 - [ ] Verify the completed behavior manually against at least one authorized real provider, including strict-CSP styling, settings menus, skip controls, source switching, progress restoration, and native fullscreen. Record the exact provider/origin and observed limitations; automated CI success alone is not source-provider acceptance.
-- [ ] Perform the packaged macOS ARM64 acceptance when P4.5 is explicitly reactivated; Windows Electron checks do not prove packaged macOS/CSP behavior.
+- [ ] Perform packaged macOS ARM64 acceptance in a separate future phase; Windows package acceptance does not prove macOS/CSP behavior.
 
 
 #### P5.4 — Media compatibility acceptance
@@ -548,10 +552,10 @@ Every phase should meet these gates before merge:
 
 ## 10. Immediate next actions
 
-1. **P4.0 decisions are recorded.** macOS ARM64 is the first package target; Electron is pinned to 44.7.0; the endpoint configuration contract and MP4 test candidate/limitations are documented.
+1. **P4.0 decisions are recorded.** Windows x64 is the first package target; Electron is pinned to 44.7.0; the endpoint configuration contract and media limitations are documented.
 2. **P4.3 Windows workflow acceptance passed (2026-10-13).** Catalog/search/detail/playback, API proxy, renderer resources and Plyr controls were verified in the Windows Electron runtime. Packaged macOS acceptance remains outstanding.
 3. **P4.4 Windows interactive acceptance passed (2026-10-13).** macOS-specific menu, lifecycle, and display-restoration checks are deferred until a Mac is available.
-4. **P4.5 is intentionally deferred.** Do not start macOS ARM64 packaging, signing, notarization or GitHub Release automation until the user explicitly reactivates this phase. On reactivation, revalidate the toolchain and runner before following the recorded release plan.
+4. **P4.5 Windows packaging is now the priority.** Complete the Windows x64 installer, packaged configuration/API verification, Windows CI artifact, and clean-machine acceptance. Keep macOS ARM64 packaging/signing/notarization and Mac runner automation deferred.
 5. **P5.4 acceptance is complete (2026-10-14).** Preserve the documented codec/container limitations; do not repeat the accepted playback checklist unless a regression is introduced.
 6. **Phase 6 operational acceptance is complete.** Base Compose runs only Web/API; direct database-address and existing data-network deployment modes have been accepted, as have logical backup/restore, PostgreSQL 18 full/incremental physical backup/restore, and Discord/Telegram alert delivery. Keep the opt-in PostgreSQL overlay and API port overlay explicit; do not start the optional database service by default.
 7. **Backup alert delivery is accepted.** PR #48 adds `examples/cloudflare/visionhub-alert-worker.js` and `docs/CLOUDFLARE-BACKUP-ALERTS.md`; user confirmed end-to-end alert acceptance for default Discord and explicit Telegram delivery.
