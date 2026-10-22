@@ -17,19 +17,19 @@
     ".vjs-control-bar",
     ".bpx-player-control-wrap",
     ".prism-controlbar",
-    "[class*=\\"control-bar\\"]",
-    "[class*=\\"ControlBar\\"]",
-    "[class*=\\"controlBar\\"]",
-    "[class*=\\"controller\\"]",
+    "[class*='control-bar']",
+    "[class*='ControlBar']",
+    "[class*='controlBar']",
+    "[class*='controller']",
   ].join(", ");
   const SEEK_ACTION_SELECTOR = [
-    "button", "[role=\\"button\\"]", "a", "[tabindex]", "[onclick]", "[data-plyr]",
+    "button", "[role='button']", "a", "[tabindex]", "[onclick]", "[data-plyr]",
     "[aria-label]", "[title]", "[data-action]", "[data-title]", "[data-tooltip]",
     ".dplayer-icon-back", ".dplayer-icon-forward", ".jw-icon-rewind", ".jw-icon-forward",
-    "[class*=\\"forward\\"]", "[class*=\\"Forward\\"]", "[class*=\\"rewind\\"]",
-    "[class*=\\"Rewind\\"]", "[class*=\\"backward\\"]", "[class*=\\"Backward\\"]",
+    "[class*='forward']", "[class*='Forward']", "[class*='rewind']",
+    "[class*='Rewind']", "[class*='backward']", "[class*='Backward']",
   ].join(", ");
-  const SEEK_ACTION_PATTERN = /快进|快退|向前跳|向后跳|前进|后退|fast[\\s_-]*forward|rewind|seek[\\s_-]*(?:forward|backward|ahead|back)|skip[\\s_-]*(?:forward|backward|ahead|back)|(?:^|[\\s_-])forward(?:$|[\\s_-])|(?:^|[\\s_-])backward(?:$|[\\s_-])|(?:\\d+\\s*(?:s|sec|secs|second|seconds|秒).{0,12}(?:forward|backward|快进|快退))/i;
+  const SEEK_ACTION_PATTERN = /快进|快退|向前跳|向后跳|前进|后退|fast[\s_-]*forward|rewind|seek[\s_-]*(?:forward|backward|ahead|back)|skip[\s_-]*(?:forward|backward|ahead|back)|(?:^|[\s_-])forward(?:$|[\s_-])|(?:^|[\s_-])backward(?:$|[\s_-])|(?:\d+\s*(?:s|sec|secs|second|seconds|秒).{0,12}(?:forward|backward|快进|快退))/i;
 
   if (window.top === window || window.location.protocol !== "https:") return;
 
