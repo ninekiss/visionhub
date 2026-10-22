@@ -100,6 +100,10 @@ test("external source WebContentsView uses a restricted focus-guard preload", ()
   assert.ok(preloadSource.includes("shouldSuppressPause"));
   assert.ok(preloadSource.includes("manualPauseUntil"));
   assert.ok(preloadSource.includes("RETRY_DELAYS"));
-  assert.doesNotMatch(preloadSource, /ipcRenderer|exposeInMainWorld/);
+  assert.doesNotMatch(preloadSource, /contextBridge\.exposeInMainWorld/);
+  assert.ok(preloadSource.includes('ipcRenderer.on("external-player:initialize"'));
+  assert.ok(preloadSource.includes('ipcRenderer.send("external-player:progress"'));
+  assert.ok(mainSource.includes('event.sender !== session.view.webContents'));
+  assert.ok(mainSource.includes('payload.requestId !== session.requestId'));
   assert.ok(packageSource.scripts.build.includes("node --check src/external-player-preload.cjs"));
 });
