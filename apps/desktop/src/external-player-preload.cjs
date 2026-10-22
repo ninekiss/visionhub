@@ -436,9 +436,21 @@ function tryRestore(video) {
     return;
   }
 
+  if (video.duration > 0 && restoreTarget >= video.duration - 2) {
+    // The saved position is beyond this version of the source; do not loop on an impossible seek.
+    finishRestore(video, false);
+    return;
+  }
+
   const distance = Math.abs(video.currentTime - restoreTarget);
   if (!video.seeking && restoreAttempts === 0 && video.currentTime >= restoreTarget + 3) {
     // The source has already selected a later position. Never seek it backwards.
+    finishRestore(video, false);
+    return;
+  }
+  if (!video.seeking && restoreAttempts > 0 && !video.paused &&
+      video.currentTime > restoreTarget + 3) {
+    // Playback has already advanced beyond the target, so the seek succeeded.
     finishRestore(video, false);
     return;
   }
