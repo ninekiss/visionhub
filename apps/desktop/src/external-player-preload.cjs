@@ -414,17 +414,10 @@ function largestVisibleVideo(videos) {
 }
 
 function primaryVideo() {
-  // Prefer the source-specific readiness/player selector to avoid hidden previews or ads.
-  const preferred = [
-    ...videosMatchingSelector(configuredReadinessSelector),
-    ...videosMatchingSelector(configuredPlayerSelector),
-  ].filter((video, index, all) => video instanceof HTMLVideoElement &&
-    video.isConnected && all.indexOf(video) === index);
-  if (preferred.length > 0) return largestVisibleVideo(preferred) ?? preferred[0];
-
+  // Match the Web extension: select the largest visible media element rather
+  // than falling back to a configured selector that may match a hidden preview.
   const allVideos = Array.from(document.querySelectorAll("video"));
-  return largestVisibleVideo(allVideos) ??
-    allVideos.find((video) => video instanceof HTMLVideoElement && video.isConnected) ?? null;
+  return largestVisibleVideo(allVideos);
 }
 
 function seekVideoInPageWorld(targetTime, readinessSelector, playerSelector) {
