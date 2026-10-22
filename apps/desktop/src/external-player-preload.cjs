@@ -361,6 +361,8 @@ let lastProgressReportAt = 0;
 let sessionInitialized = false;
 let configuredPlayerSelector = "";
 let configuredReadinessSelector = "";
+let frameBridgeToken = "";
+let allowedFrameOrigins = [];
 let restoreSeekConfirmed = false;
 let restoreSeekPending = false;
 let restoreGeneration = 0;
@@ -697,6 +699,20 @@ function resetProgressSession(payload) {
     payload.playerSelector.length <= 300 ? payload.playerSelector : "";
   configuredReadinessSelector = typeof payload.readinessSelector === "string" &&
     payload.readinessSelector.length <= 300 ? payload.readinessSelector : configuredPlayerSelector;
+  frameBridgeToken = typeof payload.progressToken === "string" && payload.progressToken.length <= 200
+    ? payload.progressToken
+    : "";
+  allowedFrameOrigins = Array.isArray(payload.allowedFrameOrigins)
+    ? payload.allowedFrameOrigins.filter((origin) => {
+        if (typeof origin !== "string" || origin.length > 300) return false;
+        try {
+          const parsed = new URL(origin);
+          return parsed.protocol === "https:" && parsed.origin === origin;
+        } catch {
+          return false;
+        }
+      })
+    : [];
 
   const requestedTimeout = typeof payload.restoreTimeoutMs === "number" &&
     Number.isFinite(payload.restoreTimeoutMs) ? payload.restoreTimeoutMs : 60000;
@@ -725,6 +741,35 @@ function resetProgressSession(payload) {
 ipcRenderer.on("external-player:initialize", (_event, payload) => {
   resetProgressSession(payload);
 });
+
+function handleSubframeProgressMessage(event) {
+  const message = event.data;
+  if (!sessionInitialized || !frameBridgeToken || event.source === window ||
+      !message || typeof message !== "object" ||
+      message.channel !== "visionhub-desktop-source-frame-v1" ||
+      message.type !== "progress" ||
+      message.token !== frameBridgeToken ||
+      message.requestId !== externalPlayerRequestId ||
+      !allowedFrameOrigins.includes(event.origin)) return;
+
+  const currentTime = message.currentTime;
+  const duration = message.duration;
+  if (typeof currentTime !== "number" || !Number.isFinite(currentTime) || currentTime < 0 ||
+      typeof duration !== "number" || !Number.isFinite(duration) || duration <= 0 ||
+      duration > 1_000_000_000 || currentTime > duration + 5) return;
+  try {
+    ipcRenderer.send("external-player:progress", {
+      requestId: externalPlayerRequestId,
+      currentTime: Math.max(0, Math.min(currentTime, duration)),
+      duration,
+      force: message.force === true,
+    });
+  } catch {
+    // Cross-frame progress is optional; never interrupt source playback.
+  }
+}
+window.addEventListener("message", handleSubframeProgressMessage, true);
+
 document.addEventListener("pointerdown", interruptRestoreForManualSeek, true);
 document.addEventListener("input", interruptRestoreForManualSeek, true);
 document.addEventListener("keydown", (event) => {
