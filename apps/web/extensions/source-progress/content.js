@@ -24,12 +24,11 @@
   ].join(", ");
   const SEEK_ACTION_SELECTOR = [
     "button", "[role='button']", "a", "[tabindex]", "[onclick]", "[data-plyr]",
-    "[aria-label]", "[title]", "[data-action]", "[data-title]", "[data-tooltip]",
     ".dplayer-icon-back", ".dplayer-icon-forward", ".jw-icon-rewind", ".jw-icon-forward",
-    "[class*='forward']", "[class*='Forward']", "[class*='rewind']",
+    "[class*='fast-forward']", "[class*='fastForward']", "[class*='rewind']",
     "[class*='Rewind']", "[class*='backward']", "[class*='Backward']",
   ].join(", ");
-  const SEEK_ACTION_PATTERN = /快进|快退|向前跳|向后跳|前进|后退|dplayer[-_]icon[-_]back|fast[\s_-]*forward|rewind|seek[\s_-]*(?:forward|backward|ahead|back)|skip[\s_-]*(?:forward|backward|ahead|back)|(?:^|[\s_-])forward(?:$|[\s_-])|(?:^|[\s_-])back\s*\d+\s*(?:s|sec|secs|second|seconds|秒)|(?:^|[\s_-])backward(?:$|[\s_-])|(?:\d+\s*(?:s|sec|secs|second|seconds|秒).{0,12}(?:forward|backward|快进|快退))/i;
+  const SEEK_ACTION_PATTERN = /快进|快退|向前跳|向后跳|forward.{0,8}(?:\\d+\\s*(?:s|sec|seconds|秒)|jump|seek)|(?:\\d+\\s*(?:s|sec|secs|second|seconds|秒).{0,12})(?:rewind|backward|快退)|rewind|fast[\\s_-]*forward|seek[\\s_-]*(?:forward|backward|ahead|back)|skip[\\s_-]*(?:forward|backward|ahead)|dplayer[-_]icon[-_]back|jw-icon-rewind|jw-icon-forward|data-plyr.{0,12}(?:rewind|fastforward)/i;
 
   if (window.top === window || window.location.protocol !== "https:") return;
 
@@ -174,7 +173,25 @@
     }
   }
 
-  function scheduleControlBarsHide(video, root) {
+  function hasOpenPlayerMenu(root) {
+    if (!(root instanceof HTMLElement)) return false;
+    const menus = root.querySelectorAll(
+      ".plyr__menu__container, .plyr__menu, [role='menu'], [role='dialog'], [aria-modal='true']"
+    );
+    return Array.from(menus).some((menu) => {
+      if (!(menu instanceof HTMLElement) || menu.hidden || menu.getAttribute("aria-hidden") === "true") {
+        return false;
+      }
+      const style = getComputedStyle(menu);
+      if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
+        return false;
+      }
+      const rect = menu.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+  }
+
+  function scheduleControlBarsHide(video, root, delay = CONTROL_AUTO_HIDE_DELAY_MS) {
     clearControlHideTimer(video);
     if (!(root instanceof HTMLElement) || video.paused || video.ended) {
       setControlBarsIdle(root, false);
@@ -183,28 +200,32 @@
 
     const timer = window.setTimeout(() => {
       controlHideTimers.delete(video);
-      if (video.isConnected && !video.paused && !video.ended) {
-        setControlBarsIdle(root, true);
+      if (!video.isConnected || video.paused || video.ended) return;
+      if (hasOpenPlayerMenu(root)) {
+        // Settings, quality, captions and speed menus live inside the control bar.
+        // Keep their parent visible for as long as the menu is open.
+        setControlBarsIdle(root, false);
+        scheduleControlBarsHide(video, root, 300);
+        return;
       }
-    }, CONTROL_AUTO_HIDE_DELAY_MS);
+      setControlBarsIdle(root, true);
+    }, delay);
     controlHideTimers.set(video, timer);
   }
 
   function seekControlDescription(element) {
-    const nestedLabel = element.querySelector(
-      "[aria-label], [title], [data-action], [data-plyr], [data-title], [data-tooltip], svg title, img[alt]"
-    );
-    const nestedText = nestedLabel
-      ? [
-          nestedLabel.getAttribute("aria-label"),
-          nestedLabel.getAttribute("title"),
-          nestedLabel.getAttribute("data-action"),
-          nestedLabel.getAttribute("data-plyr"),
-          nestedLabel.getAttribute("data-title"),
-          nestedLabel.getAttribute("data-tooltip"),
-          nestedLabel.getAttribute("alt"),
-          nestedLabel.textContent,
-        ].filter(Boolean).join(" ")
+    const nestedLabels = Array.from(element.querySelectorAll("svg title, img[alt], [data-plyr], [data-action]"))
+      .slice(0, 4)
+      .map((node) => [
+        node.getAttribute("aria-label"),
+        node.getAttribute("title"),
+        node.getAttribute("data-action"),
+        node.getAttribute("data-plyr"),
+        node.getAttribute("alt"),
+        node.textContent,
+      ].filter(Boolean).join(" "));
+    const ownText = element.children.length <= 1 && (element.textContent || "").trim().length <= 48
+      ? (element.textContent || "").trim()
       : "";
     return [
       element.id,
@@ -215,20 +236,27 @@
       element.getAttribute("data-plyr"),
       element.getAttribute("data-title"),
       element.getAttribute("data-tooltip"),
-      element.textContent,
-      nestedText,
+      ownText,
+      ...nestedLabels,
     ].filter(Boolean).join(" ");
   }
 
   function removeSeekShortcutButtons(root) {
     if (!(root instanceof HTMLElement)) return;
     for (const candidate of root.querySelectorAll(SEEK_ACTION_SELECTOR)) {
-      if (candidate.hasAttribute(SUPPRESSED_SEEK_CONTROL)) continue;
+      if (!(candidate instanceof HTMLElement) || candidate.hasAttribute(SUPPRESSED_SEEK_CONTROL)) continue;
       if (!SEEK_ACTION_PATTERN.test(seekControlDescription(candidate))) continue;
 
-      const control = candidate.closest(
-        "button, [role='button'], a, [tabindex], [onclick], [data-plyr]"
-      ) ?? candidate;
+      const control = candidate.matches("button, [role='button'], a, [tabindex], [onclick], [data-plyr]")
+        ? candidate
+        : candidate.closest("button, [role='button'], a, [tabindex], [onclick], [data-plyr]");
+      if (!(control instanceof HTMLElement)) continue;
+
+      // Never hide a settings/menu container or anything that owns one.
+      if (control.matches(".plyr__menu__container, .plyr__menu, [role='menu'], [role='dialog']") ||
+          control.querySelector(".plyr__menu__container, .plyr__menu, [role='menu'], [role='dialog']")) {
+        continue;
+      }
       control.setAttribute(SUPPRESSED_SEEK_CONTROL, "true");
     }
   }
@@ -246,7 +274,7 @@
         setControlBarsIdle(root, false);
         if (!activeVideo.paused && !activeVideo.ended) scheduleControlBarsHide(activeVideo, root);
       };
-      for (const eventName of ["pointermove", "mousemove", "pointerdown", "touchstart", "keydown"]) {
+      for (const eventName of ["pointermove", "mousemove", "pointerdown", "touchstart", "keydown", "focusin"]) {
         root.addEventListener(eventName, reveal, { passive: true });
       }
       if (!video.paused && !video.ended) scheduleControlBarsHide(video, root);
