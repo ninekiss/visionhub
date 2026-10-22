@@ -79,9 +79,9 @@ test("native player remains hidden through loading, resize, and fullscreen until
 
 test("player isolation waits until a native video has current frame data", () => {
   const script = createPlayerIsolationScript(".vp-player", ".vp-player video");
-  assert.ok(script.includes("video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA"));
-  assert.ok(script.includes("video.videoWidth <= 0"));
-  assert.ok(script.includes("video.videoHeight <= 0"));
+  assert.ok(script.includes("actualVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA"));
+  assert.ok(script.includes("actualVideo.videoWidth > 0"));
+  assert.ok(script.includes("actualVideo.videoHeight > 0"));
   assert.ok(script.includes("getBoundingClientRect()"));
   assert.ok(script.includes("window.getComputedStyle(element)"));
   assert.ok(script.includes("style.display === \"none\""));
