@@ -98,7 +98,7 @@ function createSubframePlayerBridgeScript(options) {
   });
   // Each allowlisted child frame gets the same player-only styling and controls
   // behavior as the browser extension before its isolated progress/focus bridge.
-  return uiScript + ";\\n(" + runSubframePlayerBridge.toString() + ")(" + JSON.stringify(config) + ");";
+  return uiScript + ";\n(" + runSubframePlayerBridge.toString() + ")(" + JSON.stringify(config) + ");";
 }
 
 function runSubframePlayerBridge(config) {
