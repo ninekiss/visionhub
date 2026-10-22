@@ -26,6 +26,7 @@ interface Window {
       providerId: string;
       contentId: string;
       requestId: string;
+      initialTime?: number;
       bounds: { x: number; y: number; width: number; height: number; visible?: boolean };
     }) => Promise<boolean>;
     resizeExternalPlayer: (request: {
@@ -35,10 +36,12 @@ interface Window {
     }) => Promise<boolean>;
     closeExternalPlayer: (request: { requestId: string }) => Promise<boolean>;
     onExternalPlayerStatus: (listener: (payload: {
-      status: "loading" | "ready" | "error";
+      status: "loading" | "ready" | "error" | "progress";
       providerId: string;
       requestId: string;
       code?: string;
+      currentTime?: number;
+      duration?: number;
     }) => void) => () => void;
   };
 }
